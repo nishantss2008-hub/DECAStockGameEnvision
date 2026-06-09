@@ -1,0 +1,26 @@
+{
+  "name": "deca-pirate-stock-game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @deca/shared && npm run build -w @deca/server && npm run build -w @deca/web",
+    "build:shared": "npm run build -w @deca/shared",
+    "dev:server": "npm run dev -w @deca/server",
+    "dev:web": "npm run dev -w @deca/web",
+    "seed": "npm run seed -w @deca/server",
+    "test": "npm run test -w @deca/server",
+    "emulators": "firebase emulators:start"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
