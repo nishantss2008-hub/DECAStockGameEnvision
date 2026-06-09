@@ -9,6 +9,7 @@ import rateLimit from '@fastify/rate-limit';
 import { config } from './config';
 import { engine } from './engine/loop';
 import { healthRoutes } from './routes/health';
+import { authRoutes } from './routes/auth';
 import { orderRoutes } from './routes/orders';
 import { adminRoutes } from './routes/admin';
 
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   });
 
   await app.register(healthRoutes);
+  await app.register(authRoutes);
   await app.register(orderRoutes);
   await app.register(adminRoutes);
 

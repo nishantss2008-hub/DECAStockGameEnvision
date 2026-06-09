@@ -94,6 +94,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Credentials: team/admin password hashes. Server-only (custom-token auth).
+    match /_auth/{authId} {
+      allow read, write: if false;
+    }
+
     // Append-only audit log. Readable only via the Admin SDK (admin dashboard).
     match /logs/{logId} {
       allow read, write: if false;

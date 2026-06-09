@@ -16,15 +16,29 @@ import {
 } from 'react';
 import {
   onAuthStateChanged,
-  signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   type User,
 } from 'firebase/auth';
-import { TEAM_EMAIL_DOMAIN, slugifyTeamName, type Role } from '@deca/shared';
+import { slugifyTeamName, type Role } from '@deca/shared';
 import { auth } from '../firebase';
 
-/** Fixed credential identity for the game administrator. */
-export const ADMIN_EMAIL = `admin@${TEAM_EMAIL_DOMAIN}`;
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+
+/** Exchange a name + password for a Firebase custom token from the authority service. */
+async function fetchLoginToken(name: string, password: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, password }),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(err.message ?? 'Login failed');
+  }
+  const data = (await res.json()) as { token: string };
+  return data.token;
+}
 
 /**
  * Team name -> login email local-part. MUST match the server's slug exactly
@@ -32,11 +46,6 @@ export const ADMIN_EMAIL = `admin@${TEAM_EMAIL_DOMAIN}`;
  * from @deca/shared.  "Anne's Revenge" -> "anne-s-revenge"
  */
 export const slugify = slugifyTeamName;
-
-/** Map a team name to its full Firebase Auth email. */
-export function teamEmail(name: string): string {
-  return `${slugify(name)}@${TEAM_EMAIL_DOMAIN}`;
-}
 
 interface AuthContextValue {
   user: User | null;
@@ -84,11 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function login(teamName: string, password: string): Promise<void> {
-    await signInWithEmailAndPassword(auth, teamEmail(teamName), password);
+    await signInWithCustomToken(auth, await fetchLoginToken(teamName, password));
   }
 
   async function loginAdmin(password: string): Promise<void> {
-    await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
+    await signInWithCustomToken(auth, await fetchLoginToken('admin', password));
   }
 
   async function logout(): Promise<void> {

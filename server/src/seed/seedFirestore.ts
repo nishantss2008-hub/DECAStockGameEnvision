@@ -10,10 +10,11 @@
 
 import type { GameState } from '@deca/shared';
 import { CURRENCY, STARTING_CAPITAL, TICK_INTERVAL_MS } from '@deca/shared';
-import { db, adminAuth } from '../firebase';
+import { db } from '../firebase';
 import { config } from '../config';
 import { Prng } from '../lib/prng';
 import { randomToken } from '../lib/secret';
+import { hashPassword } from '../lib/password';
 import { assignArchetypes } from '../engine/archetypes';
 import { ROSTER } from './roster';
 import { generateCompanyData } from './generateFundamentals';
@@ -78,17 +79,8 @@ async function seed(): Promise<void> {
   ops += 1;
   await flush(true);
 
-  // Admin / host account.
-  const email = 'admin@deca-pirates.game';
-  try {
-    const existing = await adminAuth.getUserByEmail(email).catch(() => null);
-    const uid = existing
-      ? (await adminAuth.updateUser(existing.uid, { password: adminPassword })).uid
-      : (await adminAuth.createUser({ email, password: adminPassword, displayName: 'Harbormaster' })).uid;
-    await adminAuth.setCustomUserClaims(uid, { role: 'admin' });
-  } catch (err) {
-    console.error('admin user setup failed (continuing):', err);
-  }
+  // Admin / host credentials → server-only `_auth/_admin` doc (custom-token auth).
+  await db.doc('_auth/_admin').set({ passwordHash: hashPassword(adminPassword), role: 'admin' });
 
   const archCounts = ids.reduce<Record<string, number>>((acc, id) => {
     const a = archetypes[id]!;
@@ -99,7 +91,7 @@ async function seed(): Promise<void> {
   console.log(`✅ Seeded ${ROSTER.length} companies and ${newsSchedule.length} news events.`);
   console.log(`   Archetype spread:`, archCounts);
   console.log('   ────────────────────────────────────────────────');
-  console.log(`   Admin/host login:  ${email}`);
+  console.log(`   Admin/host login:  name "admin"`);
   console.log(`   Admin password:    ${adminPassword}   ${config.adminPassword ? '(from ADMIN_PASSWORD)' : '(generated — save this!)'}`);
   console.log(`   Game seed:         ${seed}   ${config.seed ? '(from GAME_SEED)' : '(generated — stored server-only)'}`);
   console.log('   ────────────────────────────────────────────────');

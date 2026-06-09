@@ -5,26 +5,29 @@ import {
   setConfigSchema,
   slugifyTeamName,
   STARTING_CAPITAL,
-  TEAM_EMAIL_DOMAIN,
   CURRENCY,
 } from '@deca/shared';
 import { requireAdmin } from '../auth/middleware';
-import { adminAuth, db } from '../firebase';
+import { db } from '../firebase';
 import { engine } from '../engine/loop';
 import { auditLog } from '../lib/logger';
+import { hashPassword } from '../lib/password';
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
-  // Create a team: Firebase Auth user + claims + team doc seeded with starting capital.
+  // Create a team: store a hashed password in the server-only `_auth` collection
+  // plus a team doc seeded with starting capital (custom-token auth, no Firebase user).
   app.post('/admin/teams', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = createTeamSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_request', message: parsed.error.issues[0]?.message });
     const { name, password } = parsed.data;
     const slug = slugifyTeamName(name);
-    if (!slug) return reply.code(400).send({ error: 'bad_name', message: 'Invalid team name' });
-    const email = `${slug}@${TEAM_EMAIL_DOMAIN}`;
+    if (!slug || slug === 'admin') return reply.code(400).send({ error: 'bad_name', message: 'Invalid team name' });
+    const authRef = db.doc(`_auth/${slug}`);
+    if ((await authRef.get()).exists) {
+      return reply.code(409).send({ error: 'exists', message: 'A team with that name already exists' });
+    }
     try {
-      const user = await adminAuth.createUser({ email, password, displayName: name });
-      await adminAuth.setCustomUserClaims(user.uid, { role: 'team', teamId: slug });
+      await authRef.set({ passwordHash: hashPassword(password), role: 'team', teamId: slug });
       await db.doc(`teams/${slug}`).set({
         id: slug,
         name,
@@ -33,12 +36,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         rank: 0,
       });
       await auditLog('team.create', 'admin', { teamId: slug, name });
-      return { team: { id: slug, name, email } };
+      return { team: { id: slug, name } };
     } catch (err) {
-      const code = (err as { code?: string }).code;
-      if (code === 'auth/email-already-exists') {
-        return reply.code(409).send({ error: 'exists', message: 'A team with that name already exists' });
-      }
       app.log.error(err);
       return reply.code(500).send({ error: 'internal', message: 'Could not create team' });
     }

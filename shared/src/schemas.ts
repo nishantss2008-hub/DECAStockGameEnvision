@@ -19,6 +19,12 @@ export const createTeamSchema = z.object({
 });
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 
+export const loginSchema = z.object({
+  name: z.string().min(1).max(60),
+  password: z.string().min(1).max(100),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
 export const fireNewsSchema = z.object({
   companyIds: z.array(z.string().min(1)).min(1).max(25),
   impact: z.enum(NEWS_IMPACTS),
