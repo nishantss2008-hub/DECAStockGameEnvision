@@ -1,0 +1,143 @@
+/* =========================================================================
+   Buccaneer Exchange — Design Tokens
+   Pirate palette: weathered parchment, deep sea navy, aged gold, ink.
+   Display serif for headers (Pirata One), readable serif for body
+   (IM Fell English), with robust fallbacks.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English:ital@0;1&family=Cinzel:wght@500;600;700&display=swap');
+
+:root {
+  /* ---- Core palette ---------------------------------------------------- */
+  /* Deep sea navy — primary background, darkest first */
+  --navy-900: #0b1622;
+  --navy-800: #102031;
+  --navy-700: #16293d;
+  --navy-600: #1d344c;
+  --navy-500: #284663;
+
+  /* Aged gold / brass — accents, headings, treasure */
+  --gold-700: #8a6a1f;
+  --gold-600: #b08a2e;
+  --gold-500: #c9a13b;
+  --gold-400: #d9b859;
+  --gold-300: #e8cd80;
+  --gold-200: #f2e0a6;
+
+  /* Weathered parchment — panels & cards */
+  --parchment-500: #d8c39a;
+  --parchment-400: #e4d3ad;
+  --parchment-300: #ecdcbb;
+  --parchment-200: #f3e7cb;
+  --parchment-100: #f8efd9;
+
+  /* Ink — text on parchment */
+  --ink-900: #241a10;
+  --ink-800: #33271a;
+  --ink-700: #4a3a26;
+  --ink-600: #6b5638;
+
+  /* Sea foam / mist — muted text on navy */
+  --mist-400: #8fa6bd;
+  --mist-300: #b3c4d6;
+  --mist-200: #d3dded;
+
+  /* Gains / losses — kept in the palette, still clearly green/red */
+  --gain-500: #3f9b6b;
+  --gain-400: #54bd86;
+  --gain-300: #7fd6a6;
+  --loss-500: #c0473f;
+  --loss-400: #d96a62;
+  --loss-300: #e89089;
+
+  /* Signal accents */
+  --rust-500: #a8552c;     /* warm warning / sell */
+  --teal-500: #2f7d7a;     /* informational / sea */
+  --blood-700: #6e1f1f;    /* danger, destructive */
+
+  /* ---- Semantic roles -------------------------------------------------- */
+  --bg-deep: var(--navy-900);
+  --bg-base: var(--navy-800);
+  --bg-raised: var(--navy-700);
+  --bg-inset: var(--navy-600);
+
+  --panel-bg: var(--parchment-200);
+  --panel-bg-strong: var(--parchment-100);
+  --panel-border: var(--gold-700);
+  --panel-text: var(--ink-800);
+  --panel-text-muted: var(--ink-600);
+
+  --accent: var(--gold-500);
+  --accent-strong: var(--gold-400);
+  --accent-dim: var(--gold-700);
+
+  --text-on-deep: var(--mist-200);
+  --text-on-deep-muted: var(--mist-400);
+  --heading-on-deep: var(--gold-300);
+
+  --gain: var(--gain-400);
+  --gain-strong: var(--gain-500);
+  --loss: var(--loss-400);
+  --loss-strong: var(--loss-500);
+
+  --danger: var(--blood-700);
+  --danger-text: #f3d4cf;
+
+  /* ---- Typography ------------------------------------------------------ */
+  --font-display: 'Pirata One', 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --font-heading: 'Cinzel', 'Pirata One', Georgia, serif;
+  --font-body: 'IM Fell English', 'Iowan Old Style', 'Palatino Linotype',
+    Palatino, Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-md: 1.125rem;
+  --fs-lg: 1.375rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.25rem;
+  --fs-3xl: 3rem;
+  --fs-display: 3.75rem;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+
+  /* ---- Spacing & radii ------------------------------------------------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-8: 3rem;
+  --sp-10: 4rem;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* ---- Borders, shadows, motion --------------------------------------- */
+  --border-ink: 1px solid rgba(36, 26, 16, 0.35);
+  --border-gold: 1px solid var(--gold-700);
+  --border-deep: 1px solid rgba(201, 161, 59, 0.22);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --shadow-gold: 0 0 0 1px rgba(201, 161, 59, 0.4), 0 6px 18px rgba(0, 0, 0, 0.5);
+  --shadow-inset-parchment: inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -18px 40px rgba(138, 106, 31, 0.12);
+
+  --ring-focus: 0 0 0 3px rgba(217, 184, 89, 0.45);
+
+  --ease: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 360ms;
+
+  --maxw-content: 1280px;
+  --nav-height: 64px;
+}

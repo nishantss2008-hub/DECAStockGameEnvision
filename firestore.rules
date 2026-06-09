@@ -1,0 +1,110 @@
+rules_version = '2';
+
+// DECA Pirate Stock Game — Firestore Security Rules
+// ---------------------------------------------------------------------------
+// Security model (spec §9 / plan Task 5.1):
+//   * The authority service is the ONLY writer of real data. It uses the
+//     Firebase Admin SDK, which BYPASSES these rules entirely. Therefore every
+//     rule below denies client writes — there is intentionally no `allow write`.
+//   * Clients (web app) may READ public data and their OWN team-scoped data
+//     only. They can never read another team's private data, the hidden
+//     "future" (`_schedule`), or the audit `logs`.
+//   * Custom claims set by the server bind each signed-in user to a role and a
+//     team:  request.auth.token.role  ('admin' | 'team')
+//          request.auth.token.teamId  (the team this user belongs to)
+// ---------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -- Helpers --------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
+    // True when the signed-in user's claim ties them to the given teamId.
+    function ownsTeam(teamId) {
+      return isSignedIn() && request.auth.token.teamId == teamId;
+    }
+
+    // -- Public (anyone) read ------------------------------------------------
+    // Game clock/phase. Public read; client writes denied (no allow write).
+    match /game/{doc} {
+      allow read: if true;
+    }
+
+    // Companies and their public subcollections.
+    match /companies/{companyId} {
+      allow read: if true;
+
+      // Full research profile (fundamentals/data).
+      match /fundamentals/{fundDoc} {
+        allow read: if true;
+      }
+
+      // Price history — past + present ticks only (the engine never writes the
+      // future here). Public read.
+      match /priceHistory/{tick} {
+        allow read: if true;
+      }
+    }
+
+    // Public news feed (only published after an event fires).
+    match /news/{newsId} {
+      allow read: if true;
+    }
+
+    // Public leaderboard (ranked totals only; no private holdings).
+    match /leaderboard/{entryId} {
+      allow read: if true;
+    }
+
+    // -- Team-scoped read ----------------------------------------------------
+    // A team doc is readable by an admin or by the team it belongs to.
+    match /teams/{teamId} {
+      allow read: if isAdmin() || ownsTeam(teamId);
+
+      // Holdings inherit the same team-scoped read rule.
+      match /holdings/{companyId} {
+        allow read: if isAdmin() || ownsTeam(teamId);
+      }
+    }
+
+    // -- Per-document team-scoped read (server-written) ----------------------
+    // Trades: readable by an admin or by the team that owns the trade.
+    // (isSignedIn() guard ensures request.auth.token is safe to read.)
+    match /trades/{tradeId} {
+      allow read: if isSignedIn() &&
+        (request.auth.token.role == 'admin' ||
+         resource.data.teamId == request.auth.token.teamId);
+    }
+
+    // Orders: same ownership rule as trades.
+    match /orders/{orderId} {
+      allow read: if isSignedIn() &&
+        (request.auth.token.role == 'admin' ||
+         resource.data.teamId == request.auth.token.teamId);
+    }
+
+    // -- Server-only collections (no client access) --------------------------
+    // The hidden "future": archetypes, intrinsic-path params, scheduled news.
+    match /_schedule/{scheduleId} {
+      allow read, write: if false;
+    }
+
+    // Append-only audit log. Readable only via the Admin SDK (admin dashboard).
+    match /logs/{logId} {
+      allow read, write: if false;
+    }
+
+    // -- Default deny --------------------------------------------------------
+    // Any path not matched above (and all client writes everywhere) is denied
+    // by default. Firestore denies unmatched access implicitly; this explicit
+    // rule documents that intent and guards against accidental future paths.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
