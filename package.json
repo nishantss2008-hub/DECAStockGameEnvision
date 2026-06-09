@@ -14,6 +14,7 @@
     "dev:server": "npm run dev -w @deca/server",
     "dev:web": "npm run dev -w @deca/web",
     "seed": "npm run seed -w @deca/server",
+    "reset": "npm run reset -w @deca/server",
     "test": "npm run test -w @deca/server",
     "emulators": "firebase emulators:start",
     "firebase:login": "firebase login",

@@ -39,3 +39,11 @@ Thumbs.db
 # Misc
 coverage/
 .cache/
+
+# Local test artifacts (browser screenshots, playwright)
+.playwright-mcp/
+/login.png
+/logged-in.png
+/admin.png
+/terminal-live.png
+/portfolio-live.png
