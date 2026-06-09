@@ -90,3 +90,17 @@ export type NewsImpact = (typeof NEWS_IMPACTS)[number];
 
 /** Email domain used to map a team name to a Firebase Auth credential. */
 export const TEAM_EMAIL_DOMAIN = 'deca-pirates.game';
+
+/**
+ * Canonical team-name → slug. MUST be identical on the server (which creates the
+ * Auth user + teamId) and the web client (which derives the login email), or
+ * teams with punctuation in their names can never log in. Single source of truth.
+ *   "Anne's Revenge" → "anne-s-revenge"
+ */
+export function slugifyTeamName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}

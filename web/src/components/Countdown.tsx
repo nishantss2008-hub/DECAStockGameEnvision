@@ -129,6 +129,15 @@ export default function Countdown({
     );
   }
 
+  if (phase === 'paused') {
+    return (
+      <span className={classNames('countdown countdown--lobby', className)} title="The voyage is paused">
+        <span className="countdown__dot" aria-hidden="true" />
+        <span className="countdown__text">Paused</span>
+      </span>
+    );
+  }
+
   if (endAt == null) {
     return (
       <span className={classNames('countdown countdown--idle', className)}>

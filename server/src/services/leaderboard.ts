@@ -2,6 +2,11 @@
  * Leaderboard recompute. Marks every team to market using the engine's live
  * prices and writes a public `leaderboard/current` doc (no private holdings) plus
  * each team's totalValue + rank.
+ *
+ * Note: cash + holdings are read non-transactionally, so `totalValue` is
+ * eventually-consistent — a fill landing mid-recompute may be off by one trade for
+ * one tick. It is a derived/display value; authoritative cash/holdings (written
+ * atomically in trading.ts) are never affected, and the next tick self-corrects.
  */
 
 import type { LeaderboardEntry } from '@deca/shared';
@@ -35,10 +40,19 @@ export async function recomputeLeaderboard(engine: GameEngine): Promise<void> {
     e.rank = i + 1;
   });
 
-  const batch = db.batch();
-  batch.set(db.doc('leaderboard/current'), { updatedAt: Date.now(), entries });
+  // Publish the leaderboard doc first, then chunk the per-team updates to stay
+  // under Firestore's 500-write batch limit (scales past ~499 teams).
+  await db.doc('leaderboard/current').set({ updatedAt: Date.now(), entries });
+
+  let batch = db.batch();
+  let ops = 0;
   for (const e of entries) {
     batch.update(db.doc(`teams/${e.teamId}`), { totalValue: e.totalValue, rank: e.rank });
+    if (++ops >= 450) {
+      await batch.commit();
+      batch = db.batch();
+      ops = 0;
+    }
   }
-  await batch.commit();
+  if (ops > 0) await batch.commit();
 }

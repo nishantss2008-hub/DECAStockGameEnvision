@@ -48,7 +48,11 @@ export class GameEngine {
   phase: GameState['phase'] = 'lobby';
   startAt: number | null = null;
   endAt: number | null = null;
+  pausedAt: number | null = null;
   currentTick = 0;
+
+  /** Game seed — loaded from the server-only `_schedule/_meta` doc (never guessable). */
+  private seed: string = config.seed;
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
@@ -61,6 +65,7 @@ export class GameEngine {
       this.phase = state.phase;
       this.startAt = state.startAt;
       this.endAt = state.endAt;
+      this.pausedAt = state.pausedAt ?? null;
       this.currentTick = state.currentTick ?? 0;
     }
 
@@ -70,9 +75,13 @@ export class GameEngine {
       db.doc('_schedule/_news').get(),
     ]);
 
+    // Game seed lives in the server-only `_schedule/_meta` doc (clients can never read it).
+    const metaSeed = (scheduleSnap.docs.find((d) => d.id === '_meta')?.data() as { seed?: string } | undefined)?.seed;
+    this.seed = metaSeed || config.seed;
+
     const scheduleById = new Map<string, { archetype: Archetype; startPriceCents: number }>();
     scheduleSnap.forEach((d) => {
-      if (d.id === '_news') return;
+      if (d.id === '_news' || d.id === '_meta') return;
       const data = d.data() as { archetype: Archetype; startPriceCents: number };
       scheduleById.set(d.id, data);
     });
@@ -81,14 +90,14 @@ export class GameEngine {
       const c = doc.data() as { sharesOutstanding: number; currentPrice: number; prevClose?: number };
       const sched = scheduleById.get(doc.id);
       if (!sched) return;
-      const path = generateIntrinsicPath(config.seed, doc.id, sched.archetype);
+      const path = generateIntrinsicPath(this.seed, doc.id, sched.archetype);
       this.companies.set(doc.id, {
         id: doc.id,
         sharesOutstanding: c.sharesOutstanding,
         startPriceCents: sched.startPriceCents,
         archetype: sched.archetype,
         path,
-        sigma: companySigma(config.seed, doc.id, sched.archetype, ENGINE_PARAMS.sigmaBase),
+        sigma: companySigma(this.seed, doc.id, sched.archetype, ENGINE_PARAMS.sigmaBase),
       });
       this.prices.set(doc.id, c.currentPrice);
       this.dayOpen.set(doc.id, c.prevClose ?? c.currentPrice);
@@ -126,6 +135,7 @@ export class GameEngine {
     this.phase = 'live';
     this.startAt = now;
     this.endAt = computeEndAt(now, TICK_INTERVAL_MS);
+    this.pausedAt = null;
     this.currentTick = 0;
     for (const [id, c] of this.companies) this.dayOpen.set(id, this.prices.get(id) ?? c.startPriceCents);
     await this.persistState();
@@ -135,17 +145,18 @@ export class GameEngine {
   async pauseGame(): Promise<void> {
     if (this.phase !== 'live') return;
     this.phase = 'paused';
-    (this as { pausedAt?: number }).pausedAt = Date.now();
+    this.pausedAt = Date.now();
     await this.persistState();
     await auditLog('game.pause', 'admin', { tick: this.currentTick });
   }
 
   async resumeGame(): Promise<void> {
     if (this.phase !== 'paused') return;
-    const pausedAt = (this as { pausedAt?: number }).pausedAt ?? Date.now();
+    const pausedAt = this.pausedAt ?? Date.now();
     const delta = Date.now() - pausedAt;
     if (this.startAt != null) this.startAt += delta;
     if (this.endAt != null) this.endAt += delta;
+    this.pausedAt = null;
     this.phase = 'live';
     await this.persistState();
     await auditLog('game.resume', 'admin', { tick: this.currentTick, delta });
@@ -176,6 +187,7 @@ export class GameEngine {
       phase: this.phase,
       startAt: this.startAt,
       endAt: this.endAt,
+      pausedAt: this.pausedAt,
       currentTick: this.currentTick,
       tickIntervalMs: TICK_INTERVAL_MS,
       serverTime: Date.now(),
@@ -199,6 +211,7 @@ export class GameEngine {
       }
 
       const firedNews: NewsEvent[] = [];
+      let newsSeq = 0; // guarantees unique news doc ids within this batch
       const writeHistory = target - this.currentTick <= 8; // skip per-tick history during big catch-up
 
       const batch = db.batch();
@@ -215,7 +228,7 @@ export class GameEngine {
           const idx = Math.min(t, c.path.length - 1);
           const intrinsicCents = Math.round(c.startPriceCents * (c.path[idx] ?? 1));
           const flowImpact = this.orderFlow.step(c.id, c.sharesOutstanding);
-          const rng = new Prng(deriveSeed(config.seed, `noise:${c.id}:${t}`));
+          const rng = new Prng(deriveSeed(this.seed, `noise:${c.id}:${t}`));
           const price = stepPrice({
             prevCents: prev,
             intrinsicCents,
@@ -241,7 +254,7 @@ export class GameEngine {
         // Record fired events for posting once (use the tick's timestamp).
         for (const ev of events) {
           firedNews.push({
-            id: `${ev.impact}-${t}-${ev.companyIds[0] ?? 'mkt'}`,
+            id: `${ev.impact}-${t}-${ev.companyIds[0] ?? 'mkt'}-${newsSeq++}`,
             headline: ev.headline,
             body: ev.body,
             companyIds: ev.companyIds,

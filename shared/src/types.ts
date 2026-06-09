@@ -16,6 +16,7 @@ export interface GameState {
   phase: Phase;
   startAt: number | null; // epoch ms when game went live
   endAt: number | null; // epoch ms when game ends
+  pausedAt: number | null; // epoch ms the game was paused (durable, for resume-safety)
   currentTick: number;
   tickIntervalMs: number;
   serverTime: number; // engine heartbeat, epoch ms

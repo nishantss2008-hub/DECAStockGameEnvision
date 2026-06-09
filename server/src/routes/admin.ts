@@ -3,6 +3,7 @@ import {
   createTeamSchema,
   fireNewsSchema,
   setConfigSchema,
+  slugifyTeamName,
   STARTING_CAPITAL,
   TEAM_EMAIL_DOMAIN,
   CURRENCY,
@@ -12,17 +13,13 @@ import { adminAuth, db } from '../firebase';
 import { engine } from '../engine/loop';
 import { auditLog } from '../lib/logger';
 
-function slugify(name: string): string {
-  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // Create a team: Firebase Auth user + claims + team doc seeded with starting capital.
   app.post('/admin/teams', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = createTeamSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: 'bad_request', message: parsed.error.issues[0]?.message });
     const { name, password } = parsed.data;
-    const slug = slugify(name);
+    const slug = slugifyTeamName(name);
     if (!slug) return reply.code(400).send({ error: 'bad_name', message: 'Invalid team name' });
     const email = `${slug}@${TEAM_EMAIL_DOMAIN}`;
     try {

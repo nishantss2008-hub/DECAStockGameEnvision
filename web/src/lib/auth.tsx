@@ -20,27 +20,18 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { TEAM_EMAIL_DOMAIN, type Role } from '@deca/shared';
+import { TEAM_EMAIL_DOMAIN, slugifyTeamName, type Role } from '@deca/shared';
 import { auth } from '../firebase';
 
 /** Fixed credential identity for the game administrator. */
 export const ADMIN_EMAIL = `admin@${TEAM_EMAIL_DOMAIN}`;
 
 /**
- * Convert a team name into the local-part of its login email:
- * lowercase, collapse whitespace to single dashes, strip anything that is not
- * alphanumeric or a dash, and trim leading/trailing dashes.
- *   "Salty Dogs & Co." -> "salty-dogs-co"
+ * Team name -> login email local-part. MUST match the server's slug exactly
+ * (it creates the auth user + teamId), so we use the single canonical helper
+ * from @deca/shared.  "Anne's Revenge" -> "anne-s-revenge"
  */
-export function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+export const slugify = slugifyTeamName;
 
 /** Map a team name to its full Firebase Auth email. */
 export function teamEmail(name: string): string {
