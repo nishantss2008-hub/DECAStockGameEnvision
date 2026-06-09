@@ -67,10 +67,10 @@ async function handle<T>(res: Response): Promise<T> {
 
 /** POST `body` as JSON to `path` and return the parsed JSON response. */
 export async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(await authHeaders()),
-  };
+  const headers: Record<string, string> = { ...(await authHeaders()) };
+  // Only declare a JSON content-type when we actually send a body — otherwise the
+  // server's JSON parser rejects the empty body (e.g. game start/pause/resume/end).
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(url(path), {
     method: 'POST',
     headers,

@@ -16,6 +16,21 @@ import { adminRoutes } from './routes/admin';
 async function main(): Promise<void> {
   const app = Fastify({ logger: true });
 
+  // Tolerate empty JSON bodies so bodyless POSTs (game start/pause/resume/end)
+  // don't trip Fastify's "Body cannot be empty" error.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    if (!body) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (err) {
+      (err as { statusCode?: number }).statusCode = 400;
+      done(err as Error, undefined);
+    }
+  });
+
   await app.register(cors, { origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') });
   await app.register(rateLimit, {
     max: 240,
