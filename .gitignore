@@ -7,6 +7,11 @@ node_modules/
 .env
 .env.*
 !.env.example
+# Firebase service-account keys — NEVER commit these
+service-account.json
+**/service-account*.json
+*-firebase-adminsdk-*.json
+.firebase/
 
 # Build output
 dist/

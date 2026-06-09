@@ -15,9 +15,14 @@
     "dev:web": "npm run dev -w @deca/web",
     "seed": "npm run seed -w @deca/server",
     "test": "npm run test -w @deca/server",
-    "emulators": "firebase emulators:start"
+    "emulators": "firebase emulators:start",
+    "firebase:login": "firebase login",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
+    "deploy:hosting": "npm run build -w @deca/web && firebase deploy --only hosting",
+    "deploy": "npm run build:shared && npm run deploy:rules && npm run deploy:hosting"
   },
   "devDependencies": {
+    "firebase-tools": "^15.19.1",
     "typescript": "^5.5.4"
   },
   "engines": {
