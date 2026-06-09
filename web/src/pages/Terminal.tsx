@@ -149,15 +149,21 @@ const CSS = `
 .terminal__phase-banner { margin-bottom: 0; }
 .terminal__empty { display: grid; place-items: center; min-height: 18rem; text-align: center; }
 .terminal__right { position: sticky; top: calc(var(--nav-height) + var(--sp-3)); }
+.terminal__mobile-select { display: none; }
+.terminal__mobile-select .select { font-family: var(--font-heading); font-weight: 600; }
 
 @media (max-width: 1100px) {
   .terminal__body { grid-template-columns: 17rem minmax(0, 1fr); }
   .terminal__right { grid-column: 1 / -1; position: static; max-width: 25rem; }
 }
 @media (max-width: 760px) {
-  .terminal__body { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); }
-  .terminal__list-panel { position: static; max-height: 22rem; }
+  .terminal__body { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); gap: var(--sp-4); }
+  /* Swap the full company list for a compact dropdown on phones. */
+  .terminal__rail { display: none; }
+  .terminal__mobile-select { display: block; }
   .terminal__right { max-width: none; }
+  .terminal__price { font-size: var(--fs-xl); }
+  .terminal__crest-emoji { font-size: 2.2rem; }
 }
 `;
 
@@ -316,6 +322,22 @@ export default function Terminal() {
 
         {/* Center — quote header + chart */}
         <main className="terminal__main">
+          {/* Mobile-only company picker (the left list is hidden on phones). */}
+          <div className="terminal__mobile-select field">
+            <select
+              className="select"
+              value={selectedId ?? ''}
+              onChange={(e) => setSelectedId(e.target.value)}
+              aria-label="Select a trading house"
+            >
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.ticker} — {c.name} · {formatPrice(c.currentPrice)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {game && game.phase !== 'live' && (
             <div className="alert alert--info terminal__phase-banner" role="status">
               {PHASE_LABEL[game.phase] ?? 'The market is closed.'}
