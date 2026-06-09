@@ -6,7 +6,7 @@
 
 import type { ArchetypeName, NewsImpact, Sector } from './constants.js';
 
-export type Phase = 'lobby' | 'live' | 'ended';
+export type Phase = 'lobby' | 'live' | 'paused' | 'ended';
 export type OrderSide = 'buy' | 'sell';
 export type Role = 'team' | 'admin';
 export type Archetype = ArchetypeName;

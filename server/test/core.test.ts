@@ -86,20 +86,28 @@ describe('intrinsic paths', () => {
 });
 
 describe('order flow', () => {
-  it('buys push impact positive, then it decays', () => {
+  it('buys push impact positive (normalized by reference volume), then it decays', () => {
     const book = new OrderFlowBook();
     book.record('co', 'buy', 100_000);
-    const i1 = book.step('co');
+    const i1 = book.step('co', 10_000_000); // 1% of reference volume
     expect(i1).toBeGreaterThan(0);
-    const i2 = book.step('co'); // no new flow → decays toward 0
+    const i2 = book.step('co', 10_000_000); // no new flow → decays toward 0
     expect(i2).toBeLessThan(i1);
     expect(i2).toBeGreaterThan(0);
+  });
+
+  it('larger reference volume dampens the impact', () => {
+    const small = new OrderFlowBook();
+    small.record('co', 'buy', 100_000);
+    const big = new OrderFlowBook();
+    big.record('co', 'buy', 100_000);
+    expect(small.step('co', 1_000_000)).toBeGreaterThan(big.step('co', 100_000_000));
   });
 
   it('sells push impact negative and report volume', () => {
     const book = new OrderFlowBook();
     book.record('co', 'sell', 50_000);
-    expect(book.step('co')).toBeLessThan(0);
+    expect(book.step('co', 10_000_000)).toBeLessThan(0);
     expect(book.drainVolume('co')).toBe(50_000);
     expect(book.drainVolume('co')).toBe(0);
   });

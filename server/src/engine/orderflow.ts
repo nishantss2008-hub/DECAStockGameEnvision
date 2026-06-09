@@ -26,13 +26,20 @@ export class OrderFlowBook {
   }
 
   /**
-   * Advance one tick for a company: fold pending net flow into the impact,
-   * decay the accumulated impact, reset pending. Returns the new impact fraction.
+   * Advance one tick for a company: fold pending net flow into the impact, decay
+   * the accumulated impact, reset pending. Returns the new impact fraction.
+   *
+   * The flow is NORMALIZED by `referenceVolume` (the engine passes the company's
+   * sharesOutstanding) so a given % of shares traded has a comparable price impact
+   * regardless of company size — Kyle's-lambda style. With referenceVolume = 1 it
+   * reduces to raw `lambda * flow`.
    */
-  step(companyId: string): number {
+  step(companyId: string, referenceVolume = 1): number {
     const prev = this.impact.get(companyId) ?? 0;
     const flow = this.pending.get(companyId) ?? 0;
-    const next = prev * ENGINE_PARAMS.impactDecay + ENGINE_PARAMS.lambda * flow;
+    const ref = referenceVolume > 0 ? referenceVolume : 1;
+    const increment = ENGINE_PARAMS.lambda * (flow / ref);
+    const next = prev * ENGINE_PARAMS.impactDecay + increment;
     this.impact.set(companyId, next);
     this.pending.set(companyId, 0);
     return next;

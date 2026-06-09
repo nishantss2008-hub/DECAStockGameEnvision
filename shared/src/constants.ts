@@ -53,16 +53,26 @@ export type ArchetypeName = (typeof ARCHETYPES)[number];
  * unless noted.
  */
 export const ENGINE_PARAMS = {
-  /** Mean-reversion speed of realized price toward hidden intrinsic value. */
-  kappa: 0.03,
-  /** Base per-tick volatility (fraction of price), scaled per-company. */
-  sigmaBase: 0.004,
-  /** Price impact per unit of net order flow (see orderflow normalization). */
-  lambda: 0.00002,
-  /** Fraction of temporary order-flow impact retained each subsequent tick. */
-  impactDecay: 0.7,
-  /** Hard clamp on the absolute fractional price move in a single tick. */
-  maxTickMove: 0.08,
+  /**
+   * Mean-reversion (OU) speed of realized price toward hidden intrinsic value,
+   * PER TICK. ~0.001 => a ~5.8h reversion half-life over the 30s-tick game.
+   * Research-grounded but game-tuned: pure-realism (~0.0001, 48h half-life)
+   * makes research barely pay off inside one session. See docs/research-findings.md.
+   */
+  kappa: 0.001,
+  /** Base per-tick volatility (fraction of price), scaled per-company by archetype. */
+  sigmaBase: 0.0011,
+  /**
+   * Normalized order-flow impact coefficient (Kyle's lambda intuition). The impact
+   * INCREMENT each tick is `lambda * (netShares / referenceVolume)`, where the engine
+   * passes referenceVolume = sharesOutstanding. Keeps impact scale-free across
+   * companies of very different size.
+   */
+  lambda: 3.0,
+  /** Per-tick decay of the temporary order-flow impact (~6.6-tick half-life). */
+  impactDecay: 0.9,
+  /** Hard clamp on the continuous per-tick fractional move (news jumps may exceed). */
+  maxTickMove: 0.06,
 } as const;
 
 /** News impact categories. */

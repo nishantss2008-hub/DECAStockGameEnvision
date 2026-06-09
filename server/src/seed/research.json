@@ -1,0 +1,42 @@
+{
+  "_note": "Grounding parameters for fabricated company fundamentals. Sourced by the stock-research-grounding web-research workflow (see docs/research-findings.md), mapped onto pirate sectors. Money fields are fractions/ratios, not cents. Consumed by generateFundamentals.ts.",
+  "reportSections": [
+    "Summary & Recommendation",
+    "Company Overview",
+    "Investment Thesis",
+    "Business Model",
+    "Management & Governance",
+    "Industry & Competitive Analysis",
+    "Financial Summary",
+    "Valuation",
+    "Risk Factors",
+    "Catalysts"
+  ],
+  "analystRatings": ["Strong Buy", "Buy", "Hold", "Sell", "Strong Sell"],
+  "metricRanges": {
+    "grossMargin": { "min": 0.18, "max": 0.9, "typical": 0.38 },
+    "operatingMargin": { "min": 0.02, "max": 0.4, "typical": 0.12 },
+    "ebitdaMargin": { "min": 0.03, "max": 0.4, "typical": 0.2 },
+    "fcfMargin": { "min": -0.05, "max": 0.25, "typical": 0.1 },
+    "pbRatio": { "min": 0.6, "max": 10, "typical": 2.5, "formula": "marketCap / bookValueEquity" },
+    "evToEbitda": { "min": 5, "max": 27, "typical": 11, "formula": "(marketCap + totalDebt - cash) / EBITDA" },
+    "roe": { "min": 0.03, "max": 0.4, "typical": 0.16, "formula": "netIncome / equity" },
+    "roa": { "min": 0.01, "max": 0.2, "typical": 0.07, "formula": "netIncome / totalAssets" },
+    "debtToEquity": { "min": 0.1, "max": 2.5, "typical": 0.8, "formula": "totalDebt / equity" },
+    "currentRatio": { "min": 0.5, "max": 3, "typical": 1.7, "formula": "currentAssets / currentLiabilities" },
+    "payoutRatio": { "min": 0, "max": 1, "typical": 0.45, "formula": "dividends / netIncome" },
+    "priceTargetUpside": { "min": -0.3, "max": 0.6, "typical": 0.12, "formula": "(priceTarget - price)/price; drives the rating" }
+  },
+  "sectorProfiles": [
+    { "sector": "Shipping & Salvage", "peLow": 24, "peHigh": 29, "psLow": 1.3, "psHigh": 3.1, "netMarginLow": 0.07, "netMarginHigh": 0.11, "revGrowthLow": 0.05, "revGrowthHigh": 0.09, "divYield": 0.012, "evEbitda": 18, "analog": "Industrials/Shipping: cyclical, capital-heavy" },
+    { "sector": "Rum & Provisions", "peLow": 17, "peHigh": 22, "psLow": 1.75, "psHigh": 3.6, "netMarginLow": 0.028, "netMarginHigh": 0.134, "revGrowthLow": 0.03, "revGrowthHigh": 0.05, "divYield": 0.033, "evEbitda": 14, "analog": "Consumer Staples/Beverages: defensive, steady" },
+    { "sector": "Naval Arms", "peLow": 18, "peHigh": 46, "psLow": 2.8, "psHigh": 3.6, "netMarginLow": 0.05, "netMarginHigh": 0.11, "revGrowthLow": 0.08, "revGrowthHigh": 0.13, "divYield": 0.008, "evEbitda": 17, "analog": "Defense/Aerospace: backlog-driven, high multiple" },
+    { "sector": "Cartography & Navigation", "peLow": 22, "peHigh": 40, "psLow": 4, "psHigh": 12, "netMarginLow": 0.1, "netMarginHigh": 0.25, "revGrowthLow": 0.08, "revGrowthHigh": 0.2, "divYield": 0.004, "evEbitda": 27, "analog": "Info-Tech/software: high margin, high multiple" },
+    { "sector": "Treasure Banking", "peLow": 11, "peHigh": 13, "psLow": 3.7, "psHigh": 4.1, "netMarginLow": 0.27, "netMarginHigh": 0.29, "revGrowthLow": 0, "revGrowthHigh": 0.03, "divYield": 0.024, "evEbitda": 9, "pbLow": 1.0, "pbHigh": 1.5, "analog": "Banks/Financials: cheap P/E, high net margin" },
+    { "sector": "Cursed Relics", "peLow": 29, "peHigh": 47, "psLow": 2, "psHigh": 3.3, "netMarginLow": 0.056, "netMarginHigh": 0.104, "revGrowthLow": 0.06, "revGrowthHigh": 0.13, "divYield": 0.004, "evEbitda": 20, "analog": "Discretionary/speculative: priciest, volatile" },
+    { "sector": "Tortuga Hospitality", "peLow": 29, "peHigh": 47, "psLow": 2, "psHigh": 3.3, "netMarginLow": 0.056, "netMarginHigh": 0.104, "revGrowthLow": 0.06, "revGrowthHigh": 0.13, "divYield": 0.005, "evEbitda": 20, "analog": "Discretionary/Hospitality/Gaming: cyclical" },
+    { "sector": "Parrot & Livestock", "peLow": 18, "peHigh": 30, "psLow": 1.7, "psHigh": 3.8, "netMarginLow": 0.074, "netMarginHigh": 0.105, "revGrowthLow": 0.02, "revGrowthHigh": 0.04, "divYield": 0.012, "evEbitda": 12, "analog": "Materials/commodities: low growth, cyclical" },
+    { "sector": "Maps & Instruments", "peLow": 18, "peHigh": 30, "psLow": 1.7, "psHigh": 3.8, "netMarginLow": 0.074, "netMarginHigh": 0.105, "revGrowthLow": 0.02, "revGrowthHigh": 0.05, "divYield": 0.013, "evEbitda": 13, "analog": "Materials/precision-goods: modest margins" },
+    { "sector": "Letters of Marque (Insurance)", "peLow": 9, "peHigh": 22, "psLow": 0.95, "psHigh": 3.5, "netMarginLow": 0.078, "netMarginHigh": 0.124, "revGrowthLow": 0, "revGrowthHigh": 0.03, "divYield": 0.02, "evEbitda": 10, "analog": "Insurance: low P/E, float-driven" }
+  ]
+}
