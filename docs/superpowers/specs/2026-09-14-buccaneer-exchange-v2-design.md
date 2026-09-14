@@ -328,6 +328,32 @@ research grades:
 - Copy follows BRIEF §5. Numbers use tabular figures and a true minus sign. Every signed value
   carries sign + arrow + colour.
 
+## 10b. Beginner-first comprehension (Explain + compare)
+
+Requirement: people unfamiliar with stocks must be able to analyze companies from basic
+fundamentals. The user chose **Explain + compare** over a verdict checklist: the game explains
+every number and shows the sector average, but it never grades a company, and the quality score
+stays hidden until the end. Full rules are in `docs/design/BRIEF.md` §9.
+
+- **`web/src/lib/glossary.ts`:** one entry per term,
+  `{ id, label, term, whatItIs, whyItMatters, usuallyGoodWhen, related[] }`. It covers every
+  metric shown in the UI plus trading and game concepts (≈45 terms). It is the single source for
+  InfoTips and the Learn glossary.
+- **`web/src/lib/compare.ts`:** a pure `sectorAverages(fundamentalsById, companiesById)` returns
+  median values per sector plus a market median (a sector with fewer than 3 companies falls back
+  to the market). `explainMetric(id, value, avg, currency)` returns
+  `{ valueText, sentence, averageText }` in everyday numbers.
+- **UI primitives:** `InfoTip` (a "?" button that works on hover, focus and tap, labeled by the
+  term) and `ExplainRow` (label + InfoTip, value, sentence, sector average).
+- **Pages:**
+  - `/learn` holds the game guide, "Read a company in 5 questions", trading basics and a
+    searchable glossary.
+  - Onboarding walkthrough card: first login, dismissible, reopened from the crew menu.
+  - The research screener defaults to a "Basics" view.
+  - The ticket explains fee, price impact, market order and position limit.
+  - Dispatches get a "What this means" line from a per-news-type explanation map.
+  - The Results reveal explains in plain words what drove each company's score (pillar phrases).
+
 ## 11. Local run & ops
 
 - **`npm run dev:local`:** Firestore + Auth emulators (JAVA_HOME from `JAVA_HOME` env), seed,

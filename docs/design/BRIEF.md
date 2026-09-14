@@ -168,3 +168,47 @@ Render check (must pass before finishing):
 ```
 Then Read the PNG and fix: wrapping headers/chips, overflowing tables, clipped content,
 overlaps, anything unreadable.
+
+## 9. Beginner-first comprehension (user requirement, 2026-09-14)
+
+Most players have never traded. Every screen must let a newcomer analyze a company from
+basic fundamentals **without outside help**. Chosen approach: **Explain + compare**. The game
+explains and gives context; it never issues a verdict or reveals the hidden quality score.
+
+1. **Plain label first, finance term second.** "Profit margin (net margin)", "Company size
+   (market cap)", "Price vs. profit (P/E)", "Debt vs. owner equity (debt-to-equity)",
+   "Short-term bill coverage (current ratio)", "Cash left after investing (free cash flow)",
+   "Sales (revenue)", "Profit (net income)", "Swings vs. the market (beta)".
+2. **Every metric has an InfoTip** (a "?" button; it opens on hover, focus or tap) with three
+   lines: *What it is* (one sentence), *Why it matters* (one sentence), *Usually a good sign
+   when…* (one hedged sentence ending with a caution, e.g. "…but a very low P/E can mean
+   investors expect trouble").
+3. **Explain + compare rows** in research and key stats. Each row shows the value, a sentence
+   in everyday numbers ("You pay Ð17.80 for every Ð1 of yearly profit") and the **sector
+   average** beside it ("Sector average: Ð22.10"). Use the market average when the sector has
+   fewer than 3 companies. There are no good/bad badges and no color judgments on these rows;
+   gain/loss color stays reserved for price changes.
+4. **Learn guide** (`/learn`, nav item "Learn"):
+   - how the game works (starting cash, ticks, sessions, news, fees, position limit, and that
+     healthier companies tend to do better over time but luck and news matter)
+   - "Read a company in 5 questions" (Is it making money? Is it growing? Can it handle its debts?
+     Is the price reasonable for its profits? What is the news saying?), each pointing to the
+     exact metrics and where they are on screen
+   - trading basics (market order, fee, price impact, average cost, gains, diversification)
+   - a searchable glossary using the same text as the InfoTips
+5. **First-login walkthrough:** a 3-step dismissible card (Research a company → Place a
+   practice-sized order → Track it on Summary) with a link to Learn. The walkthrough can be
+   reopened from the crew menu.
+6. **Default views are "Basics":** the research screener's default view shows Price, Session
+   change, Company size, Sales growth, Profit margin, Price vs. profit, Debt vs. equity. Advanced
+   views (Valuation, Financial health, Analysts) are one click away.
+7. **Numbers in words where it helps:** compact "Ð8.1B in sales" alongside tables, and
+   percent-of-account phrasing in the ticket ("This order would be 27% of your account").
+8. **Order ticket explains itself:** one-line explanations for Fee ("0.10% charged on every
+   trade"), Price impact ("Big orders nudge the price against you"), Market order ("Buys now at
+   about the current price") and Position limit.
+9. **News explains itself:** each dispatch has a "What this means" line in plain words
+   ("Earnings beat forecasts: the company made more profit than expected") and shows how the
+   price moved since the report. It never says whether to buy.
+10. **Reading level:** short sentences, grade 8–9 vocabulary, no unexplained acronyms. The first
+    use of any acronym on a screen has an InfoTip.
