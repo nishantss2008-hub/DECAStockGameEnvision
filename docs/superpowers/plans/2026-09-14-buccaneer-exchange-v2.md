@@ -392,6 +392,31 @@ describe('estimate', () => {
 
 ---
 
+### Task 1b: Contract amendments from the quant review (orchestrator, applied after Task 1)
+
+**Files:** `shared/src/types.ts`, `shared/src/constants.ts`, `shared/src/schemas.ts`, `shared/src/estimate.ts`, `shared/src/quality.ts`; test `server/test/estimate.test.ts`, `server/test/quality.test.ts`.
+
+1. **Quality score (spec §3 revised):**
+   - PROF uses ROA instead of ROE.
+   - SAFE drops Altman-lite (3 items).
+   - VAL drops P/S; `pe` is WORST when `netIncome ≤ 0` and `evToEbitda` is WORST when `operatingIncome ≤ 0`.
+   - `QualityInput` keeps its fields (superset) so callers don't change.
+2. **Position limit:**
+   - `constants.ts`: `POSITION_LIMIT_OPTIONS = [1, 0.5, 0.35, 0.25] as const`, `DEFAULT_MAX_POSITION_PCT = 0.5`.
+   - `GameSettings.maxPositionPct: number`.
+   - `settingsSchema.maxPositionPct: z.number().refine(v => POSITION_LIMIT_OPTIONS.includes(v)).optional()`.
+   - `EstimateInput.maxPositionPct?: number` (default 1).
+   - `EstimateError` adds `'position_limit'`.
+   - `estimateOrder` flags a buy where `sharesAfter·lastPrice > maxPositionPct·(totalValue − fee)`, unless `maxPositionPct ≥ 1`.
+   - `OrderEstimate.maxBuyShares` respects both cash and the limit.
+   - New export `maxSharesUnderLimit(i: EstimateInput): number`.
+   - Server `TradeError` code adds `'position_limit'` (Task 5 `computeFill` receives `maxPositionPct` and `totalValue`).
+3. **Tests added:**
+   - `estimateOrder({...base, side:'buy', quantity: 1000, maxPositionPct: 0.25})` → `position_limit`.
+   - The same with `maxPositionPct: 1` → valid when cash allows.
+   - `maxBuyShares` ≤ the limit shares.
+   - Quality: a loss-maker (netIncome −10, peRatio 0) has a VAL pillar below every profitable company.
+
 ### Task 2: Engine model, news schedule, state, flow (pure)
 
 **Files:**
@@ -818,8 +843,8 @@ describe('loop helpers', () => {
 - Produces:
 ```ts
 // services/trading.ts
-export class TradeError extends Error { constructor(public code: 'market_closed'|'trading_disabled'|'unknown_company'|'bad_quantity'|'price_moved'|'insufficient_funds'|'insufficient_shares'|'no_team', message: string) }
-export interface FillInput { side: OrderSide; quantity: number; lastPrice: number; beta: number; sharesOutstanding: number; feeBps: number; cash: number; sharesOwned: number; avgCost: number }
+export class TradeError extends Error { constructor(public code: 'market_closed'|'trading_disabled'|'unknown_company'|'bad_quantity'|'price_moved'|'insufficient_funds'|'insufficient_shares'|'position_limit'|'no_team', message: string) }
+export interface FillInput { side: OrderSide; quantity: number; lastPrice: number; beta: number; sharesOutstanding: number; feeBps: number; cash: number; sharesOwned: number; avgCost: number; totalValue: number; maxPositionPct: number }
 export interface FillOutcome { price: number; impactBps: number; notional: number; fee: number; cashAfter: number; sharesAfter: number; avgCostAfter: number; realizedPnl: number }
 export function computeFill(i: FillInput): FillOutcome;  // throws TradeError on insufficient funds/shares/bad quantity
 export function checkPriceProtection(lastPrice: number, quotedPrice: number | undefined): void; // throws price_moved if > MODEL.priceProtection
@@ -847,7 +872,7 @@ export class CrewError extends Error { constructor(public code: 'exists'|'bad_na
 ```ts
 import { describe, it, expect } from 'vitest';
 import { computeFill, checkPriceProtection, TradeError } from '../src/services/trading';
-const b = { lastPrice: 10_000, beta: 1, sharesOutstanding: 100_000_000, feeBps: 10, cash: 1_000_000, sharesOwned: 0, avgCost: 0 };
+const b = { lastPrice: 10_000, beta: 1, sharesOutstanding: 100_000_000, feeBps: 10, cash: 1_000_000, sharesOwned: 0, avgCost: 0, totalValue: 1_000_000, maxPositionPct: 1 };
 describe('computeFill', () => {
   it('buy pays slippage + fee and updates avg cost', () => {
     const f = computeFill({ ...b, side: 'buy', quantity: 50 });
@@ -864,6 +889,10 @@ describe('computeFill', () => {
     expect(() => computeFill({ ...b, side: 'buy', quantity: 101 })).toThrow(TradeError);
     expect(() => computeFill({ ...b, side: 'sell', quantity: 1 })).toThrow(/shares/);
     expect(() => computeFill({ ...b, side: 'buy', quantity: 1.5 })).toThrow(TradeError);
+  });
+  it('enforces the host position limit on buys', () => {
+    expect(() => computeFill({ ...b, side: 'buy', quantity: 30, maxPositionPct: 0.25 })).toThrow(/limit/);
+    expect(() => computeFill({ ...b, side: 'buy', quantity: 20, maxPositionPct: 0.25 })).not.toThrow();
   });
   it('price protection allows ≤2% moves and rejects larger', () => {
     expect(() => checkPriceProtection(10_200, 10_000)).not.toThrow();
@@ -1174,6 +1203,7 @@ export function isStale(s: TicketState, lastPrice: number): boolean; // |last �
   - Stages per the reducer. Estimates are from `estimateOrder`.
   - Quick chips: buy 10/50/100/Max, sell 25%/50%/All. Amount mode shows "≈ N shares · Ð x stays as cash".
   - Disabled with the reason when the phase is not live or `team.tradingDisabled`.
+  - Position limit: when `estimateOrder` returns `position_limit`, show "This would put more than {pct}% of your account in {TICKER}. You can buy up to N more shares." with a "Use N" fix.
   - Preview shows the recap sentence, Now → After rows and an "Estimated" note. Place posts `{companyId, side, quantity, clientOrderId, quotedPrice}`.
   - `409 price_moved` returns to preview with the updated estimate and message "Price has moved since preview. Review the updated estimate."
   - Filled shows the brass WaxSeal, "Order filled: Bought N TICKER at Ð… (Ð…). Fair winds." and a Toast.
@@ -1284,7 +1314,7 @@ export function magnitudeLabel(m: number): string;                 // 0.08 → '
 ```
 - **Control** (`HostConsole.dc.html` top):
   - GameControlCard: phase pill, countdown, tick progress, heartbeat from `/health` polled every 5s, Start/Pause/Resume/End each behind `Modal` confirmations restating consequences.
-  - SettingsCard: lobby-editable (length select from `GAME_LENGTH_OPTIONS_MS` with derived ticks, starting chest, fee bps, research edge low/normal/high with a one-line explanation, currency); locked with lock icons when not lobby; POST `/admin/settings`.
+  - SettingsCard: lobby-editable (length select from `GAME_LENGTH_OPTIONS_MS` with derived ticks, starting chest, fee bps, research edge low/normal/high with a one-line explanation, position limit Off/50%/35%/25% with the explanation "Caps any one company's share of a crew's account, so diversified research decides the standings", currency); locked with lock icons when not lobby; POST `/admin/settings`.
   - DangerZone: "Start a new game" (TypedConfirm word `NEW GAME`, checkbox "Keep crews and passwords" default on) → POST `/admin/game/new`; plain copy.
 - **Crews:** CrewsTable from `useAdminTeams` (value, cash, return %, trades, rank, trading enabled) with actions View portfolio (Modal listing holdings via Firestore admin read), Reset password (Modal form), Disable/Enable trading, Remove (TypedConfirm `REMOVE`), plus the Add crew form.
 - **Market:** Panel `classified` "Host only · hidden from crews" with MarketTable from `useAdminPoll('/admin/market', 5000)`: ticker, last, session %, volume, net flow, quality, grade, fair value, price vs fair value %.

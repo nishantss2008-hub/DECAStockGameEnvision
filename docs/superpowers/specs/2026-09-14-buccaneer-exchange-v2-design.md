@@ -55,6 +55,7 @@ The Black Pearl design is one fixed theme; the colour-blind "Spyglass" palette i
 | Order fills | Immediate, at `lastPrice × exp(±I/2)` (half-impact slippage) + fee |
 | Game length | Host-configurable in lobby: 1h, 2h, 4h, 8h, 12h, 24h, 48h (default 48h) |
 | Predictability knob | Host setting `researchEdge`: low / normal / high → quality spread QS 0.20 / 0.30 / 0.40 |
+| Position limit | Host setting `maxPositionPct` ∈ {1.0 (off), 0.5, 0.35, 0.25}, default 0.5. A buy may not push one company above that share of total account value. This keeps winner-take-all standings from rewarding all-in lottery bets over diversified research. |
 
 ---
 
@@ -67,16 +68,21 @@ The same function serves seeding, tests and the end-game reveal.
 `rz(x_i) = (rank_i − (N+1)/2) / sqrt((N²−1)/12)`. Ranks run ascending (1 = worst), ties take
 the average rank, and an undefined value ranks worst.
 
-**Pillars** (each is the rank-z of the sum of its items' rank-z). Here `h0…h3` are the four fiscal
+**Pillars** (each is the rank-z of the sum of its items' rank-z). `h0…h3` are the four fiscal
 years in `history`, oldest to newest.
 
 | Pillar | Items |
 |---|---|
-| PROF (profitability) | `grossProfit/totalAssets` · `roe` · `operatingCashFlow/totalAssets` · `(operatingCashFlow−netIncome)/totalAssets` (low accruals) |
+| PROF (profitability) | `grossProfit/totalAssets` · `netIncome/totalAssets` (ROA) · `operatingCashFlow/totalAssets` · `(operatingCashFlow−netIncome)/totalAssets` (low accruals) |
 | GROW (growth) | revenue CAGR `(h3.rev/h0.rev)^(1/3)−1` · `(h3.ni−h0.ni)/totalAssets` · `industry.growthRate` |
-| SAFE (safety) | `−debtToEquity` · `min(currentRatio,3)` · `−sd(EPS growth h1..h3)` · Altman-lite `3.3·EBIT/TA + 0.6·mktCap/TL + 1.0·rev/TA` |
-| VAL (value, sector-relative) | `ln(PEref/pe)` (pe≤0 → worst) · `ln(EVref/evToEbitda)` · `ln(PSref/ps)`, with refs from `research.json` sector profiles |
+| SAFE (safety) | `−debtToEquity` · `min(currentRatio,3)` · `−sd(EPS growth h1..h3)` |
+| VAL (value, sector-relative, "at the opening bell") | `ln(PEref/pe)` (WORST when netIncome≤0) · `ln(EVref/evToEbitda)` (WORST when operatingIncome≤0) |
 
+Reviewed simplifications:
+- ROE is excluded: leverage distorts it.
+- Altman-lite is excluded: its market-cap term mixes valuation into safety.
+- P/S is excluded: it double-penalizes low margins. ROE and P/S still appear in the UI.
+- Two missing-value sentinels: NA gets rank-z 0; WORST ranks below every defined value.
 `Q = rz(PROF + GROW + SAFE)`; `s = rz(0.70·Q + 0.30·VAL)` (quality at a reasonable price, AQR's
 70/30 mix). Engine input: `q = −1 + 2·(rank(s) − 0.5)/N` ∈ (−1, 1). Grade: quintile of `s`
 maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week range.
