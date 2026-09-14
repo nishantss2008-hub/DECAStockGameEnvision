@@ -44,6 +44,7 @@
   - `aria-live="polite"` only for order results and phase changes.
   - Honor `prefers-reduced-motion`.
   - No auto-scrolling marquee.
+- Beginner-first comprehension (BRIEF §9, spec §10b): plain label first, finance term second. Every metric has an `InfoTip` from `lib/glossary.ts`. Research/key-stat rows use `ExplainRow` with a sector average and never grade a company. No unexplained acronyms. Sentences are short (grade 8–9 reading level).
 - Icons: `lucide-react` (strokeWidth 1.75). Custom SVG only for ornaments (CompassRose, WaxSeal, Medallion) and gain/loss carets.
 
 **Process**
@@ -111,7 +112,7 @@ docs/  QUICKSTART.md RUNBOOK.md DEPLOY.md README.md research-findings.md   MODIF
 | 0 | T1 shared contracts + deps + roster rename | `npm run build:shared`, `npm test` pass; commit |
 | 1 | T2 engine model/news/state/flow · T3 generateMarket · T7 web theme + ui primitives + charts + lib + hooks | server tests + web typecheck pass; commit |
 | 2 | T4 engine loop + market service + leaderboard + CLIs · T5 trading + crews + routes · T8 web shell + routing + Login | server typecheck/tests + web typecheck/build pass; commit |
-| 3 | T6 rules + emulator integration + dev:local · T9 Summary/Positions/Activity · T10 Trade/ticket/research tabs · T11 Markets/Research/News · T12 Standings/Results · T13 Host console | all checks + integration pass; commit |
+| 3 | T6 rules + emulator integration + dev:local · T9 Summary/Positions/Activity · T10 Trade/ticket/research tabs · T11 Markets/Research/News · T12 Standings/Results · T13 Host console · T13b Learn guide | all checks + integration pass; commit |
 | 4 | T14 docs · adversarial review workflow + fixes · Playwright E2E vs canvas | final verification; commit |
 
 ---
@@ -962,7 +963,7 @@ describe('computeFill', () => {
 - Create `web/src/components/ui/`: `Panel.tsx`, `Button.tsx`, `Segmented.tsx`, `Pill.tsx`, `Crest.tsx`, `SignedChange.tsx`, `Tabs.tsx`, `Field.tsx`, `Modal.tsx`, `TypedConfirm.tsx`, `Toast.tsx`, `EmptyState.tsx`, `Loader.tsx`, `DataTable.tsx`, `ornaments.tsx` (CompassRose, WaxSeal, Medallion, RopeRule), `ui.css`
 - Create `web/src/components/charts/`: `Sparkline.tsx`, `AreaChart.tsx`, `VolumeBars.tsx`, `RangeBar.tsx`, `ScatterChart.tsx`, `Treemap.tsx`, `charts.css`
 - Rewrite `web/src/lib/`: `format.ts`, `api.ts`, `auth.tsx`; create `orderId.ts`, `watchlist.ts`, `sector.ts`
-- Rewrite `web/src/hooks/`: `useGame.ts`, `useCompanies.ts`, `useCompany.ts`, `useHistory.ts`, `useMarket.ts`, `usePortfolio.ts`, `useTeamHistory.ts`, `useTrades.ts`, `useOrders.ts`, `useNews.ts`, `useLeaderboard.ts`, `useCountdown.ts`, `useAdmin.ts`, `useAllFundamentals.ts`; create `web/src/lib/market.ts`
+- Rewrite `web/src/hooks/`: `useGame.ts`, `useCompanies.ts`, `useCompany.ts`, `useHistory.ts`, `useMarket.ts`, `usePortfolio.ts`, `useTeamHistory.ts`, `useTrades.ts`, `useOrders.ts`, `useNews.ts`, `useLeaderboard.ts`, `useCountdown.ts`, `useAdmin.ts`, `useAllFundamentals.ts`; create `web/src/lib/market.ts`, `web/src/lib/glossary.ts`, `web/src/lib/compare.ts` (+ tests `glossary.test.ts`, `compare.test.ts`), and primitives `web/src/components/ui/InfoTip.tsx`, `web/src/components/ui/ExplainRow.tsx`
 - Delete old `web/src/components/*.tsx`, `web/src/hooks/usePriceHistory.ts`
 - Test: `web/src/lib/format.test.ts`; add `"test": "vitest run"` to `web/package.json`
 
@@ -1008,6 +1009,26 @@ export function useCountdown(game: GameState | null): { remainingMs: number; lab
 export function useAdminTeams(): { teams: Team[]; loading: boolean };           // Firestore listener (admin)
 export function useAdminPoll<T>(path: string, intervalMs: number): { data: T | null; error: string | null; refresh(): void };
 export function useAllFundamentals(): { byId: Record<string, Fundamentals>; loading: boolean }; // one-shot getDocs(collectionGroup('fundamentals')), doc parent id = company id
+// lib/glossary.ts
+export interface GlossaryEntry { id: string; label: string; term: string; whatItIs: string; whyItMatters: string; usuallyGoodWhen: string; related: string[]; group: 'basics' | 'profit' | 'growth' | 'debt' | 'value' | 'trading' | 'game' }
+export const GLOSSARY: Record<string, GlossaryEntry>; // required ids are listed in glossary.test.ts
+export const NEWS_EXPLAIN: Record<NewsType, { bullish: string; bearish: string }>; // "What this means" sentences
+export function glossarySearch(q: string): GlossaryEntry[]; // matches label/term/whatItIs, case-insensitive
+// lib/compare.ts
+export type MetricId = 'marketCap' | 'revenue' | 'netIncome' | 'netMargin' | 'grossMargin' | 'revenueGrowth' | 'eps' | 'peRatio' | 'forwardPe' | 'psRatio' | 'pbRatio' | 'evToEbitda' | 'dividendYield' | 'debtToEquity' | 'currentRatio' | 'freeCashFlow' | 'roe' | 'roa' | 'beta';
+export function metricValue(id: MetricId, f: Fundamentals, c: Company): number | null; // revenueGrowth = (h3/h0)^(1/3)-1 from history; peRatio/forwardPe null when netIncome ≤ 0
+export interface SectorAverage { scope: 'sector' | 'market'; sector: Sector; value: number | null; count: number }
+export function sectorAverages(fundamentalsById: Record<string, Fundamentals>, companiesById: Record<string, Company>): (id: MetricId, sector: Sector) => SectorAverage; // medians; sector with <3 → market
+export interface Explained { valueText: string; sentence: string; averageText: string }
+export function explainMetric(id: MetricId, value: number | null, avg: SectorAverage, currencySymbol: string): Explained;
+// peRatio 17.8 → sentence 'You pay Ð17.80 for every Ð1 of yearly profit.', averageText 'Sector average: 22.1' ('Market average: …' when scope market)
+// debtToEquity 0.62 → 'It owes Ð0.62 for every Ð1 its owners have put in.'
+// currentRatio 1.84 → 'It has Ð1.84 of short-term money for every Ð1 of bills due within a year.'
+// netMargin 0.14 → 'It keeps Ð14 of profit from every Ð100 of sales.'
+// revenueGrowth 0.07 → 'Sales grew about 7% a year over the last 3 years.'
+// value null for peRatio/forwardPe → { valueText: '—', sentence: 'Not meaningful because the company is losing money.' }
+// components/ui/InfoTip.tsx {termId: string} — '?' button (≥24px hit area) opens popover on hover/focus/tap: label, whatItIs, whyItMatters, 'Usually a good sign when…'; Esc closes; aria-describedby
+// components/ui/ExplainRow.tsx {metric: MetricId; value: number | null; average: SectorAverage; currencySymbol: string; labelOverride?: string}
 // lib/market.ts (pure)
 export type MoverKind = 'gainers' | 'losers' | 'active';
 export function movers(companies: Company[], kind: MoverKind, n?: number): Company[]; // sessionChange desc / asc / sessionVolume desc; default n=6
@@ -1072,6 +1093,55 @@ describe('movers', () => {
   it('since report', () => { expect(sinceReport({ companyIds: ['a'], priceAtFire: { a: 100 } } as any, { a: cs[0]! })[0]!.pct).toBeCloseTo(0.1, 10); });
 });
 ```
+Also write `web/src/lib/glossary.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { GLOSSARY, NEWS_EXPLAIN, glossarySearch } from './glossary';
+import { NEWS_TYPES } from '@deca/shared';
+const REQUIRED = ['stock','price','marketCap','sector','index','volume','beta','analystRating','priceTarget','voyageRange','sessionChange','revenue','netIncome','netMargin','grossMargin','operatingMargin','eps','roe','roa','ebitda','revenueGrowth','industryGrowth','tam','debtToEquity','currentRatio','totalDebt','cash','equity','totalAssets','totalLiabilities','operatingCashFlow','capex','freeCashFlow','peRatio','forwardPe','psRatio','pbRatio','evToEbitda','dividendYield','payoutRatio','marketOrder','fee','priceImpact','avgCost','costBasis','totalGain','realizedGain','unrealizedGain','positionLimit','diversification','cashAvailable','tick','session','quality','news','researchEdge'];
+describe('glossary', () => {
+  it('has every required term with all explanation lines', () => {
+    for (const id of REQUIRED) {
+      const e = GLOSSARY[id]; expect(e, id).toBeDefined();
+      for (const k of ['label', 'term', 'whatItIs', 'whyItMatters', 'usuallyGoodWhen'] as const) expect(e![k].length, `${id}.${k}`).toBeGreaterThan(8);
+    }
+  });
+  it('keeps sentences short and plain', () => {
+    for (const e of Object.values(GLOSSARY)) for (const t of [e.whatItIs, e.whyItMatters, e.usuallyGoodWhen]) {
+      expect(t.split(/\s+/).length, t).toBeLessThanOrEqual(32);
+      expect(/\b(rum|grog|beer|wine|ale)\b|black pearl|sparrow|barbossa/i.test(t)).toBe(false);
+    }
+  });
+  it('explains every news type both ways and searches', () => {
+    for (const t of NEWS_TYPES) { expect(NEWS_EXPLAIN[t].bullish.length).toBeGreaterThan(10); expect(NEWS_EXPLAIN[t].bearish.length).toBeGreaterThan(10); }
+    expect(glossarySearch('p/e').map((e) => e.id)).toContain('peRatio');
+    expect(glossarySearch('debt').map((e) => e.id)).toContain('debtToEquity');
+  });
+});
+```
+And `web/src/lib/compare.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { sectorAverages, explainMetric, metricValue } from './compare';
+const f = (pe: number, de: number, ni = 100) => ({ peRatio: pe, debtToEquity: de, netIncome: ni, revenue: 1000, netMargin: ni / 1000, history: [{ revenue: 800 }, { revenue: 850 }, { revenue: 900 }, { revenue: 1000 }] } as any);
+const c = (id: string, sector: string) => ({ id, sector } as any);
+describe('compare', () => {
+  const fundamentals = { a: f(10, 0.5), b: f(20, 1), d: f(30, 1.5), e: f(40, 2.0) };
+  const companies = { a: c('a', 'Naval Arms'), b: c('b', 'Naval Arms'), d: c('d', 'Naval Arms'), e: c('e', 'Cursed Relics') };
+  const avg = sectorAverages(fundamentals, companies);
+  it('uses sector median when ≥3 companies, else market median', () => {
+    expect(avg('peRatio', 'Naval Arms')).toMatchObject({ scope: 'sector', value: 20, count: 3 });
+    expect(avg('peRatio', 'Cursed Relics')).toMatchObject({ scope: 'market', value: 25 });
+  });
+  it('explains in everyday numbers', () => {
+    const pe = explainMetric('peRatio', 17.8, { scope: 'sector', sector: 'Naval Arms', value: 22.1, count: 3 }, 'Ð');
+    expect(pe.sentence).toBe('You pay Ð17.80 for every Ð1 of yearly profit.'); expect(pe.averageText).toBe('Sector average: 22.1');
+    expect(explainMetric('netMargin', 0.14, avg('netMargin', 'Naval Arms'), 'Ð').sentence).toBe('It keeps Ð14 of profit from every Ð100 of sales.');
+    expect(explainMetric('peRatio', null, avg('peRatio', 'Naval Arms'), 'Ð').valueText).toBe('—');
+  });
+  it('computes revenue growth from history', () => { expect(metricValue('revenueGrowth', f(1, 1), c('a', 'Naval Arms'))).toBeCloseTo((1000 / 800) ** (1 / 3) - 1, 10); });
+});
+```
 - [ ] **Step 2:** Run `npm test -w @deca/web`. Expected FAIL.
 - [ ] **Step 3:** Implement everything in this task:
   - `tokens.css` copies BRIEF §2 as CSS custom properties with the semantic names (`--chrome`, `--sheet`, `--gain`…). `base.css` holds the Google Fonts `@import` (BRIEF §3 URL), reset, body `var(--paper)`, typography scale, `.num`, `.sr-only` and focus ring.
@@ -1086,6 +1156,8 @@ describe('movers', () => {
 **Files:**
 - Create `web/src/components/shell/`: `AppShell.tsx`, `Header.tsx`, `IndexStrip.tsx`, `MobileTabBar.tsx`, `PhaseBanner.tsx`, `HostShell.tsx`, `SymbolSearch.tsx`, `shell.css`
 - Rewrite: `web/src/App.tsx`, `web/src/main.tsx`, `web/src/pages/Login.tsx` (+ `Login.css`), `web/index.html` (title "Buccaneer Exchange", compass SVG favicon)
+- Create `web/src/components/shell/Walkthrough.tsx`: 3-step card (Research a company → Place a small practice order → Track it on Summary) + "Open the Learn guide" link; dismissal stored in localStorage `bx.walkthrough.${teamId}`; `useWalkthrough()` → `{open, show(), dismiss()}`; crew menu item "How to play" reopens it.
+- Create stub `web/src/pages/Learn.tsx` (Task 13b replaces it) and route `/learn`.
 - Create stub `web/src/components/trade/TicketDrawer.tsx` exporting `export default function TicketDrawer() { return null; }` (Task 10 replaces it).
 - Create stubs `web/src/pages/{Summary,Positions,Activity,Trade,Markets,Research,News,Standings,Results}.tsx` and `web/src/pages/admin/{Control,Crews,Market,NewsDesk,Tape,Audit}.tsx`. Each exports a default component rendering `<Panel title="…">Coming aboard…</Panel>`; later tasks replace them.
 
@@ -1108,7 +1180,7 @@ describe('movers', () => {
 import { describe, it, expect } from 'vitest';
 import { navItemsFor, mobileItems } from './nav';
 describe('nav', () => {
-  it('crew nav order', () => { expect(navItemsFor('team').map((n) => n.label)).toEqual(['Summary', 'Positions', 'Trade', 'Markets', 'Research', 'Dispatches', 'Standings']); });
+  it('crew nav order', () => { expect(navItemsFor('team').map((n) => n.label)).toEqual(['Summary', 'Positions', 'Trade', 'Markets', 'Research', 'Dispatches', 'Standings', 'Learn']); });
   it('host nav order', () => { expect(navItemsFor('admin').map((n) => n.label)).toEqual(['Control', 'Crews', 'Market', 'News desk', 'Trade tape', 'Audit']); });
   it('mobile has five with Trade centered', () => { const m = mobileItems(); expect(m).toHaveLength(5); expect(m[2]!.label).toBe('Trade'); });
 });
@@ -1141,6 +1213,8 @@ export function accountTotals(team: Team, rows: PositionRow[]): { invested: numb
   - left rail: AccountCard (value, session/total change, cash/invested bar, rank, "vs Pirate Composite ±x pts", Trade/Positions buttons) and WatchlistPanel
   - center: account value AreaChart (range tabs from `rangeTabs(clock)`, starting-chest baseline, composite comparison rebased to starting capital) and a Top-5 positions table (6 columns) with a "View all N positions" link
   - right rail: movers (`movers(companies,'gainers',4)` from `lib/market.ts`), dispatches (3, compact list local to the page with `sinceReport`), standings top 5 with your crew highlighted
+  - `<Walkthrough/>` above the grid on first visit (until dismissed)
+  - account card labels in plain terms with InfoTips: Cash available to trade (cashAvailable), Invested, Session change (sessionChange), Total gain/loss (totalGain)
   - lobby/empty state: EmptyState "No positions yet. Every fortune starts with a single share." with Markets/Research actions
 - **Positions:** the full table with views Overview | Performance | Fundamentals (Segmented), sortable, a cash row, an account total row, row actions Buy/Sell (`openTicket`), and an expand row showing that company's fills from `useTrades`.
 - **Activity:** tabs Orders (all `OrderRecord`s with status pills and rejection reasons) | Fills (`Trade`s: time, order # (last 6 of id, Plex Mono), action pill, symbol, qty, fill price, impact bps, amount, fee, net, cash after), plus BalancesPanel (total value, cash, market value, starting chest, total gain/loss, realized/unrealized P&L, fees paid, trade count).
@@ -1196,11 +1270,12 @@ export function isStale(s: TicketState, lastPrice: number): boolean; // |last �
 - **Trade page** `/trade/:ticker?` (`Trade.dc.html`):
   - No ticker: redirect to the largest holding or else the first company.
   - QuoteHeader (price, session change, as of tick, Buy/Sell/watchlist), PositionStrip, tabs `?tab=snapshot|financials|analysts|news|crew`.
-  - Snapshot: AreaChart price (range tabs, session-open baseline, news markers) + VolumeBars, performance chips (range returns), key facts (latest company news), about. Right column: TradeTicket (embedded), KeyStats (incl. RangeBar for voyage range and Beta), AnalystCard.
-  - Financials: `ResearchReport.dc.html` statements and valuation vs sector medians (sector medians from `useAllFundamentals`).
+  - Snapshot: AreaChart price (range tabs, session-open baseline, news markers) + VolumeBars, performance chips (range returns), key facts (latest company news), about. Right column: TradeTicket (embedded); KeyStats built from `ExplainRow`s with sector averages (Company size, Price vs. profit (P/E), Profit margin, Sales growth, Debt vs. equity, Short-term bill coverage, Dividend yield, Swings vs. market (beta)) plus RangeBar for the game range; AnalystCard in plain words ("Analysts lean Buy: they expect the price to rise about 14%. Analysts are often too optimistic.").
+  - Financials: `ResearchReport.dc.html` statements and valuation vs sector medians (sector medians from `useAllFundamentals`). Each statement section opens with a 1–2 sentence plain summary ("Sales grew from Ð6.6B to Ð8.1B over 4 years; profit grew alongside."), row labels carry InfoTips, and a "Read this company in 5 questions" panel at the top links each question to its section (no verdicts).
   - Crew: management cards + industry + risks + developments.
 - **TradeTicket** (`Trade.dc.html` right column, `OrderFlow.dc.html`, `MobileTrade.dc.html`):
   - Stages per the reducer. Estimates are from `estimateOrder`.
+  - Plain explanations under the estimate, each with an InfoTip: Market order ("Buys right away at about the current price"), Fee ("0.10% charged on every trade"), Price impact ("Big orders nudge the price against you"), and share of account ("This order would make KRKN 27% of your account").
   - Quick chips: buy 10/50/100/Max, sell 25%/50%/All. Amount mode shows "≈ N shares · Ð x stays as cash".
   - Disabled with the reason when the phase is not live or `team.tradingDisabled`.
   - Position limit: when `estimateOrder` returns `position_limit`, show "This would put more than {pct}% of your account in {TICKER}. You can buy up to N more shares." with a "Use N" fix.
@@ -1253,8 +1328,8 @@ describe('ticket state', () => {
 **Interfaces:**
 - Consumes: `movers`, `sectorSummaries`, `sinceReport` from `web/src/lib/market.ts` and `useAllFundamentals` from `web/src/hooks/useAllFundamentals.ts` (both Task 7).
 - **Markets** (`Markets.dc.html`): composite chart (`useCompositeHistory`), breadth, 10 sector cards (from `market.sectors`), heatmap (Treemap: size = marketCap, value = sessionChange; controls Size: Market cap | Equal), sector bars, movers table with tabs and Buy/Sell actions, latest dispatches.
-- **Research** (`ResearchDirectory.dc.html`): screener with views Overview | Valuation | Financial health | Analysts (fundamentals via `useAllFundamentals`), sector chips, search, sortable columns. Rows link to `/trade/:ticker?tab=financials`.
-- **Dispatches:** filter chips All | My holdings | Watchlist | sector; items show type badge, time + tick, headline, body (expand), ticker chips with since-report %, a "Trade" link opening the ticket, and a sentiment label as text + icon. Never show magnitude.
+- **Research** (`ResearchDirectory.dc.html`): screener with views **Basics (default)** | Valuation | Financial health | Analysts (fundamentals via `useAllFundamentals`). Basics columns: Company, Sector, Price, Session change, Company size, Sales growth (per year, 3y), Profit margin, Price vs. profit (P/E), Debt vs. equity. Every header has an InfoTip, and a helper line sits above the table: "New to this? Start with profit margin, sales growth and debt, then compare P/E with similar companies." Also sector chips, search, sortable columns. Rows link to `/trade/:ticker?tab=financials`.
+- **Dispatches:** filter chips All | My holdings | Watchlist | sector; items show type badge, time + tick, headline, a "What this means" line from `NEWS_EXPLAIN[type][sentiment]`, body (expand), ticker chips with since-report %, a "Trade" link opening the ticket, and a sentiment label as text + icon. Never show magnitude.
 - [ ] **Step 1:** No new pure helpers are expected; if you add one, test it in `web/src/lib/market.test.ts`.
 - [ ] **Step 2:** Run. Expected FAIL. **Step 3:** Implement. **Step 4:** Run the web test/typecheck/build. Expected PASS. **Step 5:** Orchestrator commits: `feat(web): markets overview, research screener, dispatches`.
 
@@ -1276,7 +1351,7 @@ export const LABEL_COPY: Record<RevealLabel, string>; // compounder 'Compounder'
 export const PILLAR_COPY: Record<keyof QualityPillars, { high: string; low: string }>;
 ```
 - **Standings** (`Standings.dc.html`): Podium (Medallion 1–3), table (rank + movement, crew, total value, return, gain/loss, session %, cash %, holdings, Sparkline), your crew highlighted, and an "Updated tick N · time" stamp.
-- **Results** (`FinalReckoning.dc.html`): only when ended. Ceremony hero ("Final Standings", crimson WaxSeal on the certificate), winner + runners-up, "Market reveal" explainer, ScatterChart (quality 0–100 = `(score + 1.664)/3.328·100` clamped, vs actual return %, trend line, annotate the max |luck| lucky and unlucky), RevealTable, "Your crew's research grade" card from `leaderboard.final`.
+- **Results** (`FinalReckoning.dc.html`): only when ended. All reveal copy is plain language ("Healthier finances tilted the odds, but luck and news still mattered"); drivers use `PILLAR_COPY` phrases ("Strong profits", "Heavy debt", "Shrinking sales", "Cheap for its profits"). Ceremony hero ("Final Standings", crimson WaxSeal on the certificate), winner + runners-up, "Market reveal" explainer, ScatterChart (quality 0–100 = `(score + 1.664)/3.328·100` clamped, vs actual return %, trend line, annotate the max |luck| lucky and unlucky), RevealTable, "Your crew's research grade" card from `leaderboard.final`.
 - [ ] **Step 1:** Write `reveal.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -1314,7 +1389,7 @@ export function magnitudeLabel(m: number): string;                 // 0.08 → '
 ```
 - **Control** (`HostConsole.dc.html` top):
   - GameControlCard: phase pill, countdown, tick progress, heartbeat from `/health` polled every 5s, Start/Pause/Resume/End each behind `Modal` confirmations restating consequences.
-  - SettingsCard: lobby-editable (length select from `GAME_LENGTH_OPTIONS_MS` with derived ticks, starting chest, fee bps, research edge low/normal/high with a one-line explanation, position limit Off/50%/35%/25% with the explanation "Caps any one company's share of a crew's account, so diversified research decides the standings", currency); locked with lock icons when not lobby; POST `/admin/settings`.
+  - SettingsCard: lobby-editable (length select from `GAME_LENGTH_OPTIONS_MS` with derived ticks, starting chest, fee bps, research edge low/normal/high explained plainly ("How much company health affects prices: Low = more luck, High = research matters more"), position limit Off/50%/35%/25% with the explanation "Caps any one company's share of a crew's account, so diversified research decides the standings", currency); locked with lock icons when not lobby; POST `/admin/settings`.
   - DangerZone: "Start a new game" (TypedConfirm word `NEW GAME`, checkbox "Keep crews and passwords" default on) → POST `/admin/game/new`; plain copy.
 - **Crews:** CrewsTable from `useAdminTeams` (value, cash, return %, trades, rank, trading enabled) with actions View portfolio (Modal listing holdings via Firestore admin read), Reset password (Modal form), Disable/Enable trading, Remove (TypedConfirm `REMOVE`), plus the Add crew form.
 - **Market:** Panel `classified` "Host only · hidden from crews" with MarketTable from `useAdminPoll('/admin/market', 5000)`: ticker, last, session %, volume, net flow, quality, grade, fair value, price vs fair value %.
@@ -1338,6 +1413,41 @@ describe('admin format', () => {
 
 ---
 
+### Task 13b: Learn guide
+
+**Files:**
+- Rewrite: `web/src/pages/Learn.tsx`
+- Create `web/src/components/learn/`: `GameGuide.tsx`, `FiveQuestions.tsx`, `fiveQuestions.ts`, `TradingBasics.tsx`, `GlossaryBrowser.tsx`, `learn.css`
+- Test: `web/src/components/learn/fiveQuestions.test.ts`
+
+**Interfaces:**
+- Consumes: `GLOSSARY`, `glossarySearch` (Task 7); `useGame` settings.
+- Produces:
+```ts
+// components/learn/fiveQuestions.ts
+export interface Question { id: 'profit' | 'growth' | 'debt' | 'price' | 'news'; question: string; lookAt: string[]; where: string; tip: string }
+export const FIVE_QUESTIONS: Question[]; // lookAt = glossary ids; where = plain UI location ("Trade → Financials → Income statement")
+```
+- **Layout** (`Learn.dc.html`): left sticky contents list, main column.
+  1. "How the game works": starting chest from settings, ticks and sessions, news, fees, position limit from settings, and "Companies with healthier finances tend to do better over the whole game, but news and luck still move prices, so spread your bets."
+  2. "Read a company in 5 questions": cards with the question, metrics to look at (InfoTips), where to find them, and a caution tip.
+  3. "Trading basics": market order, fee, price impact, average cost, gains, diversification, with worked examples in doubloons ("Buy 10 shares at Ð84.12 → cost Ð841.20 + Ð0.84 fee").
+  4. Glossary browser: search plus group chips, rendered from `GLOSSARY`.
+- No verdicts about specific companies; no disclosure of scoring weights.
+- [ ] **Step 1:** Write `fiveQuestions.test.ts`:
+```ts
+import { describe, it, expect } from 'vitest';
+import { FIVE_QUESTIONS } from './fiveQuestions';
+import { GLOSSARY } from '../../lib/glossary';
+describe('five questions', () => {
+  it('has the five questions in order and only references real glossary terms', () => {
+    expect(FIVE_QUESTIONS.map((q) => q.id)).toEqual(['profit', 'growth', 'debt', 'price', 'news']);
+    for (const q of FIVE_QUESTIONS) for (const id of q.lookAt) expect(GLOSSARY[id], id).toBeDefined();
+  });
+});
+```
+- [ ] **Steps 2–5:** Run it (FAIL), implement, then run the web test/typecheck/build (PASS). Commit: `feat(web): Learn guide with 5-question method, trading basics and glossary`.
+
 ### Task 14: Documentation
 
 **Files:** Modify `README.md`, `docs/QUICKSTART.md`, `docs/RUNBOOK.md`, `docs/DEPLOY.md`, `docs/research-findings.md`.
@@ -1358,6 +1468,7 @@ describe('admin format', () => {
 - [ ] `npm run build:shared && npm test && npm run typecheck -w @deca/server && npm test -w @deca/web && npm run typecheck -w @deca/web && npm run build -w @deca/web`: all green.
 - [ ] `npm run test:integration` with scratchpad JAVA_HOME: green.
 - [ ] Adversarial review workflow over the full diff (correctness, security/hidden-future leaks, determinism/resume, money math, a11y/contrast, IP/copy rules) → verify → fix → re-run checks.
+- [ ] Beginner comprehension check: a fresh reviewer agent role-playing a first-time player with no finance background must answer "Is KRKN making money, growing, handling its debt, and priced reasonably vs. similar companies?" using only the running UI and the Learn guide; every term they meet has an InfoTip.
 - [ ] `npm run dev:local`; Playwright at 1440×900 and 390×844:
   1. Host login → settings 1h → create 3 crews → Start.
   2. Crew login → Summary renders → Trade KRKN 10 shares via preview → filled seal → Positions/Activity show it.
