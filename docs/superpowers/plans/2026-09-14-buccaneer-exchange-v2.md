@@ -418,6 +418,62 @@ describe('estimate', () => {
    - `maxBuyShares` ≤ the limit shares.
    - Quality: a loss-maker (netIncome −10, peRatio 0) has a VAL pillar below every profitable company.
 
+### Task 1c: Engine-math amendments from the final quant review (orchestrator, applied with 1b)
+
+Why: the review showed that the square-root impact rule plus per-order slippage can be gamed.
+Splitting one order into many earns +2.2%; accumulating over 10 ticks and dumping earns +10.5%.
+Theory backs this: exponential decay is only arbitrage-free with **linear** impact (Gatheral
+2010; Huberman–Stanzl 2004). Other findings folded in here:
+- the fixed 0.08 clamp distorted 1h games
+- the short-lived mispricing (OU) layer added nothing
+- portfolio-level outcomes were nearly deterministic without a hidden surprise
+- final marks could be pumped in the last interval
+
+**Files:** `shared/src/constants.ts`, `shared/src/types.ts`, `shared/src/estimate.ts`; test `server/test/estimate.test.ts`.
+
+1. **`MODEL` changes:**
+   - remove `maxImpact` and `maxTickMove`
+   - `impactY: 1.10` (Almgren et al. 2005 linear coefficient `0.314·150^(1/4)`)
+   - add `tickMoveSds: 3` (clamp `|dv| ≤ 3·√dt`)
+   - `mispriceSd: 0` (OU layer off by default; the code path stays)
+   - `surpriseWeight: 0.75` (`qEff = 0.75·q + 0.25·ξ`, `ξ ~ U[−1,1]` seeded `surprise:${id}`)
+   - `intervalAdvCap: 1` (max 1 ADV of shares per crew, per company, per tick interval)
+2. **`CompanyReveal`** adds `qEff: number; surprise: number` (`surprise = ξ`).
+   **`EstimateError`** adds `'interval_limit'`.
+3. **`estimate.ts`:** replace `marketImpact`/`fillPrice` with:
+```ts
+export function impactLambda(beta: number, sharesOutstanding: number): number; // Y·sigD/ADV per share (log units); sigD = sqrt(beta²·mktVol² + impactVolRef²)/sqrt(252); ADV = sharesOutstanding/advDivisor
+export function intervalShareCap(sharesOutstanding: number): number;          // floor(intervalAdvCap·sharesOutstanding/advDivisor)
+export function estFillPrice(side: OrderSide, lastPrice: number, lambda: number, quantity: number, pendingNet?: number): number; // UNROUNDED cents: last·exp(λ·(pendingNet + s·q/2)), s = +1 buy / −1 sell
+export function notionalFor(quantity: number, unroundedPrice: number): number; // round(q·px)
+```
+   - `estimateOrder`: `price = round(fill)` for display, `notional = notionalFor(q, fill)`,
+     `impactBps = round(λ·q/2·1e4)`. It flags `interval_limit` when `q > intervalShareCap`.
+   - `maxAffordableShares` / `sharesForAmount` use the same fill math.
+4. **Tests** (replace the two impact tests in `estimate.test.ts`):
+```ts
+it('linear impact: 1 ADV moves price ~2.42% (beta 1)', () => {
+  const so = 8_000_000; expect(impactLambda(1, so) * (so / 150)).toBeCloseTo(0.02424, 4);
+});
+it('fill applies half the order impact and notional uses the unrounded price', () => {
+  const lam = impactLambda(1, 8_000_000); const px = estFillPrice('buy', 1_200, lam, 10_000);
+  expect(px).toBeCloseTo(1_200 * Math.exp(lam * 5_000), 9);
+  expect(estFillPrice('sell', 1_200, lam, 10_000)).toBeCloseTo(1_200 * Math.exp(-lam * 5_000), 9);
+  expect(notionalFor(10_000, px)).toBe(Math.round(10_000 * px));
+});
+it('splitting an order costs the same as one order (pending flow priced in)', () => {
+  const lam = impactLambda(1, 8_000_000); const q = 5_000;
+  const one = notionalFor(q, estFillPrice('buy', 1_200, lam, q));
+  let pending = 0; let split = 0;
+  for (let k = 0; k < 50; k++) { split += (q / 50) * estFillPrice('buy', 1_200, lam, q / 50, pending); pending += q / 50; }
+  expect(Math.abs(split - one)).toBeLessThan(1);
+});
+it('flags more than one ADV per interval', () => {
+  const e = estimateOrder({ ...base, side: 'buy', quantity: intervalShareCap(base.sharesOutstanding) + 1, cash: 1e15, totalValue: 1e15 });
+  expect(e.error).toBe('interval_limit');
+});
+```
+
 ### Task 2: Engine model, news schedule, state, flow (pure)
 
 **Files:**
@@ -427,29 +483,33 @@ describe('estimate', () => {
 - Test: `server/test/model.test.ts`, `server/test/news.test.ts`, `server/test/calibration.test.ts`
 
 **Interfaces:**
-- Consumes: `MODEL`, `EDGE_SPREAD`, `GameClock`, `deriveClock`, `clamp`, `marketImpact` from `@deca/shared`; `Prng`, `deriveSeed` from `../lib/prng`.
+- Consumes: `MODEL`, `EDGE_SPREAD`, `GameClock`, `deriveClock`, `clamp`, `impactLambda` from `@deca/shared` (after Task 1c); `Prng`, `deriveSeed` from `../lib/prng`.
 - Produces:
 ```ts
 // model.ts
-export interface ModelCompany { id: string; q: number; beta: number; idioVol: number; sharesOutstanding: number }
-export interface CompanyState { v: number; m: number; f: number; h: number }  // v = ln(fair value cents)
+export interface ModelCompany { id: string; qEff: number; beta: number; idioVol: number; sharesOutstanding: number; lambda: number } // lambda = impactLambda(beta, sharesOutstanding)
+export interface CompanyState { v: number; m: number; f: number; h: number }  // v = ln(fair value cents); m = optional OU mispricing (0 when mispriceSd = 0); f = transient impact
 export interface MarketState { hM: number }
-export interface Derived { dt: number; K: number; phi: number; alpha: number; beta: number; ouDecay: number; ouSd: number; jumpMean: number; truncMean: number; spread: number }
-export function derive(clock: GameClock, spread: number): Derived;
+export interface Derived { dt: number; K: number; phi: number; alpha: number; beta: number; decay: number; ouSd: number; jumpMean: number; truncMean: number; spread: number; moveCap: number }
+export function derive(clock: GameClock, spread: number): Derived;   // decay = e^(−(ln2/0.05)·dt); ouSd = mispriceSd·√(1−decay²); moveCap = tickMoveSds·√dt
 export function garchStep(h: number, z: number, d: Derived): number;
-export function drift(c: ModelCompany, d: Derived): number;           // spread·q − K·(2·pUp−1)·truncMean
+export function drift(c: ModelCompany, d: Derived): number;           // spread·qEff − K·(2·pUp−1)·truncMean, pUp = 0.5 + 0.30·qEff
 export function marketStep(seed: string, t: number, mk: MarketState, d: Derived): number; // returns rM, mutates hM
-export function companyStep(seed: string, t: number, c: ModelCompany, s: CompanyState, rM: number, jump: number, netShares: number, d: Derived): number; // mutates s, returns price cents
+export function companyStep(seed: string, t: number, c: ModelCompany, s: CompanyState, rM: number, jump: number, netShares: number, d: Derived): number; // mutates s; f = decay·(f + lambda·netShares) (decay AFTER adding flow); returns price cents
 export function initialState(startPriceCents: number): CompanyState;  // {v: ln(p), m:0, f:0, h:1}
 export function idioVolFor(seed: string, id: string, q: number): number; // 0.30 − 0.05q ± U(0.04), label `vol:${id}`
+export function surpriseFor(seed: string, id: string): number;          // U[−1,1], label `surprise:${id}`
+export function effectiveQuality(q: number, surprise: number, weight?: number): number; // weight(default MODEL.surpriseWeight)·q + (1−weight)·surprise
+export function fillPriceExact(s: CompanyState, lambda: number, pendingNet: number, signedQty: number): number; // UNROUNDED cents: exp(v+m+f+λ·(pendingNet + signedQty/2))
+export function closePrice(s: CompanyState): number;                     // max(1, round(exp(v+m))) — closing mark excludes impact
 // news.ts
-export interface NewsCompany { id: string; name: string; ticker: string; sector: string; q: number; beta: number }
+export interface NewsCompany { id: string; name: string; ticker: string; sector: string; qEff: number; beta: number }
 export interface ScheduledEvent { tick: number; companyIds: string[]; jumps: Record<string, number>; type: NewsType; sentiment: 'bullish'|'bearish'; source: 'scheduled'|'macro'|'host'; headline: string; body: string }
 export function buildSchedule(seed: string, clock: GameClock, companies: NewsCompany[], d: Derived): ScheduledEvent[]; // sorted by tick
 export function hostEvent(tick: number, companies: NewsCompany[], input: { companyIds: string[]; type: NewsType; magnitude: number; headline: string; body: string }): ScheduledEvent; // jumps = ln(1+m)
 export function jumpsAtTick(events: ScheduledEvent[]): Map<number, ScheduledEvent[]>;
 // flow.ts
-export class FlowBook { record(companyId: string, side: OrderSide, shares: number): void; drain(companyId: string): { net: number; volume: number }; peekNet(companyId: string): number }
+export class FlowBook { reserve(teamId: string, companyId: string, signedShares: number): () => void; drain(companyId: string): { net: number; volume: number }; pendingNet(companyId: string): number; teamGross(teamId: string, companyId: string): number; resetInterval(): void } // reserve returns a release() that undoes it
 // state.ts
 export interface EngineState { lastTick: number; hM: number; companies: Record<string, CompanyState> }
 export function serializeState(s: EngineState): EngineState;  // deep plain copy (JSON-safe)
@@ -458,7 +518,7 @@ export function recoverImpact(state: EngineState, prices: Record<string, number>
 ```
 
 **Headline rules (news.ts):**
-- Company events per company: `n ~ Poisson(d.K)` (Knuth, label `jumps:${id}`). For each event: `tick = 1 + floor(U·N)`; `up = U < 0.5 + 0.30·q`; `size = min(0.25, −d.jumpMean·ln(1−U))`; `jump = up ? ln(1+size) : ln(max(0.05, 1−size))`.
+- Company events per company: `n ~ Poisson(d.K)` (Knuth, label `jumps:${id}`). For each event: `tick = 1 + floor(U·N)`; `up = U < 0.5 + 0.30·qEff`; `size = min(0.25, −d.jumpMean·ln(1−U))`; `jump = up ? ln(1+size) : ln(max(0.05, 1−size))`.
 - Type by size: `size<0.06` → earnings; `<0.12` → up ? (management|regulatory) : (regulatory|management); else up ? (merger|discovery) : (scandal|storm).
 - Macro events: `rng('macro')` count `int(1,2)`; tick uniform in [5%, 95%]; `J = ±U(0.02, 0.08)`; `jumps[id] = ln(1 + beta·J)` for all companies; type `macro`.
 - Headline templates are plain English with light flavor, one per (type, sentiment) with 2–3 variants each. No alcohol words.
@@ -468,12 +528,12 @@ export function recoverImpact(state: EngineState, prices: Record<string, number>
 - [ ] **Step 1: Write failing tests** — `server/test/model.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
-import { deriveClock, HOUR_MS, marketImpact } from '@deca/shared';
-import { derive, garchStep, marketStep, companyStep, initialState, drift, idioVolFor, type ModelCompany } from '../src/engine/model';
+import { deriveClock, HOUR_MS, impactLambda } from '@deca/shared';
+import { derive, garchStep, marketStep, companyStep, initialState, drift, idioVolFor, fillPriceExact, closePrice, effectiveQuality, surpriseFor, type ModelCompany } from '../src/engine/model';
 import { replayFairValue, recoverImpact, serializeState } from '../src/engine/state';
 import { buildSchedule, jumpsAtTick } from '../src/engine/news';
 
-const cos = (n: number): ModelCompany[] => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, q: -1 + 2 * (i + 0.5) / n, beta: 1, idioVol: 0.3, sharesOutstanding: 50_000_000 }));
+const cos = (n: number): ModelCompany[] => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, qEff: -1 + 2 * (i + 0.5) / n, beta: 1, idioVol: 0.3, sharesOutstanding: 50_000_000, lambda: impactLambda(1, 50_000_000) }));
 function run(seed: string, hours: number, companies: ModelCompany[], flowAt?: (t: number, id: string) => number, stopAt?: number) {
   const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, 0.3);
   const events = jumpsAtTick(buildSchedule(seed, clock, companies.map((c) => ({ ...c, name: c.id, ticker: c.id.toUpperCase(), sector: 'Naval Arms' })), d));
@@ -504,14 +564,18 @@ describe('model parameters', () => {
     expect(garchStep(1, 1, d)).toBeCloseTo(1, 10);
     expect(garchStep(9.9, 50, d)).toBeLessThanOrEqual(10);
   });
-  it('OU half-life is 5% of the game', () => {
-    const c = deriveClock(12 * HOUR_MS); const d = derive(c, 0.3);
-    expect(d.ouDecay ** Math.round(0.05 * c.totalTicks)).toBeCloseTo(0.5, 2);
+  it('impact half-life is 5% of the game and the diffusion clamp scales as 3·√dt', () => {
+    for (const h of [1, 12, 48]) { const c = deriveClock(h * HOUR_MS); const d = derive(c, 0.3);
+      expect(d.decay ** Math.round(0.05 * c.totalTicks)).toBeCloseTo(0.5, 2); expect(d.moveCap).toBeCloseTo(3 * Math.sqrt(1 / c.totalTicks), 12); }
+  });
+  it('hidden surprise mixes 25% seeded noise into quality', () => {
+    const x = surpriseFor('s', 'a'); expect(x).toBeGreaterThanOrEqual(-1); expect(x).toBeLessThanOrEqual(1);
+    expect(effectiveQuality(0.8, x)).toBeCloseTo(0.75 * 0.8 + 0.25 * x, 12); expect(surpriseFor('s', 'a')).toBe(x);
   });
   it('compensated drift gives expected quality return spread·q regardless of K', () => {
     const d = derive(deriveClock(48 * HOUR_MS), 0.3);
-    const c = { id: 'x', q: 0.5, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7 };
-    const jumpDrift = d.K * (2 * (0.5 + 0.3 * c.q) - 1) * d.truncMean;
+    const c = { id: 'x', qEff: 0.5, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1, 1e7) };
+    const jumpDrift = d.K * (2 * (0.5 + 0.3 * c.qEff) - 1) * d.truncMean;
     expect(drift(c, d) + jumpDrift).toBeCloseTo(0.15, 10);
   });
   it('idiosyncratic vol is lower for quality and seeded', () => {
@@ -558,20 +622,31 @@ describe('determinism and resume', () => {
   });
 });
 
-describe('anti-manipulation', () => {
-  it('buy Q then sell Q next tick loses money on average after half-impact slippage and fees', () => {
-    let pnl = 0; const trials = 200; const shares = 83_000; const so = 8_000_000;
-    for (let k = 0; k < trials; k++) {
-      const c = { id: `m${k}`, q: 0, beta: 1, idioVol: 0.3, sharesOutstanding: so };
-      const clock = deriveClock(12 * HOUR_MS); const d = derive(clock, 0.3);
-      const s = initialState(1_200); const mk = { hM: 1 };
-      let rM = marketStep(`am${k}`, 1, mk, d); const p1 = companyStep(`am${k}`, 1, c, s, rM, 0, 0, d);
-      const I = marketImpact(shares, 1, so); const buy = Math.round(p1 * Math.exp(I / 2));
-      rM = marketStep(`am${k}`, 2, mk, d); const p2 = companyStep(`am${k}`, 2, c, s, rM, 0, shares, d);
-      const sell = Math.round(p2 * Math.exp(-I / 2));
-      pnl += (sell * (1 - 0.001) - buy * (1 + 0.001)) / buy;
+describe('anti-manipulation (zero noise, linear transient impact)', () => {
+  const clock = deriveClock(48 * HOUR_MS); const d = derive(clock, 0.3); const so = 8_000_000;
+  const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: so, lambda: impactLambda(1, so) };
+  // deterministic zero-noise stepper: rM = 0, jump = 0, idioVol = 0, qEff = 0 → v constant; only f moves
+  const step = (s: ReturnType<typeof initialState>, net: number) => companyStep('am', 1, quiet, s, 0, 0, net, d);
+  function roundTrip(plan: number[]) { // plan[t] = signed shares traded in interval t (sum must be 0)
+    const s = initialState(1_200); let cash = 0; let gross = 0;
+    for (const q of plan) { if (q !== 0) { const px = fillPriceExact(s, quiet.lambda, 0, q); cash -= q * px; gross += Math.abs(q) * px; } step(s, q); }
+    return { cash, gross };
+  }
+  it('update order dec·(f + λQ) makes any long-only round trip unprofitable before fees', () => {
+    let worst = -Infinity;
+    for (let k = 0; k < 2_000; k++) {
+      const n = 3 + (k % 20); const buys = Array.from({ length: n }, (_, i) => ((k * 7919 + i * 104729) % 40_000));
+      const total = buys.reduce((a, b) => a + b, 0); const plan = [...buys, 0, -total];
+      const r = roundTrip(plan); worst = Math.max(worst, r.cash / Math.max(1, r.gross));
     }
-    expect(pnl / trials).toBeLessThan(0);
+    expect(worst).toBeLessThanOrEqual(1e-9);
+  });
+  it('accumulate for 10 intervals then dump loses money before fees', () => {
+    const r = roundTrip([...Array(10).fill(8_333), -83_330]); expect(r.cash).toBeLessThan(0);
+  });
+  it('closing mark excludes impact', () => {
+    const s = initialState(1_200); step(s, 50_000); expect(closePrice(s)).toBe(1_200);
+    expect(Math.round(Math.exp(s.v + s.m + s.f))).toBeGreaterThan(1_200);
   });
 });
 ```
@@ -617,17 +692,17 @@ describe('news schedule', () => {
 });
 ```
 `server/test/calibration.test.ts`: simulate 25 companies with rank-uniform q, spread 0.30, no flow, 30 seeds at 1h and 12 seeds at 48h (budget ≤ 20 s). Assert:
-- mean per-game realized vol `sd(tick log-returns)·√N` in [0.33, 0.48] at both lengths
+- mean per-game realized vol `sd(tick log-returns)·√N` in [0.34, 0.42] at both lengths, and |vol_1h − vol_48h| < 0.03
 - mean lag-1 ACF of tick returns within ±0.03
-- mean pairwise tick-return correlation in [0.10, 0.32]
-- top-quintile mean game log return > bottom-quintile in ≥ 85% of seeds and < 100% across the combined 42 seeds, OR mean top−bottom spread in [0.30, 0.65]
-- mean Spearman(q, return) in [0.30, 0.60]
+- mean pairwise tick-return correlation in [0.15, 0.32]
+- with qEff = 0.75·q + 0.25·ξ: top-quintile (by q) mean game log return > bottom-quintile in ≥ 85% of seeds; mean top−bottom spread in [0.25, 0.50]
+- mean Spearman(q, return) in [0.25, 0.48]
 
 Use `simple-statistics` (`sampleCorrelation`, `standardDeviation`, `mean`).
 - [ ] **Step 2:** Run `npm test -w @deca/server -- model news calibration`. Expected FAIL (modules missing).
 - [ ] **Step 3: Implement** by porting the research prototype `model.ts`/`jumpSchedule` into the interfaces above:
   - `derive`: `c = −ln(garchPersistDay)·252`, `a = garchAlphaDay·√252`, `phi = e^(−c·dt)`, `alpha = min(0.3, a·√dt)`, `beta = phi − alpha`; `kap = ln2/mispriceHalfLife`, `ouDecay = e^(−kap·dt)`, `ouSd = mispriceSd·√(1−ouDecay²)`; `K = clamp(round(1.5·√hours), 2, 12)`; `jumpMean = √(jumpVarPerGame/(2K))`; `truncMean = jumpMean·(1−e^(−maxJump/jumpMean))`.
-  - `companyStep`: exactly spec §5.3. The impact uses `marketImpact(|net|, beta, sharesOutstanding)` from shared, signed.
+  - `companyStep`: exactly spec §5.3 (v2.1). Clamp only the diffusive `dv` to `±moveCap`; impact `f = decay·(f + lambda·netShares)`; `m` updates only when `ouSd > 0`, but `zO` is always drawn.
   - `replayFairValue` iterates the model with `netShares=0` and `f` left at 0.
 - [ ] **Step 4:** Run the same command. Expected PASS. Record the calibration test runtime (must be < 20 s).
 - [ ] **Step 5:** Orchestrator commits: `feat(engine): quality-tilted single-index jump-diffusion model with GARCH, OU, sqrt impact`.
@@ -726,16 +801,18 @@ describe('generateMarket', () => {
 - Produces (used by Task 5 routes and Task 6 tests):
 ```ts
 // engine/loop.ts
-export interface EngineCompany { id: string; ticker: string; name: string; sector: Sector; sharesOutstanding: number; beta: number; idioVol: number; q: number; quality: number; grade: Grade; pillars: QualityPillars; startPriceCents: number }
+export interface EngineCompany { id: string; ticker: string; name: string; sector: Sector; sharesOutstanding: number; beta: number; idioVol: number; q: number; surprise: number; qEff: number; lambda: number; quality: number; grade: Grade; pillars: QualityPillars; startPriceCents: number }
 export class GameEngine {
   state: GameState;                                   // mirror of game/state
-  load(): Promise<void>;                              // game/state, companies, _schedule/*, _engine/state (or replay+recover), current history chunks, market/summary
+  load(): Promise<void>;                              // game/state, companies, _schedule/*, _engine/state (or replay+recover), current history chunks, market/summary; rebuild pending flow from trades with executedAt > lastTickAt
   start(): void; stop(): void;
   reload(): Promise<void>;                            // stop → clear memory → load → start
   getPrice(companyId: string): number;                // 0 if unknown
   getCompany(companyId: string): EngineCompany | undefined;
   companies(): EngineCompany[];
-  recordFlow(companyId: string, side: OrderSide, shares: number): void;
+  quote(companyId: string, side: OrderSide, quantity: number): { lastPrice: number; fillPrice: number; impactBps: number; intervalRemaining: number }; // fillPrice unrounded, includes pending flow
+  reserveFlow(teamId: string, companyId: string, side: OrderSide, quantity: number): { lastPrice: number; fillPrice: number; impactBps: number; release(): void }; // SYNCHRONOUS; adds signed qty to pending flow before any await; throws EngineError('market_closed'|'unknown_company'|'interval_limit')
+  closePrice(companyId: string): number;              // round(exp(v+m)) — used for final standings and reveal
   applySettings(input: SettingsInput): Promise<GameState>;  // lobby only else throws EngineError('not_lobby')
   startGame(): Promise<void>;                         // lobby only: clock from settings, startAt/endAt, buildSchedule → _schedule/_news, init _engine/state, persist
   pauseGame(): Promise<void>; resumeGame(): Promise<void>;
@@ -773,7 +850,7 @@ export function resetLeaderboardCache(): void;
 - **`tickOnce(now)`:** runs only when `live`. `target = tickAt(now, startAt, clock)`. For each `t` in `(currentTick, target]`:
   - `rM = marketStep`.
   - Gather events at `t`, plus queued host events when `t === target`.
-  - Per company: `{net, volume} = flow.drain` (only on the first iteration of a catch-up), `jump = Σ events.jumps[id]`, `price = companyStep`.
+  - Per company: `{net, volume} = flow.drain` (only on the first iteration of a catch-up), `jump = Σ events.jumps[id]`, `price = companyStep`. Call `flow.resetInterval()` after the first iteration (per-crew interval caps reset every tick).
   - Update session fields: at `t % sessionTicks === 0`, `sessionOpen = price` and high/low/volume reset. Voyage high/low update every tick.
   - Append to the in-memory chunk arrays and mark chunk dirty.
   - Fired events become `news/{source}-{t}-{firstId}-{seq}` with `priceAtFire`.
@@ -786,11 +863,12 @@ export function resetLeaderboardCache(): void;
   - In-memory `valueSeries[teamId]`: on the first call load all `teams/{id}/history/*` chunks.
   - Write `teams/{id}` `{totalValue, rank, holdingsCount}`, plus `sessionOpenValue` when `tick % sessionTicks === 0`.
   - Write `teams/{id}/history/{chunk}`.
-  - `_teamStats/{id}`: `exposure += Σ(value_i·q_i)`, `weight += Σ value_i` (holdings only).
+  - `_teamStats/{id}`: `exposure += Σ(value_i·q_i)` (the visible-fundamentals `q`, not `qEff`, so the grade rewards research rather than luck), `weight += Σ value_i` (holdings only).
   - `leaderboard/current` entries: `prevRank` from the previous doc, `spark` = 40 evenly sampled points of the series.
+- **Closing mark:** `endGame()` values every holding at `closePrice(id)` (impact excluded), writes those values to teams and the final leaderboard, and sets `companies/{id}.currentPrice` to the close. This stops last-interval pumping of final marks.
 - **`finalizeLeaderboard`:** `researchScore = exposure/weight` (0 if weight 0) → grade via quintile thresholds of q (`≥0.6 A, ≥0.2 B, ≥−0.2 C, ≥−0.6 D, else F`). Write `leaderboard/current.final`.
 - **Reveal:**
-  - `expectedReturn = spread·q + beta·mktDrift`, `actualReturn = ln(price/start)`, `luck = actual − expected`, `fairValue = round(exp(v))`.
+  - `expectedReturn = spread·qEff + beta·mktDrift`, `actualReturn = ln(close/start)`, `luck = actual − expected`, `fairValue = round(exp(v))`, `qEff`, `surprise`. Plain-language copy explains the surprise: "Some companies had hidden strengths or problems that didn't show in their financials."
   - Label: `q≥0 & luck≥0` compounder; `q≥0 & luck<0` unlucky_gem; `q<0 & luck≥0` lucky_turnaround; else decliner.
 - **`firebase.ts`:** when either emulator env var is set → `initializeApp({ projectId })` only, with a `console.info('[firebase] emulator mode — service account ignored')`.
 - **CLIs:** `seedFirestore.ts` → `createMarket({ seed: config.seed || undefined, keepCrews: true, adminPassword: config.adminPassword || undefined })` and print the seed + admin password when generated. `reset.ts` → `clearDynamicData({ keepCrews: false, startingCapital })`, printing next steps.
@@ -840,13 +918,13 @@ describe('loop helpers', () => {
 - Rewrite test: `server/test/trading.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1 (`orderRequestSchema`, `estimateOrder`, `marketImpact`, `fillPrice`, `feeFor`, `settingsSchema`, `newGameSchema`, `resetPasswordSchema`, `tradingToggleSchema`, `fireNewsSchema`, `createTeamSchema`); Task 4 `engine` API and `createMarket`; `db` from firebase; `hashPassword`; `auditLog`.
+- Consumes: Task 1/1b/1c (`orderRequestSchema`, `estimateOrder`, `notionalFor`, `feeFor`, `settingsSchema`, `newGameSchema`, `resetPasswordSchema`, `tradingToggleSchema`, `fireNewsSchema`, `createTeamSchema`); Task 4 `engine` API and `createMarket`; `db` from firebase; `hashPassword`; `auditLog`.
 - Produces:
 ```ts
 // services/trading.ts
-export class TradeError extends Error { constructor(public code: 'market_closed'|'trading_disabled'|'unknown_company'|'bad_quantity'|'price_moved'|'insufficient_funds'|'insufficient_shares'|'position_limit'|'no_team', message: string) }
-export interface FillInput { side: OrderSide; quantity: number; lastPrice: number; beta: number; sharesOutstanding: number; feeBps: number; cash: number; sharesOwned: number; avgCost: number; totalValue: number; maxPositionPct: number }
-export interface FillOutcome { price: number; impactBps: number; notional: number; fee: number; cashAfter: number; sharesAfter: number; avgCostAfter: number; realizedPnl: number }
+export class TradeError extends Error { constructor(public code: 'market_closed'|'trading_disabled'|'unknown_company'|'bad_quantity'|'price_moved'|'insufficient_funds'|'insufficient_shares'|'position_limit'|'interval_limit'|'no_team', message: string) }
+export interface FillInput { side: OrderSide; quantity: number; fillPrice: number /* unrounded cents from engine.reserveFlow */; lastPrice: number; feeBps: number; cash: number; sharesOwned: number; avgCost: number; totalValue: number; maxPositionPct: number }
+export interface FillOutcome { price: number /* round(fillPrice) for display */; notional: number /* round(q·fillPrice) */; fee: number; cashAfter: number; sharesAfter: number; avgCostAfter: number; realizedPnl: number }
 export function computeFill(i: FillInput): FillOutcome;  // throws TradeError on insufficient funds/shares/bad quantity
 export function checkPriceProtection(lastPrice: number, quotedPrice: number | undefined): void; // throws price_moved if > MODEL.priceProtection
 export function executeOrder(engine: GameEngine, teamId: string, order: OrderRequest): Promise<Trade>;
@@ -857,13 +935,14 @@ export function setCrewTrading(teamId: string, enabled: boolean): Promise<void>;
 export function removeCrew(teamId: string): Promise<void>;
 export class CrewError extends Error { constructor(public code: 'exists'|'bad_name'|'not_found', message: string) }
 ```
-- **Realized P&L on sell** = `round((price − avgCost)·quantity) − fee`; on buy it is 0 and `fee` goes into `feesPaid`.
+- **Realized P&L on sell** = `notional − round(avgCost·quantity) − fee`; on buy it is 0 and `fee` goes into `feesPaid`. Position limit values the position at `lastPrice`.
 - **`executeOrder`:**
   1. Validate phase, company and `team.tradingDisabled` (read in the transaction).
   2. Price protection against `engine.getPrice`.
-  3. Transaction: if `orders/{teamId}_{clientOrderId}` exists with a `tradeId`, return that trade. Otherwise read team + holding, run `computeFill`, write team `{cashBalance, realizedPnl+=, feesPaid+=, tradeCount+=1, holdingsCount}`, the holding, the trade `{…, tick: engine.state.currentTick}` and the order `{status:'filled', tradeId}`.
-  4. After commit: `engine.recordFlow` and `auditLog('order.fill')`.
-  5. On `TradeError`, best-effort write order `{status:'rejected', code, reason}` (skipped for `price_moved`/`market_closed` spam? No: always write, it is cheap) and rethrow.
+  3. `const r = engine.reserveFlow(teamId, companyId, side, quantity)`, synchronously and BEFORE the transaction (EngineError `interval_limit` → TradeError `interval_limit`). If the transaction throws, call `r.release()`.
+  4. Transaction: if `orders/{teamId}_{clientOrderId}` exists with a `tradeId`, return that trade. Otherwise read team + holding, run `computeFill`, write team `{cashBalance, realizedPnl+=, feesPaid+=, tradeCount+=1, holdingsCount}`, the holding, the trade `{…, tick: engine.state.currentTick}` and the order `{status:'filled', tradeId}`.
+  5. After commit: `auditLog('order.fill')` (flow is already reserved).
+  6. On `TradeError`, best-effort write order `{status:'rejected', code, reason}` (skipped for `price_moved`/`market_closed` spam? No: always write, it is cheap) and rethrow.
 - **Routes** (spec §8): `POST /orders` maps TradeError → 400 `{error: code, message}`; `409` for `price_moved`.
 - **Admin routes:** settings → `engine.applySettings` (EngineError not_lobby → 409); `game/new` → `engine.stop(); await createMarket({keepCrews}); resetLeaderboardCache(); await engine.reload()`, returns `{ok, seed: undefined}` (never return the seed); teams CRUD via crews.ts with `startingCapital` from `engine.state.startingCapital`; `GET /admin/market` → `engine.adminMarket()`; `GET /admin/news/scheduled` → `engine.scheduledNews()`; `POST /admin/news` → `engine.queueHostNews` (EngineError → 409).
 - **`GET /health`** → `engine.health()`.
@@ -873,17 +952,17 @@ export class CrewError extends Error { constructor(public code: 'exists'|'bad_na
 ```ts
 import { describe, it, expect } from 'vitest';
 import { computeFill, checkPriceProtection, TradeError } from '../src/services/trading';
-const b = { lastPrice: 10_000, beta: 1, sharesOutstanding: 100_000_000, feeBps: 10, cash: 1_000_000, sharesOwned: 0, avgCost: 0, totalValue: 1_000_000, maxPositionPct: 1 };
+const b = { lastPrice: 10_000, fillPrice: 10_003.7, feeBps: 10, cash: 1_000_000, sharesOwned: 0, avgCost: 0, totalValue: 1_000_000, maxPositionPct: 1 };
 describe('computeFill', () => {
   it('buy pays slippage + fee and updates avg cost', () => {
     const f = computeFill({ ...b, side: 'buy', quantity: 50 });
-    expect(f.price).toBeGreaterThanOrEqual(10_000); expect(f.notional).toBe(50 * f.price);
-    expect(f.cashAfter).toBe(1_000_000 - f.notional - f.fee); expect(f.avgCostAfter).toBe(f.price); expect(f.realizedPnl).toBe(0);
+    expect(f.price).toBe(10_004); expect(f.notional).toBe(Math.round(50 * 10_003.7));
+    expect(f.cashAfter).toBe(1_000_000 - f.notional - f.fee); expect(f.avgCostAfter).toBe(Math.round(f.notional / 50)); expect(f.realizedPnl).toBe(0);
   });
   it('sell receives price below last, realizes P&L net of fee', () => {
-    const f = computeFill({ ...b, side: 'sell', quantity: 40, sharesOwned: 50, avgCost: 9_000 });
-    expect(f.price).toBeLessThanOrEqual(10_000);
-    expect(f.realizedPnl).toBe(Math.round((f.price - 9_000) * 40) - f.fee);
+    const f = computeFill({ ...b, side: 'sell', quantity: 40, sharesOwned: 50, avgCost: 9_000, fillPrice: 9_996.2 });
+    expect(f.notional).toBe(Math.round(40 * 9_996.2));
+    expect(f.realizedPnl).toBe(f.notional - 9_000 * 40 - f.fee);
     expect(f.sharesAfter).toBe(10); expect(f.avgCostAfter).toBe(9_000);
   });
   it('rejects insufficient funds/shares and bad quantity', () => {

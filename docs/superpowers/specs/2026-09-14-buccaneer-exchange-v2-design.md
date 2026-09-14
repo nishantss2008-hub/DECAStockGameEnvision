@@ -149,23 +149,25 @@ maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week
 | `jumpUpBias` | `pUp = 0.5 + 0.30·q` | Kou up-probability |
 | `maxJump` | 0.25 | truncation |
 | GARCH | α_day 0.12, α+β 0.97; per tick `φ=e^(−c·dt)`, `α=min(0.3, a√dt)`, `β=φ−α`, h∈[0.1,10] | GARCH(1,1) |
-| mispricing | half-life 5% of game, stationary sd 0.03 | exact OU |
-| impact | `Y=1`, `ADV = shares/150`, cap 5%/tick, decay = OU decay | square-root law |
-| `maxTickMove` | 0.08 (diffusive dv only) | clamp |
+| mispricing | exact OU, **off by default** (`mispriceSd = 0`); review showed it adds no signal | exact OU |
+| impact | linear transient: `λ_i = Y·sigD_i/ADV_i`, `Y = 1.10`, `ADV = shares/150`, half-life 5% of game; quantity cap 1 ADV per crew per company per tick | Almgren et al. 2005 linear coefficient; Obizhaeva–Wang resilience (arbitrage-free per Gatheral 2010) |
+| diffusion clamp | `|dv| ≤ 3·√dt` (scales with game length) | clamp |
+| hidden surprise | `qEff = 0.75·q + 0.25·ξ`, `ξ ~ U[−1,1]` seeded | keeps portfolio outcomes from being near-deterministic |
 
-### 5.3 Per tick t (state `{v, m, f, h}` per company, `hM` market; `v` = ln fair value in cents)
+### 5.3 Per tick t (state `{v, m, f, h}` per company, `hM` market; `v` = ln fair value in cents) — v2.1 after the final quant review
 ```
 zM = Prng(seed,'mkt:'+t).gauss();  rM = mktDrift·dt + mktVol·√(hM·dt)·zM;  hM ← garch(hM, zM)
 for each company i (Prng(seed,'co:'+id+':'+t) → z, zO in that order):
-  alpha_i = QS·q_i − K·(2·pUp_i − 1)·E[min(Exp(s), 0.25)]        // Merton compensator
-  dv = clamp(alpha_i·dt + beta_i·rM + idioVol_i·√(h_i·dt)·z, ±0.08)
+  qEff_i = 0.75·q_i + 0.25·ξ_i;  pUp_i = 0.5 + 0.30·qEff_i
+  alpha_i = QS·qEff_i − K·(2·pUp_i − 1)·E[min(Exp(s), 0.25)]   // log-drift offset: E[quality log return] = QS·qEff for any K
+  dv = clamp(alpha_i·dt + beta_i·rM + idioVol_i·√(h_i·dt)·z, ±3√dt)
   v_i += dv + J_i(t)           // scheduled news/macro jumps (+ host news) gap past the clamp
-  h_i ← garch(h_i, z);  m_i = m_i·dec + ouSd·zO
-  f_i = f_i·dec + sign(Q_i)·min(0.05, Y·sigDay_i·√(|Q_i|/ADV_i))    // Q_i net shares since last tick
+  h_i ← garch(h_i, z);  if mispriceSd>0: m_i = m_i·dec + ouSd·zO
+  f_i = dec·(f_i + λ_i·Q_i);  Q_i = 0                             // linear transient impact; decay AFTER adding flow
   price_i = max(1, round(exp(v_i + m_i + f_i)))
 ```
-`sigDay_i = sqrt(beta_i²·mktVol² + 0.30²)/√252`. The 0.30 is a public constant, so impact
-estimates never leak q. Rounded cents are never fed back into state.
+`sigD_i = sqrt(beta_i²·mktVol² + 0.30²)/√252`. The 0.30 is a public constant, so impact estimates
+never leak quality. Rounded cents are never fed back into state.
 
 ### 5.4 News schedule
 Generated at **game start** (it depends on N), seeded `('jumps:'+id)`, and stored in
@@ -203,8 +205,13 @@ Generated at **game start** (it depends on N), seeded `('jumps:'+id)`, and store
     - quantity must be a positive integer
     - `|price − quotedPrice|/quotedPrice > 2%` → `price_moved`
   - **Idempotency:** `orders/{teamId}_{clientOrderId}` already exists → return its trade.
-- **Fill price:** `last·exp(±I(q)/2)` with `I(q) = min(0.05, Y·sigDay·√(q/ADV))`, rounded to cents.
+- **Fill price:** `exp(v + m + f + λ·(Q_pending + s·q/2))`, UNROUNDED cents. It includes other
+  crews' flow already traded this interval plus half the order's own impact. `notional = round(q·px)`.
   Fee is `feeBps` (default 10) of notional.
+  - The signed quantity is added to `Q_pending` synchronously before the Firestore transaction and
+    released if the transaction fails.
+  - Each crew can trade at most 1 ADV of a company per tick (`interval_limit`).
+  - Splitting orders costs exactly the same as one order, and every round trip loses impact cost plus fees.
 - **Transaction writes:**
   - team `cashBalance`, `realizedPnl`, `feesPaid`, `tradeCount`
   - holding `{shares, avgCost}`
@@ -274,7 +281,7 @@ After the commit, `recomputeLeaderboard` writes:
 - `leaderboard/current` with sparks and `prevRank`
 - the `_teamStats` accumulators
 
-`endGame()` writes the `companies/{id}.reveal` values and the final leaderboard with
+`endGame()` marks all holdings at the **closing price** `round(exp(v+m))`, which excludes impact (like a closing auction), then writes the `companies/{id}.reveal` values and the final leaderboard with
 research grades:
 - **reveal:** `{quality, grade, pillars, expectedReturn = QS·q + beta·mktDrift, actualReturn = ln(end/start), luck = actual − expected, label}`
 - **label:** Compounder / Unlucky Gem / Lucky Turnaround / Decliner, from the signs of `q` and `luck`
