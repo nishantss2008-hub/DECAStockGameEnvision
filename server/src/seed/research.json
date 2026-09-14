@@ -29,7 +29,7 @@
   },
   "sectorProfiles": [
     { "sector": "Shipping & Salvage", "peLow": 24, "peHigh": 29, "psLow": 1.3, "psHigh": 3.1, "netMarginLow": 0.07, "netMarginHigh": 0.11, "revGrowthLow": 0.05, "revGrowthHigh": 0.09, "divYield": 0.012, "evEbitda": 18, "analog": "Industrials/Shipping: cyclical, capital-heavy" },
-    { "sector": "Rum & Provisions", "peLow": 17, "peHigh": 22, "psLow": 1.75, "psHigh": 3.6, "netMarginLow": 0.028, "netMarginHigh": 0.134, "revGrowthLow": 0.03, "revGrowthHigh": 0.05, "divYield": 0.033, "evEbitda": 14, "analog": "Consumer Staples/Beverages: defensive, steady" },
+    { "sector": "Provisions & Spice", "peLow": 17, "peHigh": 22, "psLow": 1.75, "psHigh": 3.6, "netMarginLow": 0.028, "netMarginHigh": 0.134, "revGrowthLow": 0.03, "revGrowthHigh": 0.05, "divYield": 0.033, "evEbitda": 14, "analog": "Consumer Staples: defensive, steady" },
     { "sector": "Naval Arms", "peLow": 18, "peHigh": 46, "psLow": 2.8, "psHigh": 3.6, "netMarginLow": 0.05, "netMarginHigh": 0.11, "revGrowthLow": 0.08, "revGrowthHigh": 0.13, "divYield": 0.008, "evEbitda": 17, "analog": "Defense/Aerospace: backlog-driven, high multiple" },
     { "sector": "Cartography & Navigation", "peLow": 22, "peHigh": 40, "psLow": 4, "psHigh": 12, "netMarginLow": 0.1, "netMarginHigh": 0.25, "revGrowthLow": 0.08, "revGrowthHigh": 0.2, "divYield": 0.004, "evEbitda": 27, "analog": "Info-Tech/software: high margin, high multiple" },
     { "sector": "Treasure Banking", "peLow": 11, "peHigh": 13, "psLow": 3.7, "psHigh": 4.1, "netMarginLow": 0.27, "netMarginHigh": 0.29, "revGrowthLow": 0, "revGrowthHigh": 0.03, "divYield": 0.024, "evEbitda": 9, "pbLow": 1.0, "pbHigh": 1.5, "analog": "Banks/Financials: cheap P/E, high net margin" },

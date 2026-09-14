@@ -25,8 +25,7 @@ logo/title lettering, the EITC mark, the Aztec medallion, film character names
 motifs are fine (compass rose, Jolly Roger, portolan charts, wax seals, merchant's
 marks, Kraken/Davy Jones folklore). No brokerage logos or brand names in the UI.
 
-**Audience rule:** high-school DECA students. No alcohol references in UI copy
-(company names from the existing roster are data and may appear), no gore, no
+**Audience rule:** high-school DECA students. No alcohol references anywhere (the roster was renamed on 2026-09-14: Calico Jack Spice Traders, Galleon Goods Co., Tortuga Harbor Inns, sector Provisions & Spice), no gore, no
 mocking losses.
 
 ## 2. Tokens (Black Pearl)
@@ -62,7 +61,7 @@ mocking losses.
 Crest roundel fills by sector (text `#F8F6F0`, 2px inner ring `rgba(221,190,114,.85)`):
 Shipping & Salvage `#2F6F68` · Treasure Banking `#6F5A2E` · Maps/Cartography/Instruments
 `#4C5B40` · Naval Arms `#7A3328` · Cursed Relics `#3F3F52` · Hospitality `#5B4A63` ·
-Provisions `#7A5A2E` · Parrot & Livestock `#4E6B3A` · Letters of Marque `#3E5566`.
+Provisions & Spice `#7A5A2E` · Parrot & Livestock `#4E6B3A` · Letters of Marque `#3E5566`.
 
 ## 3. Type
 
@@ -122,7 +121,7 @@ KRKN Kraken Shipping Lines (Shipping & Salvage) 3,000 · 73.50 · 84.12 · +1.90
 PRYL Port Royal Banking (Treasure Banking) 800 · 184.00 · 212.40 · +1.85 (+0.88%) → Ð169,920.00 · +Ð1,480.00 · +Ð22,720.00 (+15.43%)
 ASTR Astrolabe Analytics (Maps & Instruments) 1,000 · 137.00 · 146.55 · +0.60 (+0.41%) → Ð146,550.00 · +Ð600.00 · +Ð9,550.00 (+6.97%)
 MRED Mary Read Munitions (Naval Arms) 2,000 · 58.00 · 64.30 · +1.26 (+2.00%) → Ð128,600.00 · +Ð2,520.00 · +Ð12,600.00 (+10.86%)
-CJRD Calico Jack Rum Distillers (Rum & Provisions) 1,500 · 39.00 · 41.18 · −0.22 (−0.53%) → Ð61,770.00 · −Ð330.00 · +Ð3,270.00 (+5.59%)
+CJST Calico Jack Spice Traders (Provisions & Spice) 1,500 · 39.00 · 41.18 · −0.22 (−0.53%) → Ð61,770.00 · −Ð330.00 · +Ð3,270.00 (+5.59%)
 SALT Saltbeard Shipping (Shipping & Salvage) 2,500 · 17.80 · 18.24 · −0.14 (−0.76%) → Ð45,600.00 · −Ð350.00 · +Ð1,100.00 (+2.47%)
 CRSD Cursed Doubloon Relics (Cursed Relics) 1,000 · 38.00 · 31.07 · −1.11 (−3.46%) → Ð31,070.00 · −Ð1,110.00 · −Ð6,930.00 (−18.24%)
 Sums: value Ð835,870.00 · session +Ð8,510.00 · unrealized +Ð74,170.00. Cursed Relics sector index = CRSD = −3.46%.
@@ -135,9 +134,9 @@ Order-ticket samples (linear impact on KRKN is below 0.01%, so estimated price s
 - Mobile Ð5,000 of KRKN: ≈ 59 shares · Ð31.96 stays as cash · value Ð4,963.08 · fee Ð4.96 · total Ð4,968.04 · cash after Ð243,381.51.
 
 Other quotes: CNBR Cannonbright Foundries Ð102.66 +6.12% · LVTH Leviathan Logistics Ð57.03 +4.48% ·
-GROG Grog & Galleon Brewing Ð58.90 −0.73% · BBRD Blackbeard Incorporated Ð318.40 −0.35% ·
+GLGD Galleon Goods Co. Ð58.90 −0.73% · BBRD Blackbeard Incorporated Ð318.40 −0.35% ·
 DJON Davy Jones Salvage Co. Ð44.70 +1.02% · FDUT Flying Dutchman Freight Ð96.15 −1.64% ·
-ABON Anne Bonny Cartography Ð446.19 +0.12% · TRTG Tortuga Tavern Group Ð27.55 −2.10% ·
+ABON Anne Bonny Cartography Ð446.19 +0.12% · TRTG Tortuga Harbor Inns Ð27.55 −2.10% ·
 LMAQ Letters of Marque Assurance Ð131.80 +0.54% · JLLY Jolly Roger Holdings Ð74.25 +1.37% ·
 KIDD Kidd Treasure Trust Ð188.90 −0.21% · SPYG Spyglass Instruments Ð63.40 +0.95% ·
 CMPS Compass Rose Navigation Ð112.05 −0.66% · PRRT Parrot & Plume Livestock Ð22.30 +3.05% ·

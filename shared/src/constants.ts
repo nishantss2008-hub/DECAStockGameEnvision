@@ -40,7 +40,7 @@ export const HISTORY_CHUNK = 120;
 /** Pirate-themed market sectors. */
 export const SECTORS = [
   'Shipping & Salvage',
-  'Rum & Provisions',
+  'Provisions & Spice',
   'Naval Arms',
   'Cartography & Navigation',
   'Treasure Banking',

@@ -387,7 +387,7 @@ describe('estimate', () => {
   - `rankZ`: sort indices, then average ranks for ties; undefined values get rank 0.5 below the minimum (i.e. treated as −∞ and tied among themselves).
   - `computeQualityScores`: spec §3 (PROF 4 items, GROW 3, SAFE 4, VAL 3). Use `refs[sector]` or else the universe median multiples. `q = −1 + 2·(rank(s)+0.5)/N` with 0-based rank ascending.
   - `gradeFor(rankIndex0, n)`: rankIndex0 counts from the best (0 = best), quintile index `floor(5·rankIndex0/n)` → `['A','B','C','D','F']`.
-  - Roster: rename `barbossa` to `{ id:'bartholomew', name:'Bartholomew Provisions', ticker:'BRTH', sector:'Rum & Provisions' }` and delete `emoji` from all entries and the `RosterEntry` type.
+  - Roster: rename `barbossa` to `{ id:'bartholomew', name:'Bartholomew Provisions', ticker:'BRTH', sector:'Provisions & Spice' }` and delete `emoji` from all entries and the `RosterEntry` type.
 - [ ] **Step 4:** Run `npm run build:shared && npm test -w @deca/server -- clock quality estimate`. Expected PASS. The old tests importing deleted constants (`TOTAL_TICKS`, `ENGINE_PARAMS`) will fail: delete `server/test/sim.test.ts` and `server/test/fundamentals.test.ts`, and trim `core.test.ts` to prng + money only. Server `tsc` may fail on old engine files; that is expected until Wave 1–2 (the gate for Wave 0 is shared build + the three new test files).
 - [ ] **Step 5:** Install deps (command above). Orchestrator commits: `feat(shared): v2 contracts — clock, quality score, order estimate`.
 
@@ -1093,7 +1093,7 @@ export function classNames(...args: Array<string | false | null | undefined | Re
 // lib/orderId.ts
 export function newClientOrderId(): string; // 20-char [A-Za-z0-9_-] via crypto.getRandomValues
 // lib/watchlist.ts
-export function useWatchlist(teamId: string | null): { symbols: string[]; toggle(id: string): void; has(id: string): boolean }; // localStorage `bx.watchlist.${teamId}`, default ['kraken','port-royal','cursed-doubloon','astrolabe','grog-galleon'] filtered to existing ids by caller
+export function useWatchlist(teamId: string | null): { symbols: string[]; toggle(id: string): void; has(id: string): boolean }; // localStorage `bx.watchlist.${teamId}`, default ['kraken','port-royal','cursed-doubloon','astrolabe','galleon-goods'] filtered to existing ids by caller
 // lib/sector.ts
 export const SECTOR_COLORS: Record<Sector, string>; // BRIEF §2 crest fills
 export function initials(name: string): string;     // 'Kraken Shipping Lines' → 'KS'
