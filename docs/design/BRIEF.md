@@ -1,0 +1,170 @@
+# Buccaneer Exchange — Redesign Brief (Direction B · Black Pearl)
+
+Source of truth for the redesign mockups in `docs/design/canvas/` and for the React
+implementation that follows. Chosen by the user on 2026-09-14 from four directions.
+
+## 1. Concept
+
+A professional brokerage dashboard (information architecture of Fidelity-style
+Portfolio › Summary / Positions / Activity & Orders / Balances, Trade ticket with
+preview, Research snapshot, Markets overview) wearing an original golden-age-of-piracy
+skin: a moonlit ghost-ship hull (near-black, faint sea-glass glow), tarnished
+poster gold, and fog-grey parchment "ledger" panels where all the numbers live.
+
+**Rule #1 — the theme lives in the frame, never in the figures.**
+- Layer 1 HULL (fully themed): global header, wordmark, page titles, login hero,
+  ceremonies (market open, order filled seal, game over, podium), empty/loading states.
+- Layer 2 RIGGING (light theme): panel headers (eyebrow in Cormorant SC/Cinzel caps
+  with a hairline gold rule), tab bars, news badges, company crest roundels.
+- Layer 3 LEDGER (no theme): tables, quotes, tickets, statements, chart plot areas,
+  inputs. Flat light surfaces, IBM Plex Sans, tabular numerals, 1px neutral rules.
+
+**IP rule:** original design only. Never use the "Pirates of the Caribbean" name, its
+logo/title lettering, the EITC mark, the Aztec medallion, film character names
+(e.g. "Barbossa", "Jack Sparrow"), likenesses or quotes. Historical/public-domain
+motifs are fine (compass rose, Jolly Roger, portolan charts, wax seals, merchant's
+marks, Kraken/Davy Jones folklore). No brokerage logos or brand names in the UI.
+
+**Audience rule:** high-school DECA students. No alcohol references in UI copy
+(company names from the existing roster are data and may appear), no gore, no
+mocking losses.
+
+## 2. Tokens (Black Pearl)
+
+| Token | Hex | Use |
+|---|---|---|
+| chrome | `#111412` | global header (subtle radial sea-glass glow top-right) |
+| chrome-2 | `#1A1F1C` | index strip, primary buttons, selected segments |
+| chrome-3 | `#232A26` | inputs on chrome |
+| chrome-line | `#34403A` | borders on chrome |
+| chrome-edge | `#5FA39A` | 3px rule under header (sea-glass) — or gold rope |
+| gold | `#B8954A` | eyebrows on dark, active tab underline, rules |
+| gold-bright | `#DDBE72` | wordmark, active nav text on dark |
+| gold-dim | `#80683A` | composite/benchmark dashed line, ornaments on light |
+| sea-glass | `#5FA39A` | accent (market-open glow, focus ring on dark, info) |
+| link (on light) | `#2F6F68` | links, info pills text |
+| paper | `#E6E3D9` | page background |
+| sheet | `#F8F6F0` | panels / tables |
+| sheet-alt | `#EFECE3` | table header, zebra, segmented track |
+| rule | `#D9D4C6` | hairlines |
+| rule-strong | `#BFB8A6` | control borders, header underline |
+| ink | `#161816` | primary text |
+| ink-2 | `#454A45` | secondary text |
+| ink-3 | `#666B63` | muted text (≥4.5:1 on sheet) |
+| on-chrome | `#E4E8E2` | text on chrome |
+| on-chrome-2 | `#9FB0A8` | muted text on chrome |
+| gain | `#1B7150` (bg `#DFEEE6`) | up, Buy |
+| loss | `#A63A2B` (bg `#F3E0DB`) | down, Sell |
+| gain-on-chrome | `#7FD3B0` | up on dark strips |
+| loss-on-chrome | `#EE9A89` | down on dark strips |
+| seal | `#8E1F1A` | wax-seal ornament ONLY (never data) |
+
+Crest roundel fills by sector (text `#F8F6F0`, 2px inner ring `rgba(221,190,114,.85)`):
+Shipping & Salvage `#2F6F68` · Treasure Banking `#6F5A2E` · Maps/Cartography/Instruments
+`#4C5B40` · Naval Arms `#7A3328` · Cursed Relics `#3F3F52` · Hospitality `#5B4A63` ·
+Provisions `#7A5A2E` · Parrot & Livestock `#4E6B3A` · Letters of Marque `#3E5566`.
+
+## 3. Type
+
+- Wordmark only: **Cinzel Decorative 700** (never wraps: `white-space:nowrap`, 22–24px in header).
+- Eyebrows / panel titles / tab captions: **Cormorant SC 700**, 13–14px, letter-spacing .12em,
+  color ink-2 on light, gold on dark. Max ~4 words. NEVER numbers.
+- Page H1 (optional, ≤1 per screen, ≥28px): Cormorant SC 700 or Cinzel Decorative.
+- Everything else: **IBM Plex Sans** 400/500/600/700 with
+  `font-variant-numeric: tabular-nums lining-nums`. Tickers/order ids may use **IBM Plex Mono** 500.
+- Google Fonts link (helmet):
+  `https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cormorant+SC:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap`
+- Sizes: total account value 32px/600; KPI 20–24px; table 14px (13px compact); secondary 12px.
+
+## 4. Data conventions
+
+- Currency: Doubloons, symbol **Ð**, 2 decimals, thousands separators; true minus `−` (U+2212).
+- Signed changes use THREE channels: sign + small SVG triangle (▲/▼ drawn as SVG, 8px) + color.
+  Unchanged: `0.00%` in ink-3, no arrow.
+- Right-align numeric columns AND headers; same decimals per column; "—" for no data.
+- "Today's" is replaced by **Session** (sessions scale with game length); "Total" = since start.
+- Chart range tabs derive from game length; 48h game: `1H 6H 24H All`.
+- Baseline charts: dashed line at starting capital / reference price.
+- Company crest = 2-letter monogram roundel, never emoji.
+- Icons: stroke SVG on a 24px grid, 1.5px stroke, always paired with text in nav.
+
+## 5. Voice
+
+80% plain brokerage English, 20% pirate flavor. Labels, buttons, column headers, errors,
+confirmations: plain finance terms ("Buy", "Sell", "Cash available to trade", "Preview order").
+Flavor only in subtitles, empty states, loading, toast tails, ceremonies:
+"Market open · Sails up", "Trading paused · Becalmed", "Game ended · Anchors dropped",
+"Order filled: Bought 50 KRKN at Ð84.12 (Ð4,206.00). Fair winds."
+
+## 6. Information architecture
+
+Global header: wordmark · nav (Summary, Positions, Trade, Markets, Research, Dispatches,
+Standings) · symbol search · market status pill with countdown · cash chip · crew menu.
+Index strip under it: Pirate Composite + sector indices + "Tick N of M · as of hh:mm:ss".
+Host (admin) has its own nav: Control, Crews, Market, News desk, Trade tape, Audit.
+Mobile (<600px): bottom bar with 5 items (Summary, Markets, Trade [center, emphasized],
+Dispatches, Standings), header keeps cash chip.
+
+## 7. Shared sample data (use EXACTLY these numbers so screens agree)
+
+Game: 48h voyage, 30s ticks, tick 1,284 of 5,760, 41:17:08 left, as of 14:02:30.
+Starting chest Ð1,000,000.00. Fee 0.10% (10 bps). Pirate Composite 1,048.62 +8.71 (+0.84%).
+
+Crew **Black Pearl Traders** (initials BP), rank 3 of 14.
+Total account value Ð1,084,219.55 · Session +Ð12,041.20 (+1.12%) · Total +Ð84,219.55 (+8.42%).
+Cash available to trade Ð312,400.18 (28.8%) · Invested Ð771,819.37 (71.2%).
+
+Positions (qty · avg cost · last · session change/share):
+KRKN Kraken Shipping Lines (Shipping & Salvage) 3,000 · 73.50 · 84.12 · +1.90 (+2.31%)
+PRYL Port Royal Banking (Treasure Banking) 800 · 184.00 · 212.40 · +1.85 (+0.88%)
+ASTR Astrolabe Analytics (Maps & Instruments) 1,000 · 137.00 · 146.55 · +0.60 (+0.41%)
+MRED Mary Read Munitions (Naval Arms) 2,000 · 58.00 · 64.30 · +1.26 (+2.00%)
+CJRD Calico Jack Rum Distillers (Rum & Provisions) 1,500 · 39.00 · 41.18 · −0.22 (−0.53%)
+SALT Saltbeard Shipping (Shipping & Salvage) 2,500 · 17.80 · 18.24 · −0.14 (−0.76%)
+CRSD Cursed Doubloon Relics (Cursed Relics) 1,000 · 38.00 · 31.07 · −1.11 (−3.46%)
+
+Other quotes: CNBR Cannonbright Foundries Ð102.66 +6.12% · LVTH Leviathan Logistics Ð57.03 +4.48% ·
+GROG Grog & Galleon Brewing Ð58.90 −0.73% · BBRD Blackbeard Incorporated Ð318.40 −0.35% ·
+DJON Davy Jones Salvage Co. Ð44.70 +1.02% · FDUT Flying Dutchman Freight Ð96.15 −1.64% ·
+ABON Anne Bonny Cartography Ð446.19 +0.12% · TRTG Tortuga Tavern Group Ð27.55 −2.10% ·
+LMAQ Letters of Marque Assurance Ð131.80 +0.54% · JLLY Jolly Roger Holdings Ð74.25 +1.37% ·
+KIDD Kidd Treasure Trust Ð188.90 −0.21% · SPYG Spyglass Instruments Ð63.40 +0.95% ·
+CMPS Compass Rose Navigation Ð112.05 −0.66% · PRRT Parrot & Plume Livestock Ð22.30 +3.05% ·
+SIRN Siren Song Entertainment Ð39.95 −1.12% · MLSM Maelstrom Maritime Insurance Ð158.20 −2.44% ·
+MRGN Henry Morgan Capital Ð267.35 +0.77% · BRTH Bartholomew Provisions Ð49.60 +0.31%.
+
+KRKN detail: prev session open Ð82.22; session range Ð81.90–Ð84.60; 52-wk Ð58.40–Ð91.20;
+market cap Ð20.36B; shares out 242.0M; float 201.3M; P/E 17.8; fwd P/E 15.9; EPS Ð4.73;
+div yield 1.9%; payout 34%; volume 184,200; analyst: Buy, target Ð96.00 (+14.1%).
+Revenue FY22–FY25: 6.61B, 7.18B, 7.74B, 8.14B · net income 0.94B, 1.03B, 1.09B, 1.14B ·
+net margin 14.0% · ROE 18.2% · debt/equity 0.62 · current ratio 1.84 · FCF Ð0.96B.
+
+Dispatches: 14:01 Earnings CNBR "Cannonbright Foundries posts blowout quarterly doubloons" (+6.12% since) ·
+13:36 Storm CRSD "Cursed Doubloon Relics loses two ships to a gale off Nassau" (−3.46%) ·
+12:48 Macro "Crown lifts tariffs across the Spanish Main" (11 companies, Composite +0.61%) ·
+11:20 Merger LVTH "Leviathan Logistics agrees to buy a rival fleet at a premium" (+4.48%) ·
+10:05 Regulatory MLSM "Maelstrom Maritime Insurance fined for mispriced policies" (−2.44%).
+
+Standings (total value · return · session): 1 Queen Anne's Revenue Ð1,120,804.10 +12.08% +0.94% ·
+2 Tortuga Capital Ð1,097,700.00 +9.77% +1.40% · 3 Black Pearl Traders Ð1,084,219.55 +8.42% +1.12% ·
+4 The Salty Ledger Ð1,051,002.33 +5.10% −0.20% · 5 Doubloon Dynasty Ð986,600.00 −1.34% −0.85% ·
+6 Kraken Kapital Ð979,410.75 −2.06% +0.33% · 7 Compass & Coin Ð961,120.40 −3.89% −1.02% (14 crews total).
+
+## 8. Canvas format rules (for .dc.html artboards)
+
+Follow the shape of `canvas/Main.dc.html` exactly: `<!doctype html>`, head with
+`<meta charset="utf-8">` and `<script src="./support.js"></script>` (keep verbatim),
+body → `<x-dc>` → `<helmet>` (font link + `<style>`) → one fixed-size root `<div>` → `</x-dc>`.
+Static artboards need NO `<script data-dc-script>`. Canonical HTML: close every non-void
+element, quote every attribute, `&amp;` in URLs. Lay out with flex/grid + `gap`. No emoji
+or dingbat glyph icons — inline SVG. Define `a`/`a:hover` colors. Root width must equal
+the artboard width; set an explicit background.
+
+Render check (must pass before finishing):
+```
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu \
+  --hide-scrollbars --window-size=<W>,<H> --virtual-time-budget=4000 \
+  --screenshot=<scratch>/<Name>.png "file://<abs path>/<Name>.dc.html"
+```
+Then Read the PNG and fix: wrapping headers/chips, overflowing tables, clipped content,
+overlaps, anything unreadable.
