@@ -1,5 +1,5 @@
 {
-  "_note": "Grounding parameters for fabricated company fundamentals. Sourced by the stock-research-grounding web-research workflow (see docs/research-findings.md), mapped onto pirate sectors. Money fields are fractions/ratios, not cents. Consumed by generateFundamentals.ts.",
+  "_note": "Grounding parameters for fabricated company fundamentals. Sourced by the stock-research-grounding web-research workflow (see docs/research-findings.md), mapped onto pirate sectors. Money fields are fractions/ratios, not cents. Consumed by generateMarket.ts.",
   "reportSections": [
     "Summary & Recommendation",
     "Company Overview",
