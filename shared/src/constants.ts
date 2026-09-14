@@ -7,20 +7,26 @@
 
 export const CURRENCY = { name: 'Doubloons', symbol: 'Ð' } as const;
 
-/** Starting capital per team, in integer cents of Ð (= 1,000,000 Ð). */
-export const STARTING_CAPITAL = 1_000_000_00;
+/** Default starting capital per team, in integer cents of Ð (= 1,000,000 Ð). */
+export const DEFAULT_STARTING_CAPITAL = 100_000_000;
 
-/** Engine tick cadence. */
-export const TICK_INTERVAL_MS = 30_000;
+/** Default trading fee charged on each fill, in basis points (10 bps = 0.10%). */
+export const DEFAULT_FEE_BPS = 10;
 
-/** Total game length. */
-export const GAME_LENGTH_MS = 48 * 60 * 60 * 1000;
+/** One hour in milliseconds. */
+export const HOUR_MS = 3_600_000;
 
-/** Number of price ticks across the whole game (~5760). */
-export const TOTAL_TICKS = Math.floor(GAME_LENGTH_MS / TICK_INTERVAL_MS);
+/** Game lengths the host may choose in the lobby (1h … 48h), in ms. */
+export const GAME_LENGTH_OPTIONS_MS = [1, 2, 4, 8, 12, 24, 48].map((h) => h * HOUR_MS);
 
-/** Trading fee charged on each fill, in basis points (10 bps = 0.10%). */
-export const ORDER_FEE_BPS = 10;
+/** Default game length (48h). */
+export const DEFAULT_GAME_LENGTH_MS = 48 * HOUR_MS;
+
+/** Every game is split into this many trading sessions. */
+export const SESSIONS_PER_GAME = 8;
+
+/** Ticks stored per history chunk document. */
+export const HISTORY_CHUNK = 120;
 
 /** Pirate-themed market sectors. */
 export const SECTORS = [
@@ -37,56 +43,65 @@ export const SECTORS = [
 ] as const;
 export type Sector = (typeof SECTORS)[number];
 
-/** Hidden company "fate" archetypes that drive intrinsic value over time. */
-export const ARCHETYPES = [
-  'compounder',
-  'turnaround',
-  'steady',
-  'value_trap',
-  'decliner',
-] as const;
-export type ArchetypeName = (typeof ARCHETYPES)[number];
+/** Host "predictability" knob: how strongly quality tilts expected returns. */
+export const RESEARCH_EDGES = ['low', 'normal', 'high'] as const;
+export type ResearchEdge = (typeof RESEARCH_EDGES)[number];
 
-/**
- * Price-engine parameters. Starting values; calibrated by the research
- * synthesis + the simulation harness (Task 7.1). All are fractions of price
- * unless noted.
- */
-export const ENGINE_PARAMS = {
-  /**
-   * Mean-reversion (OU) speed of realized price toward hidden intrinsic value,
-   * PER TICK. ~0.001 => a ~5.8h reversion half-life over the 30s-tick game.
-   * Research-grounded but game-tuned: pure-realism (~0.0001, 48h half-life)
-   * makes research barely pay off inside one session. See docs/research-findings.md.
-   */
-  kappa: 0.001,
-  /** Base per-tick volatility (fraction of price), scaled per-company by archetype. */
-  sigmaBase: 0.0011,
-  /**
-   * Normalized order-flow impact coefficient (Kyle's lambda intuition). The impact
-   * INCREMENT each tick is `lambda * (netShares / referenceVolume)`, where the engine
-   * passes referenceVolume = sharesOutstanding. Keeps impact scale-free across
-   * companies of very different size.
-   */
-  lambda: 3.0,
-  /** Per-tick decay of the temporary order-flow impact (~6.6-tick half-life). */
-  impactDecay: 0.9,
-  /** Hard clamp on the continuous per-tick fractional move (news jumps may exceed). */
-  maxTickMove: 0.06,
-} as const;
+/** Whole-game expected log-return per unit of q, by research edge. */
+export const EDGE_SPREAD: Record<ResearchEdge, number> = { low: 0.2, normal: 0.3, high: 0.4 };
 
-/** News impact categories. */
-export const NEWS_IMPACTS = [
+/** News event categories. */
+export const NEWS_TYPES = [
+  'earnings',
   'merger',
+  'discovery',
+  'management',
+  'regulatory',
   'scandal',
   'storm',
-  'discovery',
-  'regulatory',
-  'earnings',
-  'management',
   'macro',
 ] as const;
-export type NewsImpact = (typeof NEWS_IMPACTS)[number];
+export type NewsType = (typeof NEWS_TYPES)[number];
+
+/** Letter grades, best first. */
+export const GRADES = ['A', 'B', 'C', 'D', 'F'] as const;
+export type Grade = (typeof GRADES)[number];
+
+/** End-of-game reveal labels (signs of q and luck). */
+export const REVEAL_LABELS = ['compounder', 'unlucky_gem', 'lucky_turnaround', 'decliner'] as const;
+export type RevealLabel = (typeof REVEAL_LABELS)[number];
+
+/**
+ * Price-model parameters (spec §5.2). One game = one simulated trading year,
+ * so all "per game" figures are annualized equivalents.
+ */
+export const MODEL = {
+  tradingDaysPerGame: 252,
+  mktDrift: 0.06,
+  mktVol: 0.18,
+  idioVolBase: 0.3,
+  idioVolQuality: 0.05,
+  idioVolJitter: 0.04,
+  jumpVarPerGame: 0.0225,
+  jumpUpBias: 0.3,
+  maxJump: 0.25,
+  macroJumpsMin: 1,
+  macroJumpsMax: 2,
+  macroJumpMin: 0.02,
+  macroJumpMax: 0.08,
+  garchAlphaDay: 0.12,
+  garchPersistDay: 0.97,
+  garchHMin: 0.1,
+  garchHMax: 10,
+  mispriceHalfLife: 0.05,
+  mispriceSd: 0.03,
+  impactY: 1.0,
+  advDivisor: 150,
+  impactVolRef: 0.3,
+  maxImpact: 0.05,
+  maxTickMove: 0.08,
+  priceProtection: 0.02,
+} as const;
 
 /** Email domain used to map a team name to a Firebase Auth credential. */
 export const TEAM_EMAIL_DOMAIN = 'deca-pirates.game';

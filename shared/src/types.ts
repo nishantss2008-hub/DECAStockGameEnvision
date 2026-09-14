@@ -1,42 +1,77 @@
 /**
- * Domain types — the single source of truth for data shapes shared by the
+ * Domain types: the single source of truth for data shapes shared by the
  * authority service and the web client. Money fields are integer cents of the
  * themed currency unless the field name says otherwise.
  */
 
-import type { ArchetypeName, NewsImpact, Sector } from './constants.js';
+import type { Grade, NewsType, ResearchEdge, RevealLabel, Sector } from './constants.js';
+import type { QualityPillars } from './quality.js';
 
 export type Phase = 'lobby' | 'live' | 'paused' | 'ended';
 export type OrderSide = 'buy' | 'sell';
 export type Role = 'team' | 'admin';
-export type Archetype = ArchetypeName;
+
+/** Host-configurable settings (editable in the lobby). */
+export interface GameSettings {
+  gameLengthMs: number;
+  startingCapital: number; // integer cents
+  feeBps: number;
+  researchEdge: ResearchEdge;
+  currency: { name: string; symbol: string };
+}
 
 /** Public document at `game/state`. */
-export interface GameState {
+export interface GameState extends GameSettings {
   phase: Phase;
-  startAt: number | null; // epoch ms when game went live
-  endAt: number | null; // epoch ms when game ends
-  pausedAt: number | null; // epoch ms the game was paused (durable, for resume-safety)
+  startAt: number | null; // epoch ms when the game went live
+  endAt: number | null; // epoch ms when the game ends
+  pausedAt: number | null; // epoch ms the game was paused
+  endedAt: number | null; // epoch ms the game actually ended
   currentTick: number;
   tickIntervalMs: number;
+  totalTicks: number;
+  sessionTicks: number;
   serverTime: number; // engine heartbeat, epoch ms
-  currency: { name: string; symbol: string };
-  startingCapital: number; // integer cents
+  lastTickAt: number | null;
+  marketCreatedAt: number;
+}
+
+/** End-of-game reveal written onto `companies/{id}.reveal`. */
+export interface CompanyReveal {
+  quality: number; // s
+  q: number;
+  grade: Grade;
+  pillars: QualityPillars;
+  fairValue: number; // integer cents, exp(v)
+  expectedReturn: number; // log return, QS·q + beta·mktDrift
+  actualReturn: number; // log return, ln(end/start)
+  luck: number; // actual − expected
+  label: RevealLabel;
 }
 
 /** Public document at `companies/{id}`. */
 export interface Company {
-  id: string; // slug, e.g. "blackbeard"
-  name: string; // "Blackbeard Incorporated"
-  ticker: string; // "BBRD"
+  id: string;
+  name: string;
+  ticker: string;
   sector: Sector;
-  emoji: string;
   description: string;
   currentPrice: number; // integer cents
-  prevClose: number; // integer cents (reference price ~24h ago)
-  dayChange: number; // signed fraction, e.g. 0.0123 = +1.23%
+  startPrice: number;
+  sessionOpen: number;
+  sessionHigh: number;
+  sessionLow: number;
+  sessionVolume: number; // shares
+  voyageHigh: number;
+  voyageLow: number;
+  sessionChange: number; // signed fraction vs sessionOpen
+  voyageChange: number; // signed fraction vs startPrice
   sharesOutstanding: number;
-  marketCap: number; // integer cents = currentPrice * sharesOutstanding
+  marketCap: number; // integer cents
+  beta: number;
+  adv: number; // shares
+  lastTick: number;
+  reveal?: CompanyReveal;
 }
 
 export interface ManagementMember {
@@ -110,23 +145,67 @@ export interface Fundamentals {
   recentDevelopments: string[];
   analyst: { rating: string; priceTarget: number }; // priceTarget integer cents
   history: FinancialPeriod[];
+  // risk
+  beta: number;
 }
 
-/** A single recorded price tick at `companies/{id}/priceHistory/{tick}`. */
-export interface PricePoint {
-  tick: number;
-  timestamp: number; // epoch ms
-  price: number; // integer cents
-  volume: number; // shares traded into this tick
+/** `companies/{id}/history/{chunk}`: HISTORY_CHUNK ticks of prices and volumes. */
+export interface HistoryChunk {
+  chunk: number;
+  startTick: number;
+  prices: number[]; // integer cents
+  volumes: number[]; // shares
 }
 
-/** Public document at `teams/{id}` (private fields readable only by the team/admin). */
+/** Value series chunk (market composite, team total value). */
+export interface ValueChunk {
+  chunk: number;
+  startTick: number;
+  values: number[];
+}
+
+export interface IndexQuote {
+  value: number;
+  open: number;
+  sessionOpen: number;
+  change: number; // signed fraction vs open
+  sessionChange: number; // signed fraction vs sessionOpen
+}
+
+export interface MarketBreadth {
+  advancers: number;
+  decliners: number;
+  unchanged: number;
+  voyageHighs: number;
+  voyageLows: number;
+  sessionVolume: number;
+  advancingVolume: number;
+  decliningVolume: number;
+}
+
+/** Public document at `market/summary`. */
+export interface MarketSummary {
+  lastTick: number;
+  updatedAt: number;
+  composite: IndexQuote;
+  sectors: Record<string, IndexQuote>;
+  breadth: MarketBreadth;
+}
+
+/** Document at `teams/{id}` (readable by the team and admin). */
 export interface Team {
   id: string;
   name: string;
   cashBalance: number; // integer cents
   totalValue: number; // cash + mark-to-market holdings
   rank: number;
+  realizedPnl: number;
+  feesPaid: number;
+  tradeCount: number;
+  tradingDisabled: boolean;
+  sessionOpenValue: number;
+  holdingsCount: number;
+  createdAt: number;
 }
 
 /** Document at `teams/{id}/holdings/{companyId}`. */
@@ -141,6 +220,8 @@ export interface OrderRequest {
   companyId: string;
   side: OrderSide;
   quantity: number;
+  clientOrderId: string;
+  quotedPrice?: number; // integer cents the client saw
 }
 
 /** Document at `trades/{id}` (server-written). */
@@ -151,21 +232,47 @@ export interface Trade {
   side: OrderSide;
   quantity: number;
   price: number; // fill price, integer cents
+  lastPrice: number; // last price at fill time
+  impactBps: number;
   fee: number; // integer cents
+  realizedPnl: number;
   executedAt: number; // epoch ms
-  cashAfter: number; // team cash after the fill
-  sharesAfter: number; // team shares of this company after the fill
+  tick: number;
+  cashAfter: number;
+  sharesAfter: number;
+  clientOrderId: string;
 }
 
-/** Public document at `news/{id}` (only after the event fires). */
+export type OrderStatus = 'filled' | 'rejected';
+
+/** Document at `orders/{teamId}_{clientOrderId}`. */
+export interface OrderRecord {
+  id: string;
+  teamId: string;
+  clientOrderId: string;
+  companyId: string;
+  side: OrderSide;
+  quantity: number;
+  status: OrderStatus;
+  code?: string;
+  reason?: string;
+  tradeId?: string;
+  createdAt: number;
+  tick: number;
+}
+
+/** Public document at `news/{id}` (only after the event fires; never carries magnitude). */
 export interface NewsEvent {
   id: string;
   headline: string;
   body: string;
   companyIds: string[];
-  impact: NewsImpact;
-  magnitude: number; // signed fractional price jump applied
-  firedAt: number; // epoch ms
+  type: NewsType;
+  sentiment: 'bullish' | 'bearish';
+  source: 'scheduled' | 'macro' | 'host';
+  tick: number;
+  firedAt: number;
+  priceAtFire: Record<string, number>;
 }
 
 /** Entry within `leaderboard/current`. */
@@ -174,12 +281,25 @@ export interface LeaderboardEntry {
   name: string;
   totalValue: number;
   rank: number;
+  prevRank: number;
+  returnPct: number;
+  sessionChangePct: number;
+  cashPct: number;
+  holdings: number;
+  spark: number[];
+}
+
+export interface FinalEntry extends LeaderboardEntry {
+  researchScore: number;
+  researchGrade: Grade;
 }
 
 /** Public document at `leaderboard/current`. */
 export interface Leaderboard {
   updatedAt: number;
+  tick: number;
   entries: LeaderboardEntry[];
+  final?: { endedAt: number; entries: FinalEntry[] };
 }
 
 /** Custom claims attached to a Firebase Auth user. */
@@ -197,4 +317,43 @@ export interface ApiError {
 /** Success envelope for POST /orders. */
 export interface OrderResult {
   trade: Trade;
+}
+
+/** Row of GET /admin/market. */
+export interface AdminMarketRow {
+  companyId: string;
+  ticker: string;
+  name: string;
+  sector: Sector;
+  price: number;
+  sessionChange: number;
+  sessionVolume: number;
+  netFlow: number;
+  quality: number;
+  q: number;
+  grade: Grade;
+  fairValue: number;
+  deviation: number;
+}
+
+/** Row of GET /admin/news/scheduled. */
+export interface ScheduledNewsView {
+  tick: number;
+  companyIds: string[];
+  type: NewsType;
+  sentiment: 'bullish' | 'bearish';
+  headline: string;
+  fired: boolean;
+  source: 'scheduled' | 'macro' | 'host';
+}
+
+/** GET /health. */
+export interface HealthResponse {
+  ok: true;
+  phase: Phase;
+  tick: number;
+  totalTicks: number;
+  serverTime: number;
+  lastTickAt: number | null;
+  ticksBehind: number;
 }
