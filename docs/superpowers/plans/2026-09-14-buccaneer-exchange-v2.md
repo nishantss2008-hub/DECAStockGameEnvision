@@ -853,7 +853,7 @@ export function resetLeaderboardCache(): void;
   - Per company: `{net, volume} = flow.drain` (only on the first iteration of a catch-up), `jump = Σ events.jumps[id]`, `price = companyStep`. Call `flow.resetInterval()` after the first iteration (per-crew interval caps reset every tick).
   - Update session fields: at `t % sessionTicks === 0`, `sessionOpen = price` and high/low/volume reset. Voyage high/low update every tick.
   - Append to the in-memory chunk arrays and mark chunk dirty.
-  - Fired events become `news/{source}-{t}-{firstId}-{seq}` with `priceAtFire`.
+  - Fired events become `news/{source}-{t}-{firstId}-{seq}` with `priceAtFire` = each company's price at the END of tick t−1, i.e. before the news jump, so "since the report" includes the jump.
 - **One batch per call:** dirty chunks (`companies/{id}/history/{chunk}`), company snapshots, `market/summary` + `market/summary/history/{chunk}` (composite values), news, `game/state {currentTick, serverTime, lastTickAt}`, `_engine/state`. Split into multiple batches at 450 ops.
   - Composite = `1000 · Σ(price·shares)/Σ(start·shares)`; sectors likewise. Breadth from sessionChange sign, voyage highs/lows touched this tick, and session volumes.
 - **After the commit:** `recomputeLeaderboard(this, target)`; if `target ≥ totalTicks` or `now ≥ endAt`, call `endGame()`. A heartbeat-only update happens when `target ≤ currentTick`.
@@ -868,7 +868,7 @@ export function resetLeaderboardCache(): void;
 - **Closing mark:** `endGame()` values every holding at `closePrice(id)` (impact excluded), writes those values to teams and the final leaderboard, and sets `companies/{id}.currentPrice` to the close. This stops last-interval pumping of final marks.
 - **`finalizeLeaderboard`:** `researchScore = exposure/weight` (0 if weight 0) → grade via quintile thresholds of q (`≥0.6 A, ≥0.2 B, ≥−0.2 C, ≥−0.6 D, else F`). Write `leaderboard/current.final`.
 - **Reveal:**
-  - `expectedReturn = spread·qEff + beta·mktDrift`, `actualReturn = ln(close/start)`, `luck = actual − expected`, `fairValue = round(exp(v))`, `qEff`, `surprise`. Plain-language copy explains the surprise: "Some companies had hidden strengths or problems that didn't show in their financials."
+  - `expectedReturn = spread·qEff + beta·mktDrift` (the hidden surprise sits inside expected, per COPY.md §10), `actualReturn = ln(close/start)`, `luck = actual − expected`, `fairValue = round(exp(v))`, `qEff`, `surprise`. Plain-language copy explains the surprise: "Some companies had hidden strengths or problems that didn't show in their financials."
   - Label: `q≥0 & luck≥0` compounder; `q≥0 & luck<0` unlucky_gem; `q<0 & luck≥0` lucky_turnaround; else decliner.
 - **`firebase.ts`:** when either emulator env var is set → `initializeApp({ projectId })` only, with a `console.info('[firebase] emulator mode — service account ignored')`.
 - **CLIs:** `seedFirestore.ts` → `createMarket({ seed: config.seed || undefined, keepCrews: true, adminPassword: config.adminPassword || undefined })` and print the seed + admin password when generated. `reset.ts` → `clearDynamicData({ keepCrews: false, startingCapital })`, printing next steps.
@@ -1095,13 +1095,13 @@ export const NEWS_EXPLAIN: Record<NewsType, { bullish: string; bearish: string }
 export function glossarySearch(q: string): GlossaryEntry[]; // matches label/term/whatItIs, case-insensitive
 // lib/compare.ts
 export type MetricId = 'marketCap' | 'revenue' | 'netIncome' | 'netMargin' | 'grossMargin' | 'revenueGrowth' | 'eps' | 'peRatio' | 'forwardPe' | 'psRatio' | 'pbRatio' | 'evToEbitda' | 'dividendYield' | 'debtToEquity' | 'currentRatio' | 'freeCashFlow' | 'roe' | 'roa' | 'beta';
-export function metricValue(id: MetricId, f: Fundamentals, c: Company): number | null; // revenueGrowth = (h3/h0)^(1/3)-1 from history; peRatio/forwardPe null when netIncome ≤ 0
+export function metricValue(id: MetricId, f: Fundamentals, c: Company): number | null; // LIVE valuation: marketCap = c.currentPrice·shares; peRatio = marketCap/netIncome; forwardPe scaled by currentPrice/startPrice; psRatio, pbRatio, evToEbitda, dividendYield recomputed from the current price (stored fundamentals are start-of-game values); revenueGrowth = (h3/h0)^(1/3)-1; peRatio/forwardPe null when netIncome ≤ 0; follow docs/design/COPY.md §0.6
 export interface SectorAverage { scope: 'sector' | 'market'; sector: Sector; value: number | null; count: number }
 export function sectorAverages(fundamentalsById: Record<string, Fundamentals>, companiesById: Record<string, Company>): (id: MetricId, sector: Sector) => SectorAverage; // medians; sector with <3 → market
-export interface Explained { valueText: string; sentence: string; averageText: string }
+export interface Explained { valueText: string; sentence: string; averageText: string; note?: string } // note = COPY.md compareNote when present
 export function explainMetric(id: MetricId, value: number | null, avg: SectorAverage, currencySymbol: string): Explained;
 // peRatio 17.8 → sentence 'You pay Ð17.80 for every Ð1 of yearly profit.', averageText 'Sector average: 22.1' ('Market average: …' when scope market)
-// debtToEquity 0.62 → 'It owes Ð0.62 for every Ð1 its owners have put in.'
+// debtToEquity 0.62 → sentence verbatim from COPY.md §3 (all explain sentences come from COPY.md; the examples in this plan are illustrative)
 // currentRatio 1.84 → 'It has Ð1.84 of short-term money for every Ð1 of bills due within a year.'
 // netMargin 0.14 → 'It keeps Ð14 of profit from every Ð100 of sales.'
 // revenueGrowth 0.07 → 'Sales grew about 7% a year over the last 3 years.'
@@ -1430,7 +1430,7 @@ export const LABEL_COPY: Record<RevealLabel, string>; // compounder 'Compounder'
 export const PILLAR_COPY: Record<keyof QualityPillars, { high: string; low: string }>;
 ```
 - **Standings** (`Standings.dc.html`): Podium (Medallion 1–3), table (rank + movement, crew, total value, return, gain/loss, session %, cash %, holdings, Sparkline), your crew highlighted, and an "Updated tick N · time" stamp.
-- **Results** (`FinalReckoning.dc.html`): only when ended. All reveal copy is plain language ("Healthier finances tilted the odds, but luck and news still mattered"); drivers use `PILLAR_COPY` phrases ("Strong profits", "Heavy debt", "Shrinking sales", "Cheap for its profits"). Ceremony hero ("Final Standings", crimson WaxSeal on the certificate), winner + runners-up, "Market reveal" explainer, ScatterChart (quality 0–100 = `(score + 1.664)/3.328·100` clamped, vs actual return %, trend line, annotate the max |luck| lucky and unlucky), RevealTable, "Your crew's research grade" card from `leaderboard.final`.
+- **Results** (`FinalReckoning.dc.html`): only when ended. All reveal copy is plain language ("Healthier finances tilted the odds, but luck and news still mattered"); drivers use `PILLAR_COPY` phrases verbatim from COPY.md §10 (e.g. "Strong profits", "Growing business", "Safer finances", "Low starting price for its profits"), picking the 2 pillars farthest from 0. Ceremony hero ("Final Standings", crimson WaxSeal on the certificate), winner + runners-up, "Market reveal" explainer, ScatterChart (quality 0–100 = `(score + 1.664)/3.328·100` clamped, vs actual return %, trend line, annotate the max |luck| lucky and unlucky), RevealTable, "Your crew's research grade" card from `leaderboard.final`.
 - [ ] **Step 1:** Write `reveal.test.ts`:
 ```ts
 import { describe, it, expect } from 'vitest';
@@ -1504,7 +1504,7 @@ describe('admin format', () => {
 - Produces:
 ```ts
 // components/learn/fiveQuestions.ts
-export interface Question { id: 'profit' | 'growth' | 'debt' | 'price' | 'news'; question: string; lookAt: string[]; where: string; tip: string }
+export interface Question { id: 'profit' | 'growth' | 'debt' | 'price' | 'news'; question: string; lookAt: string[]; where: string; compare: string; example: string; tip: string } // all text verbatim from COPY.md §6
 export const FIVE_QUESTIONS: Question[]; // lookAt = glossary ids; where = plain UI location ("Trade → Financials → Income statement")
 ```
 - **Layout** (`Learn.dc.html`): left sticky contents list, main column.

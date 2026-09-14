@@ -283,7 +283,7 @@ After the commit, `recomputeLeaderboard` writes:
 
 `endGame()` marks all holdings at the **closing price** `round(exp(v+m))`, which excludes impact (like a closing auction), then writes the `companies/{id}.reveal` values and the final leaderboard with
 research grades:
-- **reveal:** `{quality, grade, pillars, expectedReturn = QS·q + beta·mktDrift, actualReturn = ln(end/start), luck = actual − expected, label}`
+- **reveal:** `{quality, grade, pillars, expectedReturn = QS·qEff + beta·mktDrift, actualReturn = ln(end/start), luck = actual − expected, label}`
 - **label:** Compounder / Unlucky Gem / Lucky Turnaround / Decliner, from the signs of `q` and `luck`
 - **research grade:** time-averaged, value-weighted quality of each crew's holdings, as a letter
 

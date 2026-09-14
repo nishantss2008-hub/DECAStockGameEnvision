@@ -129,7 +129,7 @@ Sums: value Ð835,870.00 · session +Ð8,510.00 · unrealized +Ð74,170.00. Curs
 
 Order-ticket samples (linear impact on KRKN is below 0.01%, so estimated price stays Ð84.12):
 - Buy 500 KRKN: value Ð42,060.00 · fee Ð42.06 · total Ð42,102.06 · cash after Ð206,247.49 · 3,500 sh · 27.2% of account · avg cost Ð75.02.
-- Filled at Ð84.15 (next price update): value Ð42,075.00 · fee Ð42.08 · total Ð42,117.08 · cash after Ð206,232.47 · order # BX-7Q2F9K · tick 1,285.
+- Filled immediately at Ð84.12 (orders fill right away at the current price plus a tiny impact): value Ð42,060.00 · fee Ð42.06 · total Ð42,102.06 · cash after Ð206,247.49 · order # BX-7Q2F9K · tick 1,284.
 - Buy 4,000 KRKN: total Ð336,816.48 → "This order is Ð88,466.93 more than your cash available to trade (Ð248,349.55)" · fix "Use max (2,949 shares)".
 - Position limit example (host limit 25%): buy 500 KRKN → "This would put more than 25% of your account in KRKN. You can buy up to 222 more shares."
 - Mobile Ð5,000 of KRKN: ≈ 59 shares · Ð31.96 stays as cash · value Ð4,963.08 · fee Ð4.96 · total Ð4,968.04 · cash after Ð243,381.51.
@@ -145,7 +145,7 @@ SIRN Siren Song Entertainment Ð39.95 −1.12% · MLSM Maelstrom Maritime Insura
 MRGN Henry Morgan Capital Ð267.35 +0.77% · BRTH Bartholomew Provisions Ð49.60 +0.31%.
 
 KRKN detail: prev session open Ð82.22; session range Ð81.90–Ð84.60; 52-wk Ð58.40–Ð91.20;
-market cap Ð20.36B; shares out 242.0M; float 201.3M; P/E 17.8; fwd P/E 15.9; EPS Ð4.73;
+market cap Ð20.36B; shares out 242.0M; float 201.3M; P/E 17.9; fwd P/E 15.9; EPS Ð4.71;
 div yield 1.9%; payout 34%; volume 184,200; analyst: Buy, target Ð96.00 (+14.1%).
 Revenue FY22–FY25: 6.61B, 7.18B, 7.74B, 8.14B · net income 0.94B, 1.03B, 1.09B, 1.14B ·
 net margin 14.0% · ROE 18.2% · debt/equity 0.62 · current ratio 1.84 · FCF Ð0.96B.
