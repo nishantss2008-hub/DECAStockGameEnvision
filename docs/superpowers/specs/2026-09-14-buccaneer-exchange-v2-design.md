@@ -205,7 +205,7 @@ Generated at **game start** (it depends on N), seeded `('jumps:'+id)`, and store
     - quantity must be a positive integer
     - `|price − quotedPrice|/quotedPrice > 2%` → `price_moved`
   - **Idempotency:** `orders/{teamId}_{clientOrderId}` already exists → return its trade.
-- **Fill price:** `exp(v + m + f + λ·(Q_pending + s·q/2))`, UNROUNDED cents. It includes other
+- **Fill price:** the path-exact average `exp(v+m+f)·e^{λ·Q_pending}·(e^{λσ} − 1)/(λσ)` (σ = signed quantity), UNROUNDED cents. It is ≈ half the order's own impact to first order, and it is exact for splits (no zero-fee micro-arbitrage). It includes other
   crews' flow already traded this interval plus half the order's own impact. `notional = round(q·px)`.
   Fee is `feeBps` (default 10) of notional.
   - The signed quantity is added to `Q_pending` synchronously before the Firestore transaction and

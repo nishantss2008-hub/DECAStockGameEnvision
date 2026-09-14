@@ -1,10 +1,14 @@
 /**
- * AQR Quality-Minus-Junk style quality score (spec §3). Pure: the same function
- * serves market generation, tests and the end-game reveal.
+ * AQR Quality-Minus-Junk style quality score (spec §3, reviewed). Pure: the
+ * same function serves market generation, tests and the end-game reveal.
  *
  * Every item is rank-z normalized across the N companies; each pillar is the
  * rank-z of the sum of its items' rank-z. Q = rz(PROF+GROW+SAFE),
  * s = rz(0.70·Q + 0.30·VAL), q = −1 + 2·(rank0(s)+0.5)/N.
+ *
+ * Two missing-value sentinels: NA (missing data) gets rank-z 0 and WORST ranks
+ * below every defined value. ROE, Altman-lite and P/S are deliberately not
+ * items; their QualityInput fields stay so callers need not change.
  */
 
 import { GRADES, type Grade, type Sector } from './constants.js';
@@ -55,26 +59,21 @@ export interface QualityResult {
   pillars: QualityPillars;
 }
 
-type Item = number | undefined;
+/** Missing data: the item's rank-z is 0 (neutral). */
+const NA = null;
+/** Ranks below every defined value (e.g. the P/E of a loss-maker). rankZ ranks undefined worst. */
+const WORST = undefined;
+type Item = number | typeof NA | typeof WORST;
 
-/** Finite a/b, or undefined when b is 0 or the result is not finite. */
+/** Finite a/b, or NA when b is 0 or the result is not finite. */
 function div(a: number, b: number): Item {
-  if (b === 0) return undefined;
+  if (b === 0) return NA;
   const r = a / b;
-  return Number.isFinite(r) ? r : undefined;
+  return Number.isFinite(r) ? r : NA;
 }
 
 function finite(x: number): Item {
-  return Number.isFinite(x) ? x : undefined;
-}
-
-function sum(...xs: Item[]): Item {
-  let s = 0;
-  for (const x of xs) {
-    if (x === undefined) return undefined;
-    s += x;
-  }
-  return s;
+  return Number.isFinite(x) ? x : NA;
 }
 
 function sampleSd(xs: number[]): number {
@@ -91,27 +90,69 @@ function median(xs: number[]): number | undefined {
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
-/** ln(ref/x); a non-positive multiple (e.g. negative earnings) ranks worst. */
-function logRelative(ref: number | undefined, x: number): Item {
-  if (ref === undefined || !(ref > 0) || !(x > 0)) return undefined;
+/**
+ * Sector-relative cheapness ln(ref/x). WORST when the earnings under the
+ * multiple are not positive; NA when there is no reference or the multiple is
+ * unusable.
+ */
+function logRelative(ref: number | undefined, x: number, earnings: number): Item {
+  if (earnings <= 0) return WORST;
+  if (ref === undefined || !(ref > 0) || !(x > 0)) return NA;
   return finite(Math.log(ref / x));
 }
 
+/** Twice the rank-z sd for N values: rank-z · twoSd(N) = 2·rank − (N+1). */
+function twoSd(n: number): number {
+  return 2 * Math.sqrt((n * n - 1) / 12);
+}
+
 /**
- * Integer form of a rank-z column: rz = (rank − (N+1)/2)/sd, so 2·sd·rz = 2·rank − (N+1)
+ * Integer form of a full rank-z column: rz = (rank − (N+1)/2)/sd, so 2·sd·rz = 2·rank − (N+1)
  * is an exact integer. Summing these integers instead of rz floats orders totals
  * identically (positive scaling) but keeps equal rank sums exactly equal, so they tie
  * and take the average rank. Float sums of rz break such ties by one ulp.
  */
 function rankUnits(z: number[], n: number): number[] {
-  const twoSd = 2 * Math.sqrt((n * n - 1) / 12);
-  return z.map((v) => Math.round(v * twoSd));
+  const k = twoSd(n);
+  return z.map((v) => Math.round(v * k));
 }
 
-/** Rank-z of the element-wise sum of each item's rank-z (summed exactly, see rankUnits). */
+/**
+ * One item's rank-z in the same units as rankUnits(·, n). NA entries get 0 and the
+ * rest are ranked among themselves (WORST below every defined value). Without NA the
+ * units are exact integers; with NA they are rank-z over the M defined values scaled
+ * by twoSd(n), which is not an integer in general.
+ */
+function itemUnits(col: Item[], n: number): number[] {
+  const idx: number[] = [];
+  const vals: Array<number | undefined> = [];
+  col.forEach((v, i) => {
+    if (v !== NA) {
+      idx.push(i);
+      vals.push(v);
+    }
+  });
+  if (idx.length === n) return rankUnits(rankZ(vals), n);
+  const out = new Array<number>(n).fill(0);
+  const k = twoSd(n);
+  rankZ(vals).forEach((z, j) => {
+    out[idx[j]!] = z * k;
+  });
+  return out;
+}
+
+/**
+ * Totals are rounded to 1/UNIT_QUANTUM of a unit (one rank step is 2 units). Integer
+ * totals stay exact; NA-scaled totals that are mathematically equal still tie.
+ */
+const UNIT_QUANTUM = 1e6;
+
+/** Rank-z of the element-wise sum of each item's rank-z (exact ties, see rankUnits and UNIT_QUANTUM). */
 function pillar(items: Item[][], n: number): number[] {
-  const cols = items.map((col) => rankUnits(rankZ(col), n));
-  const totals = Array.from({ length: n }, (_, i) => cols.reduce((a, c) => a + c[i]!, 0));
+  const cols = items.map((col) => itemUnits(col, n));
+  const totals = Array.from({ length: n }, (_, i) =>
+    Math.round(cols.reduce((a, c) => a + c[i]!, 0) * UNIT_QUANTUM),
+  );
   return rankZ(totals);
 }
 
@@ -146,18 +187,17 @@ export function computeQualityScores(
   const fallback = {
     pe: median(positive((c) => c.peRatio)),
     evEbitda: median(positive((c) => c.evToEbitda)),
-    ps: median(positive((c) => c.psRatio)),
   };
-  const refFor = (c: QualityInput, key: keyof SectorRefs): number | undefined => {
+  const refFor = (c: QualityInput, key: 'pe' | 'evEbitda'): number | undefined => {
     const v = refs[c.sector]?.[key];
     return v !== undefined && v > 0 && Number.isFinite(v) ? v : fallback[key];
   };
 
-  // PROF: gross profitability, ROE, cash-flow profitability, low accruals.
+  // PROF: gross profitability, ROA, cash-flow profitability, low accruals.
   const prof = pillar(
     [
       inputs.map((c) => div(c.grossProfit, c.totalAssets)),
-      inputs.map((c) => finite(c.roe)),
+      inputs.map((c) => div(c.netIncome, c.totalAssets)),
       inputs.map((c) => div(c.operatingCashFlow, c.totalAssets)),
       inputs.map((c) => div(c.operatingCashFlow - c.netIncome, c.totalAssets)),
     ],
@@ -172,14 +212,14 @@ export function computeQualityScores(
         const first = h[0];
         const last = h[h.length - 1];
         const years = h.length - 1;
-        if (!first || !last || years < 1 || !(first.revenue > 0) || last.revenue < 0) return undefined;
+        if (!first || !last || years < 1 || !(first.revenue > 0) || last.revenue < 0) return NA;
         return finite((last.revenue / first.revenue) ** (1 / years) - 1);
       }),
       inputs.map((c) => {
         const h = c.history;
         const first = h[0];
         const last = h[h.length - 1];
-        if (!first || !last || h.length < 2) return undefined;
+        if (!first || !last || h.length < 2) return NA;
         return div(last.netIncome - first.netIncome, c.totalAssets);
       }),
       inputs.map((c) => finite(c.industryGrowthRate)),
@@ -187,14 +227,15 @@ export function computeQualityScores(
     n,
   );
 
-  // SAFE: low leverage, liquidity (capped), steady EPS growth, Altman-lite.
+  // SAFE: low leverage, liquidity (capped), steady EPS growth.
+  // A negative D/E means negative equity: least safe (WORST), never "no debt".
   const safe = pillar(
     [
-      inputs.map((c) => finite(-c.debtToEquity)),
+      inputs.map((c) => (c.debtToEquity < 0 ? WORST : finite(-c.debtToEquity))),
       inputs.map((c) => finite(Math.min(c.currentRatio, 3))),
       inputs.map((c) => {
         const h = c.history;
-        if (h.length < 2) return undefined;
+        if (h.length < 2) return NA;
         const growth: number[] = [];
         for (let k = 1; k < h.length; k++) {
           const prev = h[k - 1]!.eps;
@@ -202,24 +243,16 @@ export function computeQualityScores(
         }
         return finite(-sampleSd(growth));
       }),
-      inputs.map((c) =>
-        sum(
-          div(3.3 * c.operatingIncome, c.totalAssets),
-          // No liabilities is the safest case: mktCap/TL → +∞ (ranks best), not missing (worst).
-          c.totalLiabilities === 0 && c.marketCap > 0 ? Infinity : div(0.6 * c.marketCap, c.totalLiabilities),
-          div(1.0 * c.revenue, c.totalAssets),
-        ),
-      ),
     ],
     n,
   );
 
-  // VAL (sector-relative): cheaper than the sector reference ranks higher.
+  // VAL (sector-relative, at the opening bell): cheaper than the sector reference ranks higher.
+  // P/E is WORST without positive net income; EV/EBITDA is WORST without positive operating income.
   const val = pillar(
     [
-      inputs.map((c) => logRelative(refFor(c, 'pe'), c.peRatio)),
-      inputs.map((c) => logRelative(refFor(c, 'evEbitda'), c.evToEbitda)),
-      inputs.map((c) => logRelative(refFor(c, 'ps'), c.psRatio)),
+      inputs.map((c) => logRelative(refFor(c, 'pe'), c.peRatio, c.netIncome)),
+      inputs.map((c) => logRelative(refFor(c, 'evEbitda'), c.evToEbitda, c.operatingIncome)),
     ],
     n,
   );

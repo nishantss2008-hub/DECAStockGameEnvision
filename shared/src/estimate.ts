@@ -1,9 +1,14 @@
 /**
  * Order estimate math shared by the trade ticket and the authority service
- * (spec §6). All money is integer cents.
+ * (spec §6, v2.1). All money is integer cents.
  *
- * Fills execute at lastPrice·exp(±I/2) (half-impact slippage against the
- * trader), where I is the square-root-law impact, plus a basis-point fee.
+ * Impact is linear and transient: λ = impactY·sigD/ADV per share, in log
+ * units. An order of q shares fills at the UNROUNDED price
+ *   last·exp(λ·(pendingNet + s·q/2)),  s = +1 buy / −1 sell,
+ * i.e. all flow already traded this interval plus half the order's own impact.
+ * Notional is round(q·unroundedPrice), plus a basis-point fee. A crew may
+ * trade at most intervalShareCap shares of a company per tick interval, and a
+ * host position limit caps how much of the account one company may hold.
  */
 
 import { MODEL } from './constants.js';
@@ -15,27 +20,50 @@ export function feeFor(notionalCents: number, feeBps: number): number {
 }
 
 /**
- * Square-root-law impact of trading `shares`:
- *   sigDay = sqrt(beta²·mktVol² + impactVolRef²)/sqrt(252)
- *   adv    = sharesOutstanding/advDivisor
- *   I      = min(maxImpact, impactY·sigDay·sqrt(shares/adv))
- * Uses only public inputs, so estimates never leak hidden quality.
+ * Linear impact per share, in log units: λ = impactY·sigD/ADV, with
+ *   sigD = sqrt(beta²·mktVol² + impactVolRef²)/sqrt(252)
+ *   ADV  = sharesOutstanding/advDivisor
+ * Uses only public inputs, so estimates never leak hidden quality. Without a
+ * positive ADV, λ is 0; intervalShareCap is then 0 too, so no order passes.
  */
-export function marketImpact(shares: number, beta: number, sharesOutstanding: number): number {
-  const size = Math.abs(shares);
-  if (!(size > 0)) return 0;
+export function impactLambda(beta: number, sharesOutstanding: number): number {
   const adv = sharesOutstanding / MODEL.advDivisor;
-  if (!(adv > 0)) return MODEL.maxImpact;
-  const sigDay =
+  if (!(adv > 0)) return 0;
+  const sigD =
     Math.sqrt(beta * beta * MODEL.mktVol * MODEL.mktVol + MODEL.impactVolRef * MODEL.impactVolRef) /
     Math.sqrt(MODEL.tradingDaysPerGame);
-  return Math.min(MODEL.maxImpact, MODEL.impactY * sigDay * Math.sqrt(size / adv));
+  return (MODEL.impactY * sigD) / adv;
 }
 
-/** Fill price in cents: max(1, round(last·exp(±impact/2))), + for buys, − for sells. */
-export function fillPrice(side: OrderSide, lastPrice: number, impact: number): number {
-  const sign = side === 'buy' ? 1 : -1;
-  return Math.max(1, Math.round(lastPrice * Math.exp((sign * impact) / 2)));
+/** Most shares one crew may trade in one company per tick interval: floor(intervalAdvCap·ADV). */
+export function intervalShareCap(sharesOutstanding: number): number {
+  const cap = Math.floor((MODEL.intervalAdvCap * sharesOutstanding) / MODEL.advDivisor);
+  return cap > 0 ? cap : 0;
+}
+
+/**
+ * Estimated fill in UNROUNDED cents per share: last·exp(λ·(pendingNet + s·q/2)).
+ * `pendingNet` is the signed share flow already traded this interval (buys +).
+ */
+export function estFillPrice(
+  side: OrderSide,
+  lastPrice: number,
+  lambda: number,
+  quantity: number,
+  pendingNet = 0,
+): number {
+  // Path-exact average price: the order walks the impact from pendingNet to pendingNet + σ, so its
+  // average fill is last·(e^{λ(p+σ)} − e^{λp})/(λσ). Splitting an order then costs exactly the same
+  // as one order, and a round trip inside one interval breaks even before fees.
+  const sigma = (side === 'buy' ? 1 : -1) * quantity;
+  const x = lambda * sigma;
+  const base = lastPrice * Math.exp(lambda * pendingNet);
+  return Math.abs(x) < 1e-12 ? base : (base * Math.expm1(x)) / x;
+}
+
+/** Notional in integer cents: round(|q|·unroundedPrice). Never q·round(price). */
+export function notionalFor(quantity: number, unroundedPrice: number): number {
+  return Math.round(Math.abs(quantity) * unroundedPrice);
 }
 
 export interface EstimateInput {
@@ -49,13 +77,22 @@ export interface EstimateInput {
   sharesOwned: number;
   avgCost: number;
   totalValue: number;
+  /** Host position limit as a fraction of account value; default 1 (no limit). */
+  maxPositionPct?: number;
 }
 
-export type EstimateError = 'bad_quantity' | 'insufficient_funds' | 'insufficient_shares';
+export type EstimateError =
+  | 'bad_quantity'
+  | 'insufficient_funds'
+  | 'insufficient_shares'
+  | 'position_limit'
+  | 'interval_limit';
 
 export interface OrderEstimate {
+  /** Half the order's own impact, λ·q/2, in log units (the slippage it pays). */
   impact: number;
   impactBps: number;
+  /** round(fill), for display only. */
   price: number;
   notional: number;
   fee: number;
@@ -65,23 +102,55 @@ export interface OrderEstimate {
   avgCostAfter: number;
   positionValueAfter: number;
   pctOfAccountAfter: number;
+  /** Largest buy that passes the cash, position-limit and interval checks. */
   maxBuyShares: number;
   valid: boolean;
   error?: EstimateError;
+  /** total − cash, present whenever a buy costs more than the cash on hand. */
   shortfall?: number;
 }
 
-/** Total cash a buy of `q` shares costs (notional at the slipped fill price + fee). */
-function buyCost(q: number, lastPrice: number, beta: number, sharesOutstanding: number, feeBps: number): number {
-  const price = fillPrice('buy', lastPrice, marketImpact(q, beta, sharesOutstanding));
-  const notional = q * price;
-  return notional + feeFor(notional, feeBps);
+/** Notional and fee of buying q shares with no pending flow. */
+function buyQuote(q: number, lastPrice: number, lambda: number, feeBps: number): { notional: number; fee: number } {
+  const notional = notionalFor(q, estFillPrice('buy', lastPrice, lambda, q));
+  return { notional, fee: feeFor(notional, feeBps) };
+}
+
+/** The limit applies only below 1. A missing, null or NaN limit means no limit. */
+function limitOn(pct: number | undefined): pct is number {
+  return typeof pct === 'number' && pct < 1;
+}
+
+/** Position limit check, valued at lastPrice: sharesAfter·last ≤ pct·(totalValue − fee). */
+function withinLimit(sharesAfter: number, lastPrice: number, pct: number, totalValue: number, fee: number): boolean {
+  return sharesAfter * lastPrice <= pct * (totalValue - fee);
 }
 
 /**
- * Largest whole share count whose buy cost (slipped notional + fee) fits in
- * `cash`. Binary search on q in [0, floor(cash/minFill)+1]; cost is
- * non-decreasing in q and the upper bound is always unaffordable.
+ * Largest integer q ≥ 0 with ok(q), for ok true up to some q and false after
+ * (0 when ok(1) fails). `hint` is a first guess at a failing q; the bound
+ * doubles until ok fails, then a binary search narrows it.
+ */
+function largestWhere(ok: (q: number) => boolean, hint: number): number {
+  const MAX = Number.MAX_SAFE_INTEGER;
+  let lo = 0;
+  let hi = Number.isFinite(hint) ? Math.min(MAX, Math.max(1, Math.ceil(hint))) : 1;
+  while (ok(hi)) {
+    lo = hi;
+    if (hi >= MAX) return hi;
+    hi = Math.min(MAX, hi * 2);
+  }
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (ok(mid)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Largest whole share count whose buy cost (notional at the impacted fill +
+ * fee) fits in `cash`. Cost is non-decreasing in q, so a binary search applies.
  */
 export function maxAffordableShares(
   cash: number,
@@ -90,21 +159,18 @@ export function maxAffordableShares(
   sharesOutstanding: number,
   feeBps: number,
 ): number {
-  if (!(cash > 0) || !(lastPrice > 0)) return 0;
-  // A buy never fills below max(1, round(lastPrice)) (impact ≥ 0 and rounding is
-  // monotone), so this bound is unaffordable even when lastPrice is fractional.
-  const minFill = Math.max(1, Math.round(lastPrice));
-  let lo = 0; // affordable
-  let hi = Math.floor(cash / minFill) + 1; // unaffordable
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (buyCost(mid, lastPrice, beta, sharesOutstanding, feeBps) <= cash) lo = mid;
-    else hi = mid;
-  }
-  return lo;
+  // cash 0 is not an early exit: below half a cent a share can round to a zero cost.
+  if (!(cash >= 0) || !(lastPrice > 0)) return 0;
+  const lambda = impactLambda(beta, sharesOutstanding);
+  const affordable = (q: number): boolean => {
+    const { notional, fee } = buyQuote(q, lastPrice, lambda, feeBps);
+    return notional + fee <= cash;
+  };
+  // A buy never fills below lastPrice, so q·lastPrice ≥ cash + 1 is unaffordable.
+  return largestWhere(affordable, Math.floor((cash + 1) / lastPrice) + 1);
 }
 
-/** Whole shares a cash amount buys, all-in (slippage and fee included). */
+/** Whole shares a cash amount buys, all-in (impact and fee included). */
 export function sharesForAmount(
   amountCents: number,
   lastPrice: number,
@@ -115,9 +181,31 @@ export function sharesForAmount(
   return maxAffordableShares(amountCents, lastPrice, beta, sharesOutstanding, feeBps);
 }
 
+/**
+ * Most additional shares `i` can buy without the position passing the host
+ * limit (net of the order's fee). Infinity when there is no limit; 0 when the
+ * position is already at or over it.
+ */
+export function maxSharesUnderLimit(i: EstimateInput): number {
+  const pct = i.maxPositionPct;
+  if (!limitOn(pct)) return Infinity;
+  if (!(i.lastPrice > 0)) return 0;
+  const lambda = impactLambda(i.beta, i.sharesOutstanding);
+  const fits = (q: number): boolean =>
+    withinLimit(i.sharesOwned + q, i.lastPrice, pct, i.totalValue, buyQuote(q, i.lastPrice, lambda, i.feeBps).fee);
+  return largestWhere(fits, (pct * i.totalValue) / i.lastPrice - i.sharesOwned + 1);
+}
+
 export function estimateOrder(i: EstimateInput): OrderEstimate {
   const { side, quantity, lastPrice, beta, sharesOutstanding, feeBps, cash, sharesOwned, avgCost, totalValue } = i;
-  const maxBuyShares = maxAffordableShares(cash, lastPrice, beta, sharesOutstanding, feeBps);
+  const pct = i.maxPositionPct;
+  const lambda = impactLambda(beta, sharesOutstanding);
+  const cap = intervalShareCap(sharesOutstanding);
+  const maxBuyShares = Math.min(
+    maxAffordableShares(cash, lastPrice, beta, sharesOutstanding, feeBps),
+    maxSharesUnderLimit(i),
+    cap,
+  );
   const pctOf = (sharesAfter: number, fee: number): number => {
     const denom = totalValue - fee;
     return denom > 0 ? (sharesAfter * lastPrice) / denom : 0;
@@ -142,16 +230,25 @@ export function estimateOrder(i: EstimateInput): OrderEstimate {
     };
   }
 
-  const impact = marketImpact(quantity, beta, sharesOutstanding);
+  const fill = estFillPrice(side, lastPrice, lambda, quantity);
+  const impact = (lambda * quantity) / 2;
   const impactBps = Math.round(impact * 10_000);
-  const price = fillPrice(side, lastPrice, impact);
-  const notional = quantity * price;
+  const price = Math.max(1, Math.round(fill));
+  const notional = notionalFor(quantity, fill);
   const fee = feeFor(notional, feeBps);
+  const overInterval = quantity > cap;
 
   if (side === 'buy') {
     const total = notional + fee;
     const sharesAfter = sharesOwned + quantity;
-    const valid = total <= cash;
+    const short = total > cash;
+    const error: EstimateError | undefined = overInterval
+      ? 'interval_limit'
+      : short
+        ? 'insufficient_funds'
+        : limitOn(pct) && !withinLimit(sharesAfter, lastPrice, pct, totalValue, fee)
+          ? 'position_limit'
+          : undefined;
     return {
       impact,
       impactBps,
@@ -165,14 +262,19 @@ export function estimateOrder(i: EstimateInput): OrderEstimate {
       positionValueAfter: sharesAfter * lastPrice,
       pctOfAccountAfter: pctOf(sharesAfter, fee),
       maxBuyShares,
-      valid,
-      ...(valid ? {} : { error: 'insufficient_funds' as const, shortfall: total - cash }),
+      valid: error === undefined,
+      ...(error ? { error } : {}),
+      ...(short ? { shortfall: total - cash } : {}),
     };
   }
 
   const total = notional - fee;
   const sharesAfter = sharesOwned - quantity;
-  const valid = quantity <= sharesOwned;
+  const error: EstimateError | undefined = overInterval
+    ? 'interval_limit'
+    : quantity > sharesOwned
+      ? 'insufficient_shares'
+      : undefined;
   return {
     impact,
     impactBps,
@@ -186,7 +288,7 @@ export function estimateOrder(i: EstimateInput): OrderEstimate {
     positionValueAfter: sharesAfter * lastPrice,
     pctOfAccountAfter: pctOf(sharesAfter, fee),
     maxBuyShares,
-    valid,
-    ...(valid ? {} : { error: 'insufficient_shares' as const }),
+    valid: error === undefined,
+    ...(error ? { error } : {}),
   };
 }

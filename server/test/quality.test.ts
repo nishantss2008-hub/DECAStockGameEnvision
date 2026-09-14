@@ -34,4 +34,11 @@ describe('quality score', () => {
     expect(res[9]!.grade).toBe('A'); expect(res[0]!.grade).toBe('F');
   });
   it('grades by quintile', () => { expect(gradeFor(0, 25)).toBe('A'); expect(gradeFor(24, 25)).toBe('F'); expect(gradeFor(12, 25)).toBe('C'); });
+  it('a loss-maker (netIncome −10, peRatio 0) has a VAL pillar below every profitable company', () => {
+    // A very cheap P/S must not rescue it: P/S is no longer a VAL item.
+    const loss: QualityInput = { ...mk('loss', 1), netIncome: -10, peRatio: 0, psRatio: 0.1 };
+    const out = computeQualityScores([...inputs, loss], refs);
+    const lossVal = out[10]!.pillars.val;
+    for (const r of out.slice(0, 10)) expect(lossVal).toBeLessThan(r.pillars.val);
+  });
 });

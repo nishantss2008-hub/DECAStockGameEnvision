@@ -17,6 +17,8 @@ export interface GameSettings {
   startingCapital: number; // integer cents
   feeBps: number;
   researchEdge: ResearchEdge;
+  /** Max share of total account value one company may hold after a buy (1 = no limit). */
+  maxPositionPct: number;
   currency: { name: string; symbol: string };
 }
 
@@ -40,10 +42,12 @@ export interface GameState extends GameSettings {
 export interface CompanyReveal {
   quality: number; // s
   q: number;
+  qEff: number; // surpriseWeight·q + (1 − surpriseWeight)·surprise
+  surprise: number; // ξ ~ U[−1,1], hidden until the reveal
   grade: Grade;
   pillars: QualityPillars;
   fairValue: number; // integer cents, exp(v)
-  expectedReturn: number; // log return, QS·q + beta·mktDrift
+  expectedReturn: number; // log return, QS·qEff + beta·mktDrift
   actualReturn: number; // log return, ln(end/start)
   luck: number; // actual − expected
   label: RevealLabel;

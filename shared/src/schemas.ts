@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { GAME_LENGTH_OPTIONS_MS, NEWS_TYPES, RESEARCH_EDGES } from './constants.js';
+import { GAME_LENGTH_OPTIONS_MS, NEWS_TYPES, POSITION_LIMIT_OPTIONS, RESEARCH_EDGES } from './constants.js';
 
 export const orderRequestSchema = z.object({
   companyId: z.string().min(1).max(64),
@@ -46,6 +46,10 @@ export const settingsSchema = z.object({
   startingCapital: z.number().int().min(1_000_00).max(1_000_000_000_00).optional(),
   feeBps: z.number().int().min(0).max(200).optional(),
   researchEdge: z.enum(RESEARCH_EDGES).optional(),
+  maxPositionPct: z
+    .number()
+    .refine((v) => (POSITION_LIMIT_OPTIONS as readonly number[]).includes(v))
+    .optional(),
   currencyName: z.string().min(1).max(40).optional(),
   currencySymbol: z.string().min(1).max(8).optional(),
 });

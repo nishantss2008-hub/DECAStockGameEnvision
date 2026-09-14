@@ -444,7 +444,7 @@ Theory backs this: exponential decay is only arbitrage-free with **linear** impa
 ```ts
 export function impactLambda(beta: number, sharesOutstanding: number): number; // Y·sigD/ADV per share (log units); sigD = sqrt(beta²·mktVol² + impactVolRef²)/sqrt(252); ADV = sharesOutstanding/advDivisor
 export function intervalShareCap(sharesOutstanding: number): number;          // floor(intervalAdvCap·sharesOutstanding/advDivisor)
-export function estFillPrice(side: OrderSide, lastPrice: number, lambda: number, quantity: number, pendingNet?: number): number; // UNROUNDED cents: last·exp(λ·(pendingNet + s·q/2)), s = +1 buy / −1 sell
+export function estFillPrice(side: OrderSide, lastPrice: number, lambda: number, quantity: number, pendingNet?: number): number; // UNROUNDED cents, path-exact average: last·e^{λp}·expm1(λσ)/(λσ), σ = ±q (splits cost exactly the same; within-interval round trips break even before fees)
 export function notionalFor(quantity: number, unroundedPrice: number): number; // round(q·px)
 ```
    - `estimateOrder`: `price = round(fill)` for display, `notional = notionalFor(q, fill)`,
@@ -500,7 +500,7 @@ export function initialState(startPriceCents: number): CompanyState;  // {v: ln(
 export function idioVolFor(seed: string, id: string, q: number): number; // 0.30 − 0.05q ± U(0.04), label `vol:${id}`
 export function surpriseFor(seed: string, id: string): number;          // U[−1,1], label `surprise:${id}`
 export function effectiveQuality(q: number, surprise: number, weight?: number): number; // weight(default MODEL.surpriseWeight)·q + (1−weight)·surprise
-export function fillPriceExact(s: CompanyState, lambda: number, pendingNet: number, signedQty: number): number; // UNROUNDED cents: exp(v+m+f+λ·(pendingNet + signedQty/2))
+export function fillPriceExact(s: CompanyState, lambda: number, pendingNet: number, signedQty: number): number; // UNROUNDED cents, path-exact average: exp(v+m+f)·e^{λp}·expm1(λσ)/(λσ) (σ = signedQty, p = pendingNet); equals exp(v+m+f+λp) when σ = 0
 export function closePrice(s: CompanyState): number;                     // max(1, round(exp(v+m))) — closing mark excludes impact
 // news.ts
 export interface NewsCompany { id: string; name: string; ticker: string; sector: string; qEff: number; beta: number }

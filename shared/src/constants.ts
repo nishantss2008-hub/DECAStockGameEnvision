@@ -22,6 +22,15 @@ export const GAME_LENGTH_OPTIONS_MS = [1, 2, 4, 8, 12, 24, 48].map((h) => h * HO
 /** Default game length (48h). */
 export const DEFAULT_GAME_LENGTH_MS = 48 * HOUR_MS;
 
+/**
+ * Host position-limit choices: the most of a crew's total account value one
+ * company may hold after a buy. 1 means no limit.
+ */
+export const POSITION_LIMIT_OPTIONS = [1, 0.5, 0.35, 0.25] as const;
+
+/** Default position limit (50% of account value per company). */
+export const DEFAULT_MAX_POSITION_PCT = 0.5;
+
 /** Every game is split into this many trading sessions. */
 export const SESSIONS_PER_GAME = 8;
 
@@ -72,8 +81,13 @@ export const REVEAL_LABELS = ['compounder', 'unlucky_gem', 'lucky_turnaround', '
 export type RevealLabel = (typeof REVEAL_LABELS)[number];
 
 /**
- * Price-model parameters (spec §5.2). One game = one simulated trading year,
- * so all "per game" figures are annualized equivalents.
+ * Price-model parameters (spec §5.2, v2.1). One game = one simulated trading
+ * year, so all "per game" figures are annualized equivalents.
+ *
+ * Impact is linear and transient (arbitrage-free with exponential decay):
+ * λ = impactY·sigD/ADV per share, ADV = sharesOutstanding/advDivisor, and a
+ * crew may trade at most intervalAdvCap·ADV shares of a company per tick
+ * interval. The diffusion move per tick is clamped to ±tickMoveSds·√dt.
  */
 export const MODEL = {
   tradingDaysPerGame: 252,
@@ -94,12 +108,18 @@ export const MODEL = {
   garchHMin: 0.1,
   garchHMax: 10,
   mispriceHalfLife: 0.05,
-  mispriceSd: 0.03,
-  impactY: 1.0,
+  /** OU mispricing layer; 0 = off (the code path stays). */
+  mispriceSd: 0,
+  /** Almgren et al. 2005 linear coefficient 0.314·150^(1/4). */
+  impactY: 1.1,
   advDivisor: 150,
   impactVolRef: 0.3,
-  maxImpact: 0.05,
-  maxTickMove: 0.08,
+  /** Clamp |dv| ≤ tickMoveSds·√dt. */
+  tickMoveSds: 3,
+  /** qEff = surpriseWeight·q + (1 − surpriseWeight)·ξ, ξ ~ U[−1,1] seeded `surprise:${id}`. */
+  surpriseWeight: 0.75,
+  /** Max ADVs of shares per crew, per company, per tick interval. */
+  intervalAdvCap: 1,
   priceProtection: 0.02,
 } as const;
 
