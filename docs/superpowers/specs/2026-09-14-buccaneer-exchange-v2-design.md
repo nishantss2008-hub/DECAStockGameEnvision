@@ -119,8 +119,17 @@ maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week
    - `pe = PEref·exp(−0.35·c)`, clamped to sector bounds.
    - Loss-makers are valued on P/S.
    - Shares are chosen so the start price lands in Ð12–Ð520.
-6. **Analyst view is a noisy hint:** `analystZ = 0.5·s + 0.87·n`; rating by quintile;
-   `target = price·(1 + 0.12 + 0.10·analystZ)`.
+6. **Analyst view is a noisy hint:** `analystZ = 0.5·s + 0.87·n`;
+   `target = price·(1 + 0.04 + 0.12·analystZ)` (mildly optimistic on average). The rating follows
+   the implied upside `target/price − 1` of the stored (rounded) target:
+   - ≥ +20%: Strong Buy
+   - ≥ +8%: Buy
+   - ≥ −5%: Hold
+   - ≥ −15%: Sell
+   - below −15%: Strong Sell
+
+   So a Sell or Strong Sell never has a target at or above the price, and a Buy or Strong Buy
+   never has one at or below it. Spearman(score, target/price) stays in (0.2, 0.8).
 7. **Beta (public):** `beta = clamp(0.85 + 0.25·Φ(debt/equity latent) + sector cyclicality ±0.15, 0.7, 1.4)`.
 8. **Compute `s` and `q`** with §3 from the generated fundamentals; drift uses the MEASURED score.
 9. **IP rename:** roster `barbossa / Barbossa Provisions / BRBS` becomes
@@ -146,8 +155,9 @@ maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week
 | `idioVol_i` | `0.30 − 0.05·q ± U(0.04)` | idiosyncratic GBM vol |
 | `jumpVarPerGame` | 0.15² | Merton/Kou jump variance |
 | `jumpsPerCompany K` | `clamp(round(1.5·√hours), 2, 12)` | Poisson count |
-| `jumpUpBias` | `pUp = 0.5 + 0.30·q` | Kou up-probability |
+| `jumpUpBias` | `pUp = 0.5 + 0.30·qEff` | Kou up-probability |
 | `maxJump` | 0.25 | truncation |
+| jump compensator | `eLogUp = E[ln(1 + min(0.25, S))]`, `eLogDown = E[ln(max(0.05, 1 − min(0.25, S)))]`, `S ~ Exp(mean s)`, `s = √(jumpVar/(2K))`; computed once per game in `derive()` by quadrature (survival form `∫₀^0.25 g′(x)·e^(−x/s) dx`, composite Simpson, error < 1e-9) | exact expected log jump, so the drift offset has no variance-drag bias |
 | GARCH | α_day 0.12, α+β 0.97; per tick `φ=e^(−c·dt)`, `α=min(0.3, a√dt)`, `β=φ−α`, h∈[0.1,10] | GARCH(1,1) |
 | mispricing | exact OU, **off by default** (`mispriceSd = 0`); review showed it adds no signal | exact OU |
 | impact | linear transient: `λ_i = Y·sigD_i/ADV_i`, `Y = 1.10`, `ADV = shares/150`, half-life 5% of game; quantity cap 1 ADV per crew per company per tick | Almgren et al. 2005 linear coefficient; Obizhaeva–Wang resilience (arbitrage-free per Gatheral 2010) |
@@ -159,7 +169,7 @@ maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week
 zM = Prng(seed,'mkt:'+t).gauss();  rM = mktDrift·dt + mktVol·√(hM·dt)·zM;  hM ← garch(hM, zM)
 for each company i (Prng(seed,'co:'+id+':'+t) → z, zO in that order):
   qEff_i = 0.75·q_i + 0.25·ξ_i;  pUp_i = 0.5 + 0.30·qEff_i
-  alpha_i = QS·qEff_i − K·(2·pUp_i − 1)·E[min(Exp(s), 0.25)]   // log-drift offset: E[quality log return] = QS·qEff for any K
+  alpha_i = QS·qEff_i − K·(pUp_i·eLogUp + (1 − pUp_i)·eLogDown)   // exact log-jump offset: E[drift + company jumps] = QS·qEff for any K
   dv = clamp(alpha_i·dt + beta_i·rM + idioVol_i·√(h_i·dt)·z, ±3√dt)
   v_i += dv + J_i(t)           // scheduled news/macro jumps (+ host news) gap past the clamp
   h_i ← garch(h_i, z);  if mispriceSd>0: m_i = m_i·dec + ouSd·zO
@@ -169,18 +179,25 @@ for each company i (Prng(seed,'co:'+id+':'+t) → z, zO in that order):
 `sigD_i = sqrt(beta_i²·mktVol² + 0.30²)/√252`. The 0.30 is a public constant, so impact estimates
 never leak quality. Rounded cents are never fed back into state.
 
+The jump offset uses the exact expected **log** jump. The earlier form `K·(2·pUp − 1)·E[min(S, 0.25)]`
+compensated the expected jump *size*, not its log. Because `ln` is concave, that left a uniform
+bias of about `−K·E[Y²]/2 ≈ −1%` per game (−0.0097 at 1h, −0.0113 at 48h). With the exact offset, the
+drift at `qEff = 0` is about +1% per game and exactly cancels the expected company-news log jump.
+The reveal baseline is `expectedLogReturn = QS·qEff + beta·mktDrift` (`model.ts`); idiosyncratic
+diffusion has zero mean, and macro news (symmetric `±U(0.02, 0.08)`, 1–2 per game) is not included.
+
 ### 5.4 News schedule
 Generated at **game start** (it depends on N), seeded `('jumps:'+id)`, and stored in
 `_schedule/_news`.
 - **Company events:** `n ~ Poisson(K)`, tick `1+floor(U·N)`, sign up with `pUp_i`,
-  size `min(0.25, −s·ln U)` where `s = √(jumpVar/(2K))`.
-- **Headline type by sign and size:**
-  - up, small: earnings beat
-  - up, medium: management / regulatory win
-  - up, large: merger / discovery
-  - down, small: earnings miss
-  - down, medium: regulatory / management loss
-  - down, large: scandal / storm
+  size `Y = min(0.25, −s·ln U)` where `s = √(jumpVar/(2K))`. The log jump is `ln(1+Y)` up and
+  `ln(max(0.05, 1−Y))` down (`companyLogJump`, the exact form the §5.3 offset compensates).
+- **Headline type by sign and size relative to `s`,** so the mix is the same for every game length
+  (theory: about 55% small, 25% medium, 20% large):
+  - small (`Y < 0.8·s`): earnings beat (up) or earnings miss (down)
+  - medium (`Y < 1.6·s`): management / regulatory win (up) or loss (down)
+  - large (otherwise): merger / discovery (up) or scandal / storm (down)
+- **Body:** `"{name} ({ticker}) — {sentence}."` (no sector). Headlines are unchanged.
 - **Macro events:** 1–2 per game, `J_m ∈ ±U(0.02,0.08)`, applied as `beta_i·J_m` to all companies.
 - **Host news:** `magnitude m` becomes `ln(1+m)`, added to `v` for the chosen companies at the next tick.
 - **Public news doc:** carries `sentiment` (bullish/bearish) and `priceAtFire` per company.
@@ -288,6 +305,9 @@ research grades:
 - **research grade:** time-averaged, value-weighted quality of each crew's holdings, as a letter
 
 ## 10. Frontend architecture
+
+> **Superseded for UI by `docs/design/MOBILE.md` (mobile-first Apple HIG structure, 2026-09-14).** The feature list below still applies. Routes, navigation, components and styling follow MOBILE.md §2–§9, with plan Amendment M.
+
 
 - **Styles:** `web/src/theme/tokens.css` (BRIEF §2), `base.css` (reset, type, utilities), and a
   co-located `*.css` per component. The runtime `<style>` injection pattern is removed. Fonts

@@ -1035,6 +1035,38 @@ describe('computeFill', () => {
 
 ---
 
+## Amendment M: Mobile-first Apple UI (2026-09-14) — SUPERSEDES the UI parts of Tasks 7–13b
+
+User directive (newest, highest priority): "prioritize mobile web app design using Apple UI style — students will be
+using this on mobile." **`docs/design/MOBILE.md` is now the source of truth** for tokens, type, layout, components,
+IA, routes, screens, motion, PWA and accessibility. The `iPhone*.dc.html` canvas artboards are the visual reference;
+the desktop artboards are secondary. COPY.md still owns all words; BRIEF §7 owns sample data.
+
+What stays from Tasks 7–13b:
+- all pure libs and their tests (`format`, `orderId`, `watchlist`, `sector`, `market`, `glossary`, `compare`, `api`, `auth`)
+- all Firestore hooks
+- the ticket reducer (`useTicketState`)
+- `derive.ts`, `movers`, `reveal.ts`, `adminFormat.ts`, `fiveQuestions.ts`
+- the chart math
+
+What changes:
+
+| Task | Mobile-first scope (MOBILE.md sections) |
+|---|---|
+| **7 Foundation** | `theme/tokens.css` = MOBILE §2.6 (light + `.dark` via `prefers-color-scheme`, increased contrast §2.3, glass §2.4 with solid fallback under `prefers-reduced-transparency`); `theme/base.css` per §9.4 (system font stack §3.2, Dynamic Type classes §3.3/§3.5, safe areas, 100dvh, 16px inputs, overscroll, tap highlight). **iOS components per §5** in `components/ios/`: TabBar, LargeTitleNavBar, SearchField, InsetGroupedList, ListRow (stock, key-value, ExplainRow, disclosure, destructive), SegmentedControl, Button, Sheet (Base UI Drawer), InfoTipSheet, Menu, ActionSheet, Alert, Toast, Banner, ChartCard (scrubbing, keyboard and VoiceOver summary), StockHeader, PositionSummary, Keypad, Stepper, SwipeActions, EmptyState, Skeleton, Pill, Crest, Medallion, WaxSeal. Deps: `@base-ui/react@1.8.0`, `vite-plugin-pwa@1.3.0`, `workbox-window@7.4.1`, dev `@vite-pwa/assets-generator@2.0.0`, `react-router-dom@6.30.x`. Tests: the existing lib tests + `components/ios/*.test.tsx` for pure logic (segmented keyboard nav reducer, sheet detent math, keypad input reducer) with vitest + @testing-library/react (jsdom). Spike the Base UI Drawer first in Playwright **WebKit** at 393×852 (the closest available proxy for iOS Safari) and Chromium. |
+| **8 Shell** | Data router (`createBrowserRouter`) with the five tab stacks and routes/redirects of §6.5; sheets as search params; per-tab memory in sessionStorage; §4.5 breakpoints (phone <744, side rail in short landscape, sidebar split view ≥744); Sign in §7.1; Welcome sheet + walkthrough §7.2; Account sheet §7.15; Market status sheet §7.9; state banners §7.16; PWA §9.2–9.5 (index.html head, manifest, icons from an original compass-rose SVG, service worker app-shell only, never caching Firestore). `nav.test.ts` expects tabs `['Portfolio','Markets','News','Standings','Learn']` and host tabs `['Control','Crews','Market','News','Tape']`. |
+| **9 Portfolio stack** | §7.3 Portfolio, §7.4 Positions (swipe + long-press actions), §7.5 Activity, Order detail, Balances. |
+| **10 Company + Trade** | §7.7 Company (shared in every stack), §7.8 Financials, All stats, §7.10 Trade sheet flow (Entry with keypad → Preview → Placing → Filled / Needs attention, price-moved re-preview, discard action sheet, SE-size compression). |
+| **11 Markets + News** | §7.6 Markets (search, composite, sectors, movers, watchlist, All companies Basics/Price/Value/Health/Analysts views), Sector list, Search, §7.11 News + Dispatch detail (never opens Trade). |
+| **12 Standings + Results** | §7.12 Standings + Crew sheet, §7.13 Final results (5 pages). |
+| **13 Host** | §7.17 host phone tabs (Control, Crews, Market, News, Tape) + the existing desktop console at ≥744 (spec §8 features, COPY §11). |
+| **13b Learn** | §7.14 Learn root, guide chapters, 5 questions, trading basics, glossary term pages, "See it on a company" deep links. |
+
+E2E (Task 15):
+- Primary: Playwright device profile iPhone 15 (393×852), in WebKit AND Chromium.
+- Also: iPhone SE (375×667), iPad (820×1180 split view), desktop 1440×900.
+- Screenshot every screen and compare with the matching `iPhone*.dc.html` artboard.
+
 ### Task 7: Web foundation: theme, primitives, charts, lib, hooks
 
 **Files:**
