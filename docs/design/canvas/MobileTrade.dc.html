@@ -1,0 +1,133 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&amp;family=Cormorant+SC:wght@600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap">
+  <style>
+    :root {
+      --abyss: #111412; --deep: #1A1F1C; --hull: #232A26; --hull-line: #34403A;
+      --brass: #B8954A; --brass-bright: #DDBE72; --brass-dim: #80683A; --seaglass: #5FA39A;
+      --paper: #E6E3D9; --sheet: #F8F6F0; --sheet-alt: #EFECE3; --rule: #D9D4C6; --rule-strong: #BFB8A6;
+      --ink: #161816; --ink-2: #454A45; --ink-3: #666B63; --mist: #9FB0A8; --foam: #E4E8E2;
+      --gain: #1B7150; --gain-bg: #DFEEE6; --loss: #A63A2B; --loss-bg: #F3E0DB; --sea: #2F6F68;
+      --gain-chrome: #7FD3B0; --loss-chrome: #EE9A89;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+    a { color: var(--sea); text-decoration: none; } a:hover { color: #161816; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+    .gain { color: var(--gain); } .loss { color: var(--loss); }
+    .eyebrow { font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+    .crest { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 11px; letter-spacing: 0.02em; color: #F8F6F0; box-shadow: inset 0 0 0 2px rgba(221,190,114,0.85), 0 1px 2px rgba(0,0,0,0.2); flex: none; }
+    .seg { display: flex; gap: 2px; padding: 3px; background: var(--sheet-alt); border: 1px solid var(--rule); border-radius: 7px; }
+    .seg span { flex: 1; display: flex; align-items: center; justify-content: center; height: 36px; border-radius: 5px; font-size: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+    .seg span.on { background: var(--deep); color: var(--brass-bright); }
+    .chg { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; white-space: nowrap; }
+    .chg svg { flex: none; }
+    .chip { flex: 1; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--rule-strong); background: var(--sheet); font-size: 14px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+    .chip.on { background: var(--deep); border-color: var(--deep); color: var(--brass-bright); }
+    .est { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 36px; padding: 0 14px; border-top: 1px solid var(--rule); font-size: 14px; }
+    .est span:first-child { color: var(--ink-2); white-space: nowrap; }
+    .est span:last-child { font-weight: 500; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; font-weight: 600; white-space: nowrap; }
+    .btn-primary { background: var(--deep); color: #F8F6F0; box-shadow: inset 0 -2px 0 var(--brass); }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: var(--sheet); position: relative; overflow: hidden; display: flex; flex-direction: column;">
+
+  <!-- Sheet header -->
+  <header style="flex: none; height: 64px; display: grid; grid-template-columns: 56px minmax(0, 1fr) 56px; align-items: center; background: var(--abyss); background-image: radial-gradient(ellipse at 100% -40%, rgba(95,163,154,0.22), rgba(95,163,154,0) 60%); border-bottom: 3px solid var(--seaglass);">
+    <div style="width: 44px; height: 44px; margin-left: 8px; display: flex; align-items: center; justify-content: center;" aria-label="Close ticket">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E4E8E2" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M6 6 L18 18"></path><path d="M18 6 L6 18"></path></svg>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0;">
+      <div style="font-size: 17px; font-weight: 600; color: var(--foam); line-height: 22px; white-space: nowrap;">Buy KRKN</div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 18px;">
+        <span class="num" style="color: var(--foam); font-weight: 500;">Ð84.12</span>
+        <span class="chg num" style="color: var(--gain-chrome);"><svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 0.8 L7.6 7 L0.4 7 Z" fill="currentColor"></path></svg>+2.31%</span>
+      </div>
+    </div>
+    <div></div>
+  </header>
+
+  <!-- Ticket body -->
+  <main style="flex: 1; display: flex; flex-direction: column; padding: 0 16px; min-height: 0;">
+
+    <!-- Account context -->
+    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--rule);">
+      <div class="crest" style="background: #2F6F68;">KR</div>
+      <div style="min-width: 0;">
+        <div style="font-size: 14px; font-weight: 600; white-space: nowrap;">Kraken Shipping Lines</div>
+        <div class="num" style="font-size: 12px; color: var(--ink-3);">You own 3,000 shares</div>
+      </div>
+      <div style="margin-left: auto; text-align: right;">
+        <div style="font-size: 12px; color: var(--ink-3); white-space: nowrap;">Cash available to trade</div>
+        <div class="num" style="font-size: 14px; font-weight: 600;">Ð312,400.18</div>
+      </div>
+    </div>
+
+    <!-- Buy / Sell -->
+    <div class="seg" style="margin-top: 16px;">
+      <span style="background: var(--gain); color: #F8F6F0;">Buy</span>
+      <span>Sell</span>
+    </div>
+
+    <!-- Amount type -->
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px;">
+      <span style="font-size: 14px; color: var(--ink-2); white-space: nowrap;">Amount in</span>
+      <div class="seg" style="width: 216px;"><span>Shares</span><span class="on">Doubloons</span></div>
+    </div>
+
+    <!-- Amount input -->
+    <div style="margin-top: 16px; height: 84px; border-radius: 8px; background: #FFFFFF; border: 1.5px solid var(--sea); box-shadow: 0 0 0 4px rgba(95,163,154,0.18); display: flex; flex-direction: column; justify-content: center; padding: 0 16px;">
+      <span style="font-size: 12px; color: var(--ink-3);">Amount</span>
+      <div style="display: flex; align-items: center; gap: 3px; margin-top: 1px;">
+        <span class="num" style="font-size: 38px; font-weight: 600; line-height: 46px; letter-spacing: -0.01em;">Ð5,000.00</span>
+        <span style="width: 2px; height: 34px; background: var(--sea); border-radius: 1px;"></span>
+      </div>
+    </div>
+    <div class="num" style="margin-top: 8px; font-size: 13px; color: var(--ink-2);">≈ <b style="color: var(--ink); font-weight: 600;">59 shares</b> · Ð31.96 stays as cash</div>
+
+    <!-- Quick amounts -->
+    <div style="display: flex; gap: 8px; margin-top: 16px;">
+      <span class="chip num">Ð1,000</span>
+      <span class="chip num on">Ð5,000</span>
+      <span class="chip num">Ð25,000</span>
+      <span class="chip">Max</span>
+    </div>
+
+    <!-- Estimate -->
+    <section style="margin-top: 20px; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--sheet);">
+      <div style="display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 14px; background: var(--sheet-alt);">
+        <span class="eyebrow">Estimate</span>
+        <span style="font-size: 12px; color: var(--ink-3); white-space: nowrap;">Market order</span>
+      </div>
+      <div class="est"><span>Est. price per share</span><span class="num">Ð84.12</span></div>
+      <div class="est"><span>Est. shares</span><span class="num">59</span></div>
+      <div class="est"><span>Est. order value</span><span class="num">Ð4,963.08</span></div>
+      <div class="est"><span>Est. fee (0.10%)</span><span class="num">Ð4.96</span></div>
+      <div class="est" style="height: 40px; border-top-color: var(--rule-strong);"><span style="color: var(--ink); font-weight: 700;">Est. total cost</span><span class="num" style="font-weight: 700;">Ð4,968.04</span></div>
+      <div class="est"><span>Cash available after</span><span class="num">Ð307,432.14</span></div>
+    </section>
+
+    <!-- Fill note -->
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-2);">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2F6F68" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" style="flex: none;"><circle cx="8" cy="8" r="6.25"></circle><path d="M8 7.25 V11"></path><path d="M8 4.9 V5"></path></svg>
+      <span>Fills at the next tick’s price</span>
+    </div>
+  </main>
+
+  <!-- Sticky action -->
+  <div style="flex: none; padding: 12px 16px 16px; background: var(--sheet); border-top: 1px solid var(--rule); box-shadow: 0 -10px 20px -14px rgba(29,25,19,0.35);">
+    <div class="btn btn-primary" style="height: 52px; font-size: 16px;">Review order</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

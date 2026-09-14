@@ -105,23 +105,34 @@ Host (admin) has its own nav: Control, Crews, Market, News desk, Trade tape, Aud
 Mobile (<600px): bottom bar with 5 items (Summary, Markets, Trade [center, emphasized],
 Dispatches, Standings), header keeps cash chip.
 
-## 7. Shared sample data (use EXACTLY these numbers so screens agree)
+## 7. Shared sample data (use EXACTLY these numbers so screens agree) — corrected 2026-09-14
 
-Game: 48h voyage, 30s ticks, tick 1,284 of 5,760, 41:17:08 left, as of 14:02:30.
-Starting chest Ð1,000,000.00. Fee 0.10% (10 bps). Pirate Composite 1,048.62 +8.71 (+0.84%).
+Game: 48h voyage, 30s ticks, tick 1,284 of 5,760 (session 2 of 8), **37:17:42 left**, as of 14:02:30.
+Starting chest Ð1,000,000.00. Fee 0.10% (10 bps). Position limit 50% (host setting).
+Pirate Composite 1,048.62 · session +8.71 (+0.84%) · since the game started +4.86% (base 1,000.00).
+The market-open dot is sea-glass `#5FA39A` on every screen. Percentages round half-up to 2 decimals.
 
-Crew **Black Pearl Traders** (initials BP), rank 3 of 14.
-Total account value Ð1,084,219.55 · Session +Ð12,041.20 (+1.12%) · Total +Ð84,219.55 (+8.42%).
-Cash available to trade Ð312,400.18 (28.8%) · Invested Ð771,819.37 (71.2%).
+Crew **Saltwind Traders** (initials SW), rank 3 of 14. (The earlier sample name used a film ship's name; do not use it.)
+Total account value Ð1,084,219.55 · Session +Ð8,510.00 (+0.79%) · Total +Ð84,219.55 (+8.42%) · vs Pirate Composite +3.56 pts.
+Cash available to trade Ð248,349.55 (22.9%) · Invested Ð835,870.00 (77.1%).
+Unrealized gain Ð74,170.00 · Realized gain (after fees) Ð10,049.55 · Fees paid Ð1,240.33 · 23 trades.
 
-Positions (qty · avg cost · last · session change/share):
-KRKN Kraken Shipping Lines (Shipping & Salvage) 3,000 · 73.50 · 84.12 · +1.90 (+2.31%)
-PRYL Port Royal Banking (Treasure Banking) 800 · 184.00 · 212.40 · +1.85 (+0.88%)
-ASTR Astrolabe Analytics (Maps & Instruments) 1,000 · 137.00 · 146.55 · +0.60 (+0.41%)
-MRED Mary Read Munitions (Naval Arms) 2,000 · 58.00 · 64.30 · +1.26 (+2.00%)
-CJRD Calico Jack Rum Distillers (Rum & Provisions) 1,500 · 39.00 · 41.18 · −0.22 (−0.53%)
-SALT Saltbeard Shipping (Shipping & Salvage) 2,500 · 17.80 · 18.24 · −0.14 (−0.76%)
-CRSD Cursed Doubloon Relics (Cursed Relics) 1,000 · 38.00 · 31.07 · −1.11 (−3.46%)
+Positions (qty · avg cost · last · session change/share → value · session gain · total gain):
+KRKN Kraken Shipping Lines (Shipping & Salvage) 3,000 · 73.50 · 84.12 · +1.90 (+2.31%) → Ð252,360.00 · +Ð5,700.00 · +Ð31,860.00 (+14.45%)
+PRYL Port Royal Banking (Treasure Banking) 800 · 184.00 · 212.40 · +1.85 (+0.88%) → Ð169,920.00 · +Ð1,480.00 · +Ð22,720.00 (+15.43%)
+ASTR Astrolabe Analytics (Maps & Instruments) 1,000 · 137.00 · 146.55 · +0.60 (+0.41%) → Ð146,550.00 · +Ð600.00 · +Ð9,550.00 (+6.97%)
+MRED Mary Read Munitions (Naval Arms) 2,000 · 58.00 · 64.30 · +1.26 (+2.00%) → Ð128,600.00 · +Ð2,520.00 · +Ð12,600.00 (+10.86%)
+CJRD Calico Jack Rum Distillers (Rum & Provisions) 1,500 · 39.00 · 41.18 · −0.22 (−0.53%) → Ð61,770.00 · −Ð330.00 · +Ð3,270.00 (+5.59%)
+SALT Saltbeard Shipping (Shipping & Salvage) 2,500 · 17.80 · 18.24 · −0.14 (−0.76%) → Ð45,600.00 · −Ð350.00 · +Ð1,100.00 (+2.47%)
+CRSD Cursed Doubloon Relics (Cursed Relics) 1,000 · 38.00 · 31.07 · −1.11 (−3.46%) → Ð31,070.00 · −Ð1,110.00 · −Ð6,930.00 (−18.24%)
+Sums: value Ð835,870.00 · session +Ð8,510.00 · unrealized +Ð74,170.00. Cursed Relics sector index = CRSD = −3.46%.
+
+Order-ticket samples (linear impact on KRKN is below 0.01%, so estimated price stays Ð84.12):
+- Buy 500 KRKN: value Ð42,060.00 · fee Ð42.06 · total Ð42,102.06 · cash after Ð206,247.49 · 3,500 sh · 27.2% of account · avg cost Ð75.02.
+- Filled at Ð84.15 (next price update): value Ð42,075.00 · fee Ð42.08 · total Ð42,117.08 · cash after Ð206,232.47 · order # BX-7Q2F9K · tick 1,285.
+- Buy 4,000 KRKN: total Ð336,816.48 → "This order is Ð88,466.93 more than your cash available to trade (Ð248,349.55)" · fix "Use max (2,949 shares)".
+- Position limit example (host limit 25%): buy 500 KRKN → "This would put more than 25% of your account in KRKN. You can buy up to 222 more shares."
+- Mobile Ð5,000 of KRKN: ≈ 59 shares · Ð31.96 stays as cash · value Ð4,963.08 · fee Ð4.96 · total Ð4,968.04 · cash after Ð243,381.51.
 
 Other quotes: CNBR Cannonbright Foundries Ð102.66 +6.12% · LVTH Leviathan Logistics Ð57.03 +4.48% ·
 GROG Grog & Galleon Brewing Ð58.90 −0.73% · BBRD Blackbeard Incorporated Ð318.40 −0.35% ·
@@ -146,7 +157,7 @@ Dispatches: 14:01 Earnings CNBR "Cannonbright Foundries posts blowout quarterly 
 10:05 Regulatory MLSM "Maelstrom Maritime Insurance fined for mispriced policies" (−2.44%).
 
 Standings (total value · return · session): 1 Queen Anne's Revenue Ð1,120,804.10 +12.08% +0.94% ·
-2 Tortuga Capital Ð1,097,700.00 +9.77% +1.40% · 3 Black Pearl Traders Ð1,084,219.55 +8.42% +1.12% ·
+2 Tortuga Capital Ð1,097,700.00 +9.77% +1.40% · 3 Saltwind Traders Ð1,084,219.55 +8.42% +0.79% ·
 4 The Salty Ledger Ð1,051,002.33 +5.10% −0.20% · 5 Doubloon Dynasty Ð986,600.00 −1.34% −0.85% ·
 6 Kraken Kapital Ð979,410.75 −2.06% +0.33% · 7 Compass & Coin Ð961,120.40 −3.89% −1.02% (14 crews total).
 

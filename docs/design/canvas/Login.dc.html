@@ -1,0 +1,284 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&amp;family=Cormorant+SC:wght@600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap">
+  <style>
+    :root {
+      --abyss: #111412; --deep: #1A1F1C; --hull: #232A26; --hull-line: #34403A;
+      --brass: #B8954A; --brass-bright: #DDBE72; --brass-dim: #80683A;
+      --paper: #E6E3D9; --sheet: #F8F6F0; --sheet-alt: #EFECE3; --rule: #D9D4C6; --rule-strong: #BFB8A6;
+      --ink: #161816; --ink-2: #454A45; --ink-3: #666B63; --mist: #9FB0A8; --foam: #E4E8E2;
+      --gain: #1B7150; --gain-bg: #DFEEE6; --loss: #A63A2B; --loss-bg: #F3E0DB; --sea: #2F6F68;
+      --sea-glass: #5FA39A; --seal: #8E1F1A;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--abyss); color: var(--ink); font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+    a { color: var(--sea); text-decoration: none; } a:hover { color: #161816; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+    .gain { color: var(--gain); } .loss { color: var(--loss); }
+    .eyebrow { font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+    .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 1px 0 rgba(29,25,19,0.04), 0 8px 24px -18px rgba(29,25,19,0.35); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px 12px; border-bottom: 1px solid var(--rule); }
+    .panel-head .eyebrow { display: flex; align-items: center; gap: 8px; }
+    .crest { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 11px; letter-spacing: 0.02em; color: #F8F6F0; box-shadow: inset 0 0 0 2px rgba(221,190,114,0.85), 0 1px 2px rgba(0,0,0,0.2); flex: none; }
+    .seg { display: flex; gap: 2px; padding: 2px; background: var(--sheet-alt); border: 1px solid var(--rule); border-radius: 6px; }
+    .seg span { padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+    .seg span.on { background: var(--deep); color: var(--brass-bright); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 5px; font-weight: 600; font-size: 14px; border: 1px solid transparent; white-space: nowrap; }
+    .btn-primary { background: var(--deep); color: #F8F6F0; box-shadow: inset 0 -2px 0 var(--brass); }
+    .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule-strong); }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .pill.gain { background: var(--gain-bg); } .pill.loss { background: var(--loss-bg); }
+    .sym { display: flex; align-items: center; gap: 10px; }
+    .sym b { display: block; font-weight: 700; letter-spacing: 0.02em; }
+    .sym i { display: block; font-style: normal; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+
+    /* Login hero (Layer 1) */
+    .wordmark { font-family: 'Cinzel Decorative', Georgia, serif; font-weight: 700; font-size: 56px; line-height: 1.08; color: var(--brass-bright); letter-spacing: 0.005em; white-space: nowrap; text-shadow: 0 0 28px rgba(221,190,114,0.16); }
+    .value { display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 18px; align-items: start; }
+    .value-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(26,31,28,0.85); border: 1px solid var(--hull-line); box-shadow: inset 0 0 0 3px rgba(17,20,18,0.9), inset 0 0 0 4px rgba(184,149,74,0.28); color: var(--brass-bright); }
+    .value-title { font-size: 17px; font-weight: 600; color: var(--foam); line-height: 1.3; white-space: nowrap; }
+    .value-text { margin-top: 4px; font-size: 14px; line-height: 1.5; color: var(--mist); }
+
+    /* Sign-in card (Layer 2 frame, Layer 3 inputs) */
+    .card-wrap { filter: drop-shadow(0 28px 36px rgba(0,0,0,0.50)) drop-shadow(0 2px 2px rgba(0,0,0,0.35)); }
+    .card { background: linear-gradient(180deg, #F8F6F0 0%, #F5F2EA 100%); padding: 42px 36px 0; clip-path: polygon(0.00% 1.3px, 2.08% 2.9px, 4.17% 1.3px, 6.25% 1.1px, 8.33% 2.5px, 10.42% 1.8px, 12.50% 0.3px, 14.58% 1.8px, 16.67% 2.2px, 18.75% 1.7px, 20.83% 1.7px, 22.92% 1.6px, 25.00% 3.4px, 27.08% 1.6px, 29.17% 1.1px, 31.25% 1.5px, 33.33% 2.9px, 35.42% 1.9px, 37.50% 1.1px, 39.58% 3.0px, 41.67% 2.6px, 43.75% 0.3px, 45.83% 2.0px, 47.92% 2.9px, 50.00% 1.5px, 52.08% 0.3px, 54.17% 2.7px, 56.25% 2.7px, 58.33% 1.7px, 60.42% 1.7px, 62.50% 2.9px, 64.58% 3.2px, 66.67% 0.8px, 68.75% 1.9px, 70.83% 2.6px, 72.92% 2.8px, 75.00% 1.5px, 77.08% 1.1px, 79.17% 2.1px, 81.25% 1.0px, 83.33% 1.7px, 85.42% 2.2px, 87.50% 2.8px, 89.58% 0.7px, 91.67% 1.2px, 93.75% 2.5px, 95.83% 1.9px, 97.92% 1.0px, 100.00% 1.9px, 100% 100%, 0% 100%); }
+    .tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 3px; background: var(--sheet-alt); border: 1px solid var(--rule); border-radius: 7px; }
+    .tabs span { height: 36px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 5px; font-size: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+    .tabs span.on { background: var(--deep); color: var(--brass-bright); box-shadow: inset 0 -2px 0 var(--brass); }
+    .label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+    .input { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #FFFDF8; border: 1px solid var(--rule-strong); border-radius: 5px; font-size: 15px; color: var(--ink); white-space: nowrap; }
+    .input.focus { border-color: var(--sea); box-shadow: 0 0 0 3px rgba(95,163,154,0.30); }
+    .input.error { border-color: var(--loss); box-shadow: 0 0 0 3px rgba(166,58,43,0.12); }
+    .mask { display: flex; align-items: center; gap: 5px; }
+    .mask span { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+    .caret { width: 1.5px; height: 20px; background: var(--ink); margin-left: 2px; }
+    .reveal { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--sea); }
+  </style>
+</helmet>
+<div style="width: 1440px; min-height: 900px; position: relative; overflow: hidden; display: flex; flex-direction: column; background: radial-gradient(ellipse 860px 640px at 78% 26%, rgba(95,163,154,0.20) 0%, rgba(95,163,154,0.07) 42%, rgba(95,163,154,0) 72%), radial-gradient(ellipse 900px 420px at 18% 104%, rgba(95,163,154,0.08) 0%, rgba(95,163,154,0) 70%), #111412;">
+
+  <!-- Portolan rhumb-line grid and graticule (decorative, max 6% opacity) -->
+  <svg width="1440" height="900" viewBox="0 0 1440 900" aria-hidden="true" style="position: absolute; left: 0; top: 0; pointer-events: none;">
+    <defs>
+      <pattern id="login-graticule" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0 L0 0 L0 80" fill="none" stroke="#B8954A" stroke-width="1"></path></pattern>
+    </defs>
+    <rect width="1440" height="900" fill="url(#login-graticule)" opacity="0.035"></rect>
+    <path d="M-1276 418L3524 418M-1230 -50L3478 886M-1093 -500L3341 1336M-872 -915L3120 1751M-573 -1279L2821 2115M-209 -1578L2457 2414M206 -1799L2042 2635M656 -1936L1592 2772M1124 -1982L1124 2818M1592 -1936L656 2772M2042 -1799L206 2635M2457 -1578L-209 2414M2821 -1279L-573 2115M3120 -915L-872 1751M3341 -500L-1093 1336M3478 -50L-1230 886M-722 648L4078 648M-539 -271L3896 1566M-19 -1049L3375 2345M760 -1570L2597 2865M1678 -1752L1678 3048M2597 -1570L760 2865M3375 -1049L-19 2345M3896 -271L-539 1566M-1046 972L3754 972M-864 54L3571 1891M-343 -725L3051 2669M435 -1245L2272 3190M1354 -1428L1354 3372M2272 -1245L435 3190M3051 -725L-343 2669M3571 54L-864 1891M-1506 972L3294 972M-1323 54L3112 1891M-803 -725L2591 2669M-24 -1245L1813 3190M894 -1428L894 3372M1813 -1245L-24 3190M2591 -725L-803 2669M3112 54L-1323 1891M-1830 648L2970 648M-1648 -271L2787 1566M-1127 -1049L2267 2345M-349 -1570L1488 2865M570 -1752L570 3048M1488 -1570L-349 2865M2267 -1049L-1127 2345M2787 -271L-1648 1566M-1830 188L2970 188M-1648 -730L2787 1107M-1127 -1509L2267 1885M-349 -2029L1488 2406M570 -2212L570 2588M1488 -2029L-349 2406M2267 -1509L-1127 1885M2787 -730L-1648 1107M-1506 -136L3294 -136M-1323 -1055L3112 782M-803 -1833L2591 1561M-24 -2354L1813 2081M894 -2536L894 2264M1813 -2354L-24 2081M2591 -1833L-803 1561M3112 -1055L-1323 782M-1046 -136L3754 -136M-864 -1055L3571 782M-343 -1833L3051 1561M435 -2354L2272 2081M1354 -2536L1354 2264M2272 -2354L435 2081M3051 -1833L-343 1561M3571 -1055L-864 782M-722 188L4078 188M-539 -730L3896 1107M-19 -1509L3375 1885M760 -2029L2597 2406M1678 -2212L1678 2588M2597 -2029L760 2406M3375 -1509L-19 1885M3896 -730L-539 1107" fill="none" stroke="#B8954A" stroke-width="1" opacity="0.06"></path>
+  </svg>
+
+  <!-- Compass-rose watermark (original: 32 points, fleur north) -->
+  <svg width="800" height="800" viewBox="-60 -60 120 120" aria-hidden="true" style="position: absolute; left: 724px; top: 18px; pointer-events: none; opacity: 0.16;">
+    <g fill="none" stroke="#DDBE72">
+      <circle r="47" stroke-width="0.45"></circle>
+      <circle r="45.8" stroke-width="0.2"></circle>
+      <circle r="40" stroke-width="0.35"></circle>
+      <circle r="24" stroke-width="0.25" stroke-dasharray="0.8 1.4"></circle>
+      <path d="M0.00 -40.00L0.00 -45.00M7.80 -39.23L8.29 -41.68M15.31 -36.96L16.65 -40.19M22.22 -33.26L23.61 -35.34M28.28 -28.28L31.82 -31.82M33.26 -22.22L35.34 -23.61M36.96 -15.31L40.19 -16.65M39.23 -7.80L41.68 -8.29M40.00 -0.00L45.00 -0.00M39.23 7.80L41.68 8.29M36.96 15.31L40.19 16.65M33.26 22.22L35.34 23.61M28.28 28.28L31.82 31.82M22.22 33.26L23.61 35.34M15.31 36.96L16.65 40.19M7.80 39.23L8.29 41.68M0.00 40.00L0.00 45.00M-7.80 39.23L-8.29 41.68M-15.31 36.96L-16.65 40.19M-22.22 33.26L-23.61 35.34M-28.28 28.28L-31.82 31.82M-33.26 22.22L-35.34 23.61M-36.96 15.31L-40.19 16.65M-39.23 7.80L-41.68 8.29M-40.00 0.00L-45.00 0.00M-39.23 -7.80L-41.68 -8.29M-36.96 -15.31L-40.19 -16.65M-33.26 -22.22L-35.34 -23.61M-28.28 -28.28L-31.82 -31.82M-22.22 -33.26L-23.61 -35.34M-15.31 -36.96L-16.65 -40.19M-7.80 -39.23L-8.29 -41.68" stroke-width="0.35"></path>
+    </g>
+    <g fill="none" stroke="#DDBE72" stroke-width="0.25">
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(22.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(67.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(112.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(157.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(202.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(247.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(292.5)"></path>
+      <path d="M0 -36 L1.8 -8 L0 0 L-1.8 -8 Z" transform="rotate(337.5)"></path>
+    </g>
+    <g transform="rotate(45) scale(0.62)" stroke="#DDBE72" stroke-width="0.4">
+      <path d="M0 -46 L7 -7 L0 0 Z" fill="#DDBE72" fill-opacity="0.55"></path><path d="M0 -46 L-7 -7 L0 0 Z" fill="#80683A" fill-opacity="0.35"></path>
+      <path d="M46 0 L7 7 L0 0 Z" fill="#DDBE72" fill-opacity="0.55"></path><path d="M46 0 L7 -7 L0 0 Z" fill="#80683A" fill-opacity="0.35"></path>
+      <path d="M0 46 L-7 7 L0 0 Z" fill="#DDBE72" fill-opacity="0.55"></path><path d="M0 46 L7 7 L0 0 Z" fill="#80683A" fill-opacity="0.35"></path>
+      <path d="M-46 0 L-7 -7 L0 0 Z" fill="#DDBE72" fill-opacity="0.55"></path><path d="M-46 0 L-7 7 L0 0 Z" fill="#80683A" fill-opacity="0.35"></path>
+    </g>
+    <g stroke="#DDBE72" stroke-width="0.35">
+      <path d="M0 -46 L7 -7 L0 0 Z" fill="#DDBE72"></path><path d="M0 -46 L-7 -7 L0 0 Z" fill="#80683A"></path>
+      <path d="M46 0 L7 7 L0 0 Z" fill="#DDBE72"></path><path d="M46 0 L7 -7 L0 0 Z" fill="#80683A"></path>
+      <path d="M0 46 L-7 7 L0 0 Z" fill="#DDBE72"></path><path d="M0 46 L7 7 L0 0 Z" fill="#80683A"></path>
+      <path d="M-46 0 L-7 -7 L0 0 Z" fill="#DDBE72"></path><path d="M-46 0 L-7 7 L0 0 Z" fill="#80683A"></path>
+    </g>
+    <circle r="2.4" fill="#111412" stroke="#DDBE72" stroke-width="0.4"></circle>
+    <g fill="#DDBE72" fill-opacity="0.7">
+      <path d="M0 -59.2 L2.2 -52.6 L0 -53.8 L-2.2 -52.6 Z"></path>
+    </g>
+  </svg>
+
+  <!-- Horizon and ship silhouette (decorative) -->
+  <svg width="1440" height="170" viewBox="0 0 1440 170" aria-hidden="true" style="position: absolute; left: 0; bottom: 0; pointer-events: none;">
+    <defs>
+      <linearGradient id="login-horizon" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#B8954A" stop-opacity="0"></stop>
+        <stop offset="0.35" stop-color="#B8954A" stop-opacity="0.45"></stop>
+        <stop offset="0.7" stop-color="#5FA39A" stop-opacity="0.35"></stop>
+        <stop offset="1" stop-color="#5FA39A" stop-opacity="0"></stop>
+      </linearGradient>
+      <linearGradient id="login-sea" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#0C0F0D" stop-opacity="0.9"></stop>
+        <stop offset="1" stop-color="#0A0C0B" stop-opacity="1"></stop>
+      </linearGradient>
+      <radialGradient id="login-haze" cx="0.5" cy="1" r="0.5">
+        <stop offset="0" stop-color="#5FA39A" stop-opacity="0.16"></stop>
+        <stop offset="1" stop-color="#5FA39A" stop-opacity="0"></stop>
+      </radialGradient>
+    </defs>
+    <ellipse cx="660" cy="106" rx="230" ry="96" fill="url(#login-haze)"></ellipse>
+    <rect x="0" y="106" width="1440" height="64" fill="url(#login-sea)"></rect>
+    <path d="M0 106.5 H1440" stroke="url(#login-horizon)" stroke-width="1"></path>
+    <g stroke="#5FA39A" stroke-linecap="round" opacity="0.3">
+      <path d="M616 116 H690" stroke-width="1"></path>
+      <path d="M660 125 H724" stroke-width="1"></path>
+      <path d="M634 134 H676" stroke-width="1"></path>
+    </g>
+    <g transform="translate(564 31) scale(1.3)" stroke-linejoin="round">
+      <path d="M40 48 V14 M72 49 V4 M102 50 V14" fill="none" stroke="#070908" stroke-width="2"></path>
+      <g fill="#070908" stroke="#5FA39A" stroke-opacity="0.34" stroke-width="1.3">
+        <path d="M2 48 L20 47 L23 54 L136 52 L127 64 Q72 70 16 65 Z M130 53 L150 44 L151 45.5 L132 55 Z"></path>
+        <path d="M30 18 L50 18 L52 31 Q40 34 28 31 Z M26 35 L54 35 L56 47 Q40 50 24 47 Z M60 9 L84 9 L86 24 Q72 28 58 24 Z M56 28 L88 28 L91 47 Q72 51 53 47 Z M92 18 L112 18 L114 31 Q102 34 90 31 Z M88 35 L116 35 L118 48 Q102 51 86 48 Z M104 16 L148 44 L108 44 Z M72 3 L84 6 L72 9 Z"></path>
+      </g>
+      <g fill="#070908">
+        <path d="M2 48 L20 47 L23 54 L136 52 L127 64 Q72 70 16 65 Z M130 53 L150 44 L151 45.5 L132 55 Z"></path>
+        <path d="M30 18 L50 18 L52 31 Q40 34 28 31 Z M26 35 L54 35 L56 47 Q40 50 24 47 Z M60 9 L84 9 L86 24 Q72 28 58 24 Z M56 28 L88 28 L91 47 Q72 51 53 47 Z M92 18 L112 18 L114 31 Q102 34 90 31 Z M88 35 L116 35 L118 48 Q102 51 86 48 Z M104 16 L148 44 L108 44 Z M72 3 L84 6 L72 9 Z"></path>
+      </g>
+    </g>
+  </svg>
+
+  <!-- Hero and sign-in -->
+  <main style="position: relative; flex: 1; min-height: 836px; display: grid; grid-template-columns: minmax(0, 1fr) 440px; column-gap: 64px; align-items: center; padding: 28px 96px;">
+
+    <!-- Left: brand and value points -->
+    <section style="display: flex; flex-direction: column; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <svg width="34" height="34" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.5" fill="none" stroke="#B8954A" stroke-width="1.5"></circle><circle cx="16" cy="16" r="10" fill="none" stroke="#80683A" stroke-width="1"></circle><path d="M16 2.5 L18.2 13.8 L29.5 16 L18.2 18.2 L16 29.5 L13.8 18.2 L2.5 16 L13.8 13.8 Z" fill="#B8954A"></path><path d="M16 8 L17 15 L24 16 L17 17 L16 24 L15 17 L8 16 L15 15 Z" fill="#111412" transform="rotate(45 16 16)"></path><circle cx="16" cy="16" r="1.6" fill="#111412"></circle></svg>
+        <span class="eyebrow" style="color: var(--brass); font-size: 14px; letter-spacing: 0.18em; white-space: nowrap;">Stock Market Game</span>
+        <span style="width: 56px; height: 1px; background: linear-gradient(90deg, rgba(184,149,74,0.7), rgba(184,149,74,0));"></span>
+      </div>
+      <h1 class="wordmark" style="margin: 16px 0 0;">Buccaneer Exchange</h1>
+      <p style="margin: 18px 0 0; max-width: 640px; font-size: 20px; line-height: 1.5; color: var(--foam);">Compete live against other DECA crews. Follow the news, place your trades, and grow your treasure before the voyage ends.</p>
+
+      <div style="display: flex; flex-direction: column; gap: 26px; margin-top: 44px;">
+        <div class="value">
+          <div class="value-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7" ry="2.5"></ellipse><path d="M5 6 V10 C5 11.4 8.1 12.5 12 12.5 C15.9 12.5 19 11.4 19 10 V6"></path><path d="M5 10 V14 C5 15.4 8.1 16.5 12 16.5 C15.9 16.5 19 15.4 19 14 V10"></path><path d="M5 14 V18 C5 19.4 8.1 20.5 12 20.5 C15.9 20.5 19 19.4 19 18 V14"></path></svg>
+          </div>
+          <div>
+            <div class="value-title">Trade <span class="num">25</span> companies with doubloons</div>
+            <div class="value-text">Every crew starts with <span class="num" style="color: var(--foam); font-weight: 500;">Ð1,000,000.00</span>. Prices update every <span class="num">30</span> seconds, so timing matters.</div>
+          </div>
+        </div>
+        <div class="value">
+          <div class="value-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"></rect><path d="M8 7 H16"></path><path d="M8 17.5 V14"></path><path d="M12 17.5 V10.5"></path><path d="M16 17.5 V12.5"></path></svg>
+          </div>
+          <div>
+            <div class="value-title">Research real-format financials</div>
+            <div class="value-text">Revenue, margins, P/E and analyst targets, laid out the way a real brokerage shows them.</div>
+          </div>
+        </div>
+        <div class="value">
+          <div class="value-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21 V3"></path><path d="M7 4 L19 7.5 L7 11"></path><path d="M3.5 21 H10.5"></path></svg>
+          </div>
+          <div>
+            <div class="value-title">Climb the crew standings</div>
+            <div class="value-text">Rankings update every tick across all <span class="num">14</span> crews. Highest account value when the game ends wins.</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 40px; align-self: flex-start; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 12px; border-radius: 6px; background: rgba(26,31,28,0.85); border: 1px solid var(--hull-line); font-size: 14px; color: var(--foam); white-space: nowrap;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DDBE72" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Waiting"><path d="M6 3 H18"></path><path d="M6 21 H18"></path><path d="M7.5 3 C7.5 8 10.5 10 12 12 C13.5 10 16.5 8 16.5 3"></path><path d="M7.5 21 C7.5 16 10.5 14 12 12 C13.5 14 16.5 16 16.5 21"></path><path d="M9.5 19.5 H14.5 L12 17 Z" fill="#DDBE72" stroke="none"></path></svg>
+        <span style="font-weight: 600; color: var(--brass-bright);">Lobby</span>
+        <span style="color: var(--mist);">·</span>
+        <span>Market opens when the host starts the game</span>
+      </div>
+    </section>
+
+    <!-- Right: ledger sign-in card -->
+    <section class="card-wrap">
+      <div class="card">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="eyebrow" style="white-space: nowrap;">Welcome Aboard</span>
+          <span style="flex: 1; height: 1px; background: linear-gradient(90deg, rgba(128,104,58,0.55), rgba(128,104,58,0));"></span>
+        </div>
+        <h2 style="margin: 8px 0 0; font-size: 26px; line-height: 1.2; font-weight: 600; color: var(--ink); letter-spacing: -0.01em;">Sign in to your account</h2>
+
+        <div class="tabs" role="tablist" style="margin-top: 22px;">
+          <span class="on" role="tab" aria-selected="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"></circle><path d="M3 19.5 C3 16 5.7 13.8 9 13.8 C12.3 13.8 15 16 15 19.5"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M16 13.9 C19 13.6 21 15.6 21 18.8"></path></svg>
+            Crew
+          </span>
+          <span role="tab" aria-selected="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="6.8"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2.5 V10 M12 14 V21.5 M2.5 12 H10 M14 12 H21.5 M5.6 5.6 L10.6 10.6 M13.4 13.4 L18.4 18.4 M18.4 5.6 L13.4 10.6 M10.6 13.4 L5.6 18.4"></path></svg>
+            Host
+          </span>
+        </div>
+
+        <div style="margin-top: 24px;">
+          <span class="label">Crew name</span>
+          <div class="input"><span>Black Pearl Traders</span></div>
+        </div>
+        <div style="margin-top: 16px;">
+          <span class="label">Password</span>
+          <div class="input focus">
+            <span class="mask"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+            <span class="caret"></span>
+            <span class="reveal">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12 C4.5 8 8 5.5 12 5.5 C16 5.5 19.5 8 21.5 12 C19.5 16 16 18.5 12 18.5 C8 18.5 4.5 16 2.5 12 Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              Show
+            </span>
+          </div>
+        </div>
+
+        <span class="btn btn-primary" style="display: flex; width: 100%; height: 46px; margin-top: 24px; font-size: 15px; gap: 10px;">
+          Sign in
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DDBE72" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12 H19"></path><path d="M13 6 L19 12 L13 18"></path></svg>
+        </span>
+
+        <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; font-size: 13px; line-height: 1.45; color: var(--ink-3);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 11 V16.5"></path><circle cx="12" cy="7.8" r="0.9" fill="currentColor" stroke="none"></circle></svg>
+          <span>Your host gives each crew its name and password.</span>
+        </div>
+
+        <!-- Example state (annotation, not live UI) -->
+        <div style="margin: 26px -36px 0; padding: 16px 36px 26px; background: var(--sheet-alt); border-top: 1px dashed var(--rule-strong);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; border: 1px dashed var(--brass-dim); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap;">Example state</span>
+            <span style="font-size: 12px; color: var(--ink-3); white-space: nowrap;">After a failed sign-in</span>
+          </div>
+          <div style="margin-top: 12px;">
+            <span class="label">Password</span>
+            <div class="input error">
+              <span class="mask"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+              <span class="reveal">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12 C4.5 8 8 5.5 12 5.5 C16 5.5 19.5 8 21.5 12 C19.5 16 16 18.5 12 18.5 C8 18.5 4.5 16 2.5 12 Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                Show
+              </span>
+            </div>
+            <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; font-size: 13px; line-height: 1.45; color: var(--loss);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="Error" style="flex: none; margin-top: 1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5 V13"></path><circle cx="12" cy="16.4" r="1" fill="currentColor" stroke="none"></circle></svg>
+              <span><b style="font-weight: 600;">Crew name or password is incorrect.</b> Check the spelling with your host and try again.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer on the sea band -->
+  <footer style="position: relative; height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 96px; font-size: 13px; color: var(--mist); white-space: nowrap;">
+    <span style="font-weight: 600; color: var(--foam);">DECA Envision</span>
+    <span>·</span>
+    <span>A market simulation, no real money</span>
+  </footer>
+</div>
+</x-dc>
+</body>
+</html>

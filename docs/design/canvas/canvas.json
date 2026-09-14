@@ -1,0 +1,28 @@
+{
+  "pages": [
+    { "id": "screens", "name": "Screens" },
+    { "id": "directions", "name": "Directions" }
+  ],
+  "artboards": [
+    { "file": "Login.dc.html", "title": "Login", "x": 0, "y": 0, "w": 1440, "h": 900, "page": "screens" },
+    { "file": "Main.dc.html", "title": "Summary", "x": 1560, "y": 0, "w": 1440, "h": 1168, "page": "screens" },
+    { "file": "MobileSummary.dc.html", "title": "Mobile · Summary", "x": 3120, "y": 0, "w": 390, "h": 844, "page": "screens" },
+    { "file": "MobileTrade.dc.html", "title": "Mobile · Trade ticket", "x": 3590, "y": 0, "w": 390, "h": 844, "page": "screens" },
+    { "file": "Trade.dc.html", "title": "Trade · quote + order ticket", "x": 0, "y": 1400, "w": 1440, "h": 1440, "page": "screens" },
+    { "file": "OrderFlow.dc.html", "title": "Order flow", "x": 1560, "y": 1400, "w": 1280, "h": 780, "page": "screens" },
+    { "file": "Markets.dc.html", "title": "Markets", "x": 2960, "y": 1400, "w": 1440, "h": 1716, "page": "screens" },
+    { "file": "ResearchDirectory.dc.html", "title": "Research · screener", "x": 0, "y": 3360, "w": 1440, "h": 1200, "page": "screens" },
+    { "file": "ResearchReport.dc.html", "title": "Research · company financials", "x": 1560, "y": 3360, "w": 1440, "h": 1820, "page": "screens" },
+    { "file": "Standings.dc.html", "title": "Standings", "x": 3120, "y": 3360, "w": 1440, "h": 1150, "page": "screens" },
+    { "file": "FinalReckoning.dc.html", "title": "Final results + market reveal", "x": 0, "y": 5420, "w": 1440, "h": 2268, "page": "screens" },
+    { "file": "HostConsole.dc.html", "title": "Host console", "x": 1560, "y": 5420, "w": 1440, "h": 1942, "page": "screens" },
+    { "file": "DirectionA.dc.html", "title": "A · Captain's Quarters", "x": 0, "y": 0, "w": 760, "h": 600, "page": "directions" },
+    { "file": "DirectionB.dc.html", "title": "B · Black Pearl (chosen)", "x": 840, "y": 0, "w": 760, "h": 600, "page": "directions" },
+    { "file": "DirectionC.dc.html", "title": "C · Treasure Map", "x": 1680, "y": 0, "w": 760, "h": 600, "page": "directions" },
+    { "file": "DirectionD.dc.html", "title": "D · Tortuga Harbor", "x": 2520, "y": 0, "w": 760, "h": 600, "page": "directions" }
+  ],
+  "annotations": [
+    { "id": "round-1", "page": "screens", "x": 0, "y": -200, "w": 900, "text": "Round 1 screens in the chosen direction (B). In progress now: a beginner-friendly pass adding plain-English explanations with sector averages on every number, a Learn guide, a first-login walkthrough, a Dispatches page, and corrected sample numbers. The sample crew will be renamed to Saltwind Traders." }
+  ],
+  "launch": { "view": "canvas", "page": "screens" }
+}

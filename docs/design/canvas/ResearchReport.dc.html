@@ -1,0 +1,344 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&amp;family=Cormorant+SC:wght@600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap">
+  <style>
+    :root {
+      --abyss: #111412; --deep: #1A1F1C; --hull: #232A26; --hull-line: #34403A; --sea-glass: #5FA39A;
+      --brass: #B8954A; --brass-bright: #DDBE72; --brass-dim: #80683A;
+      --paper: #E6E3D9; --sheet: #F8F6F0; --sheet-alt: #EFECE3; --rule: #D9D4C6; --rule-strong: #BFB8A6;
+      --ink: #161816; --ink-2: #454A45; --ink-3: #666B63; --mist: #9FB0A8; --foam: #E4E8E2;
+      --gain: #1B7150; --gain-bg: #DFEEE6; --loss: #A63A2B; --loss-bg: #F3E0DB; --sea: #2F6F68;
+      --gain-dark: #7FD3B0; --loss-dark: #EE9A89;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 14px; line-height: 1.4; font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+    a { color: var(--sea); text-decoration: none; } a:hover { color: #161816; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+    .mono { font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace; font-weight: 500; }
+    .gain { color: var(--gain); } .loss { color: var(--loss); } .flat { color: var(--ink-3); } .neutral { color: var(--ink-2); }
+    .chg { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+    .chg .tri { flex: none; }
+    .eyebrow { font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); white-space: nowrap; }
+    .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 1px 0 rgba(29,25,19,0.04), 0 8px 24px -18px rgba(29,25,19,0.35); }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 18px 11px; border-bottom: 1px solid var(--rule); }
+    .panel-head .eyebrow { display: flex; align-items: center; gap: 10px; }
+    .panel-head .eyebrow::after { content: ""; display: block; width: 22px; height: 1px; background: var(--brass); opacity: 0.8; }
+    .crest { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 11px; letter-spacing: 0.02em; color: #F8F6F0; box-shadow: inset 0 0 0 2px rgba(221,190,114,0.85), 0 1px 2px rgba(0,0,0,0.2); flex: none; }
+    .seg { display: flex; gap: 2px; padding: 2px; background: var(--sheet-alt); border: 1px solid var(--rule); border-radius: 6px; }
+    .seg span { padding: 5px 12px; border-radius: 4px; font-size: 13px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+    .seg span.on { background: var(--deep); color: var(--brass-bright); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 5px; font-weight: 600; font-size: 14px; border: 1px solid transparent; white-space: nowrap; }
+    .btn-primary { background: var(--deep); color: #F8F6F0; box-shadow: inset 0 -2px 0 var(--brass); }
+    .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule-strong); }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+    .pill.gain { background: var(--gain-bg); } .pill.loss { background: var(--loss-bg); }
+    table { border-collapse: collapse; width: 100%; }
+    th { text-align: right; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); padding: 9px 12px; background: var(--sheet-alt); border-bottom: 1px solid var(--rule-strong); white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; padding-left: 18px; }
+    th:last-child, td:last-child { padding-right: 18px; }
+    td { text-align: right; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; white-space: nowrap; }
+    th.l, td.l { text-align: left; }
+    .nav a { color: var(--foam); font-weight: 500; font-size: 14px; height: 60px; display: flex; align-items: center; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .nav a.on { color: var(--brass-bright); border-bottom-color: var(--brass); }
+    .rating { display: inline-flex; align-items: center; justify-content: center; min-width: 82px; height: 20px; padding: 0 8px; border-radius: 3px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; border: 1px solid transparent; }
+    .rating.sbuy { background: var(--gain); color: #F8F6F0; }
+    .rating.buy { background: var(--gain-bg); color: var(--gain); border-color: #B9D8C7; }
+    .rating.hold { background: var(--sheet-alt); color: var(--ink-2); border-color: var(--rule-strong); }
+    .rating.sell { background: var(--loss-bg); color: var(--loss); border-color: #E2BFB6; }
+    .rating.ssell { background: var(--loss); color: #F8F6F0; }
+
+    .qstat { display: flex; flex-direction: column; justify-content: flex-start; gap: 3px; height: 54px; padding: 0 16px; border-left: 1px solid var(--rule); white-space: nowrap; }
+    .qstat .k { font-size: 12px; color: var(--ink-3); }
+    .qstat .v { font-size: 14px; font-weight: 600; }
+    .rbar { position: relative; height: 4px; border-radius: 2px; background: var(--rule); margin-top: 5px; }
+    .rbar span { position: absolute; top: -3px; width: 2px; height: 10px; background: var(--ink); border-radius: 1px; }
+    .tabs { display: flex; gap: 26px; }
+    .tabs span { height: 42px; display: flex; align-items: center; font-size: 14px; font-weight: 500; color: var(--ink-3); border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tabs span.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--brass); }
+    .snav a { display: flex; align-items: center; height: 33px; padding: 0 14px 0 16px; font-size: 13.5px; color: var(--ink-2); border-left: 3px solid transparent; white-space: nowrap; }
+    .snav a.on { color: var(--ink); font-weight: 600; border-left-color: var(--brass); background: var(--sheet-alt); }
+    .prow { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 7px 16px; border-top: 1px solid var(--rule); font-size: 13px; white-space: nowrap; }
+    .prow .k { color: var(--ink-2); }
+    .prow .v { font-weight: 600; }
+    .pstack { display: flex; flex-direction: column; gap: 2px; padding: 7px 16px; border-top: 1px solid var(--rule); font-size: 13px; white-space: nowrap; }
+    .pstack .k { color: var(--ink-2); }
+    table.fin td { height: 32px; padding-top: 0; padding-bottom: 0; }
+    table.fin th { height: 32px; padding-top: 0; padding-bottom: 0; }
+    table.fin tr.strong td { font-weight: 600; color: var(--ink); }
+    table.fin td.latest, table.fin th.latest { background: #F1EEE5; }
+    table.fin tr.sub td { height: 26px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); background: var(--sheet-alt); border-bottom: 1px solid var(--rule); }
+    table.kv td { height: 32px; padding-top: 0; padding-bottom: 0; font-size: 13.5px; }
+    table.kv td:first-child { color: var(--ink-2); }
+    table.kv tr.strong td { font-weight: 600; color: var(--ink); border-top: 1px solid var(--rule-strong); }
+    table.kv tr.ratio td { background: var(--sheet-alt); }
+    table.kv tbody tr:last-child td, table.fin tbody tr:last-child td, table.val tbody tr:last-child td { border-bottom: none; }
+    .kpi-k { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+    .kpi-v { font-size: 20px; font-weight: 600; white-space: nowrap; }
+    .note { font-size: 12px; color: var(--ink-3); }
+    .tag { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    table.val { table-layout: fixed; }
+    table.val td { height: 40px; padding-top: 0; padding-bottom: 0; }
+
+  </style>
+</helmet>
+<div style="width: 1440px; min-height: 1820px; background: var(--paper); display: flex; flex-direction: column;">
+
+  <header style="height: 60px; background: radial-gradient(520px 140px at 94% -20%, rgba(95,163,154,0.16), rgba(95,163,154,0) 70%), var(--abyss); display: flex; align-items: center; gap: 24px; padding: 0 24px; position: relative;">
+    <div style="display: flex; align-items: center; gap: 9px; flex: none;">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14.5" fill="none" stroke="#B8954A" stroke-width="1.5"></circle><circle cx="16" cy="16" r="10" fill="none" stroke="#80683A" stroke-width="1"></circle><path d="M16 2.5 L18.2 13.8 L29.5 16 L18.2 18.2 L16 29.5 L13.8 18.2 L2.5 16 L13.8 13.8 Z" fill="#B8954A"></path><path d="M16 8 L17 15 L24 16 L17 17 L16 24 L15 17 L8 16 L15 15 Z" fill="#111412" transform="rotate(45 16 16)"></path><circle cx="16" cy="16" r="1.6" fill="#111412"></circle></svg>
+      <div style="font-family: 'Cinzel Decorative', Georgia, serif; font-weight: 700; font-size: 22px; color: var(--brass-bright); letter-spacing: 0.01em; line-height: 1; white-space: nowrap;">Buccaneer Exchange</div>
+    </div>
+    <nav class="nav" style="display: flex; gap: 20px; height: 60px; flex: none;"><a>Summary</a><a>Positions</a><a>Trade</a><a>Markets</a><a class="on">Research</a><a>Dispatches</a><a>Standings</a></nav>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none;">
+      <div style="display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 11px; border-radius: 5px; background: var(--hull); border: 1px solid var(--hull-line); color: var(--mist); font-size: 13px; white-space: nowrap;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#9FB0A8" stroke-width="1.5" aria-hidden="true"><circle cx="7" cy="7" r="5"></circle><path d="M11 11 L14.5 14.5"></path></svg>
+        <span>Search</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--hull-line); color: var(--foam); font-size: 13px; white-space: nowrap;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #7FD3B0; box-shadow: 0 0 0 3px rgba(95,163,154,0.3);"></span>
+        <span style="font-weight: 600;">Market open</span>
+        <span class="num" style="color: var(--mist);">41:17:08 left</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 5px; background: var(--hull); border: 1px solid var(--hull-line); font-size: 13px; white-space: nowrap;">
+        <span style="color: var(--mist);">Cash</span>
+        <span class="num" style="color: var(--foam); font-weight: 600;">Ð312,400.18</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--hull); border: 1px solid var(--brass-dim); display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 12px; color: var(--brass-bright);">BP</div>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="#9FB0A8" stroke-width="1.5"></path></svg>
+      </div>
+    </div>
+    <div style="position: absolute; left: 0; right: 0; bottom: -3px; height: 3px; background: repeating-linear-gradient(135deg, #80683A 0 3px, #B8954A 3px 6px); opacity: 0.9;"></div>
+  </header>
+
+  <div style="height: 38px; margin-top: 3px; background: var(--deep); display: flex; align-items: center; gap: 18px; padding: 0 24px; font-size: 12.5px; color: var(--foam); border-bottom: 1px solid #111412; white-space: nowrap;">
+    <div style="display: flex; align-items: center; gap: 8px;"><span class="eyebrow" style="color: var(--brass); font-size: 12px;">Pirate Composite</span><span class="num" style="font-weight: 600;">1,048.62</span><b class="chg" style="color: var(--gain-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+8.71 (+0.84%)</b></div>
+    <span style="width: 1px; height: 18px; background: var(--hull-line);"></span>
+    <div style="display: flex; gap: 16px; color: var(--mist);"><span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">Shipping &amp; Salvage <b class="chg" style="color: var(--gain-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+1.21%</b></span><span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">Provisions <b class="chg" style="color: var(--loss-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M0.5 1 L7.5 1 L4 7 Z" fill="currentColor"></path></svg>−0.42%</b></span><span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">Treasure Banking <b class="chg" style="color: var(--gain-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+0.33%</b></span><span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">Naval Arms <b class="chg" style="color: var(--gain-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+2.05%</b></span><span style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">Cursed Relics <b class="chg" style="color: var(--loss-dark); font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M0.5 1 L7.5 1 L4 7 Z" fill="currentColor"></path></svg>−3.46%</b></span></div>
+    <div class="num" style="margin-left: auto; color: var(--mist);">Tick 1,284 of 5,760 · as of 14:02:30</div>
+  </div>
+
+  <section style="background: var(--sheet); border-bottom: 1px solid var(--rule-strong); padding: 16px 28px 0;">
+    <div style="display: flex; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 14px; padding-right: 20px; white-space: nowrap;">
+        <div class="crest" style="background: #2F6F68; width: 46px; height: 46px; font-size: 16px;">KR</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div style="font-size: 22px; font-weight: 600; line-height: 1.1; letter-spacing: -0.005em;">Kraken Shipping Lines</div>
+          <div style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2);">
+            <span class="mono" style="font-size: 12.5px; color: var(--ink); padding: 0 6px; border-radius: 3px; background: var(--sheet-alt); border: 1px solid var(--rule-strong);">KRKN</span>
+            <span>Shipping &amp; Salvage</span><span style="color: var(--rule-strong);">|</span><span>Analysts: <b style="color: var(--gain);">Buy</b>, target <span class="num">Ð96.00</span></span>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 0 18px; border-left: 1px solid var(--rule); white-space: nowrap;">
+        <div style="display: flex; align-items: baseline; gap: 10px;">
+          <span class="num" style="font-size: 30px; font-weight: 600; line-height: 1.05; letter-spacing: -0.01em;">Ð84.12</span>
+          <span class="chg gain" style="font-size: 15px; font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+Ð1.90 (+2.31%)</span>
+        </div>
+        <div class="num note">Session change vs Ð82.22 open · tick 1,284</div>
+      </div>
+      <div class="qstat"><span class="k">Session range</span><span class="v num">Ð81.90 – Ð84.60</span><div class="rbar"><span style="left: 82%;"></span></div></div>
+      <div class="qstat"><span class="k">52-week range</span><span class="v num">Ð58.40 – Ð91.20</span><div class="rbar"><span style="left: 78%;"></span></div></div>
+      <div class="qstat"><span class="k">Market cap</span><span class="v num">Ð20.36B</span><span class="num note">242.0M shares</span></div>
+      <div class="qstat"><span class="k">Volume</span><span class="v num">184,200</span><span class="num note">this session</span></div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 8px; padding-left: 12px;">
+        <span class="btn" style="background: var(--gain); color: #F8F6F0; min-width: 76px;">Buy</span>
+        <span class="btn" style="background: var(--sheet); color: var(--loss); border-color: var(--loss); min-width: 76px;">Sell</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
+      <div class="tabs"><span>Snapshot</span><span class="on">Financials</span><span>Analysts</span><span>Dispatches</span><span>Crew</span><span>Compare</span></div>
+      <a style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2F6F68" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.2 L14.6 8.9 L20.8 9.5 L16.1 13.6 L17.5 19.7 L12 16.5 L6.5 19.7 L7.9 13.6 L3.2 9.5 L9.4 8.9 Z"></path></svg>Add to watchlist</a>
+    </div>
+  </section>
+
+  <main style="flex: 1; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 22px; padding: 20px 28px 33px; align-items: start;">
+
+    <aside style="display: flex; flex-direction: column; gap: 16px;">
+      <nav class="panel" style="padding: 12px 0 10px;">
+        <div class="eyebrow" style="padding: 0 16px 9px; font-size: 12px;">On This Page</div>
+        <div class="snav" style="display: flex; flex-direction: column;"><a class="on">Income statement</a><a>Balance sheet</a><a>Cash flow</a><a>Returns</a><a>Valuation</a><a>Crew (management)</a><a>Industry</a><a>Risks</a></div>
+      </nav>
+      <section class="panel" style="overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 16px 9px;"><span class="eyebrow" style="font-size: 12px;">Your Position</span><span class="num note">3,000 shares</span></div>
+        <div class="prow"><span class="k">Market value</span><span class="v num">Ð252,360.00</span></div>
+        <div class="prow"><span class="k">Average cost</span><span class="v num">Ð73.50</span></div>
+        <div class="prow"><span class="k">% of account</span><span class="v num">23.3%</span></div>
+        <div class="pstack"><span class="k">Session return</span><span class="chg gain" style="font-weight: 600; justify-content: flex-start;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+Ð5,700.00 (+2.31%)</span></div>
+        <div class="pstack"><span class="k">Total return</span><span class="chg gain" style="font-weight: 600; justify-content: flex-start;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+Ð31,860.00 (+14.45%)</span></div>
+        <div class="pstack" style="background: var(--sheet-alt);"><span class="k">Cash available to trade</span><span class="num" style="font-weight: 600;">Ð312,400.18</span></div>
+      </section>
+    </aside>
+    <div style="display: flex; flex-direction: column; gap: 18px; min-width: 0;">
+
+      <section class="panel" style="overflow: hidden;">
+        <div class="panel-head">
+          <span class="eyebrow">Income Statement</span>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <span class="note">Fiscal years end Dec 31 · doubloons in billions, except per share</span>
+            <div class="seg"><span class="on">Table</span><span>Chart</span></div>
+          </div>
+        </div>
+        <table class="fin">
+          <colgroup><col style="width: 33%;"><col><col><col><col><col style="width: 14%;"></colgroup>
+          <thead><tr><th>Annual</th><th>FY2022</th><th>FY2023</th><th>FY2024</th><th class="latest" style="color: var(--ink);">FY2025</th><th>YoY change</th></tr></thead>
+          <tbody>
+            <tr class="strong"><td><div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;"><span>Revenue</span><span style="display: flex; align-items: center; gap: 8px;"><span class="note" style="font-weight: 400;">4-yr</span><svg width="46" height="18" viewBox="0 0 46 18" aria-hidden="true" style="display: block; flex: none;"><rect x="0.0" y="4.2" width="8" height="13.8" rx="1" fill="#BFB8A6"></rect><rect x="12.7" y="3.0" width="8" height="15.0" rx="1" fill="#BFB8A6"></rect><rect x="25.3" y="1.8" width="8" height="16.2" rx="1" fill="#BFB8A6"></rect><rect x="38.0" y="1.0" width="8" height="17.0" rx="1" fill="#1A1F1C"></rect></svg></span></div></td><td class="num">6.61</td><td class="num">7.18</td><td class="num">7.74</td><td class="num latest">8.14</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+5.2%</span></td></tr>
+            <tr><td>Cost of revenue</td><td class="num">4.18</td><td class="num">4.51</td><td class="num">4.84</td><td class="num latest">5.06</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+4.5%</span></td></tr>
+            <tr class="strong"><td>Gross profit</td><td class="num">2.43</td><td class="num">2.67</td><td class="num">2.90</td><td class="num latest">3.08</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+6.2%</span></td></tr>
+            <tr class="strong"><td>Operating income</td><td class="num">1.27</td><td class="num">1.39</td><td class="num">1.52</td><td class="num latest">1.60</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+5.3%</span></td></tr>
+            <tr class="strong"><td><div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;"><span>Net income</span><span style="display: flex; align-items: center; gap: 8px;"><span class="note" style="font-weight: 400;">4-yr</span><svg width="46" height="18" viewBox="0 0 46 18" aria-hidden="true" style="display: block; flex: none;"><rect x="0.0" y="4.0" width="8" height="14.0" rx="1" fill="#BFB8A6"></rect><rect x="12.7" y="2.6" width="8" height="15.4" rx="1" fill="#BFB8A6"></rect><rect x="25.3" y="1.7" width="8" height="16.3" rx="1" fill="#BFB8A6"></rect><rect x="38.0" y="1.0" width="8" height="17.0" rx="1" fill="#1A1F1C"></rect></svg></span></div></td><td class="num">0.94</td><td class="num">1.03</td><td class="num">1.09</td><td class="num latest">1.14</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+4.6%</span></td></tr>
+            <tr><td>EPS (diluted, per share)</td><td class="num">Ð3.79</td><td class="num">Ð4.18</td><td class="num">Ð4.48</td><td class="num latest">Ð4.73</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+5.6%</span></td></tr>
+            <tr><td>EBITDA</td><td class="num">1.82</td><td class="num">1.98</td><td class="num">2.16</td><td class="num latest">2.28</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+5.6%</span></td></tr>
+            <tr class="sub"><td colspan="6">Margins</td></tr>
+            <tr><td>Gross margin</td><td class="num">36.8%</td><td class="num">37.2%</td><td class="num">37.5%</td><td class="num latest">37.8%</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+0.3 pts</span></td></tr>
+            <tr><td>Operating margin</td><td class="num">19.2%</td><td class="num">19.4%</td><td class="num">19.6%</td><td class="num latest">19.7%</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+0.1 pts</span></td></tr>
+            <tr><td>Net margin</td><td class="num">14.2%</td><td class="num">14.3%</td><td class="num">14.1%</td><td class="num latest">14.0%</td><td><span class="chg neutral"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M0.5 1 L7.5 1 L4 7 Z" fill="currentColor"></path></svg>−0.1 pts</span></td></tr>
+          </tbody>
+        </table>
+      </section>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch;">
+
+      <section class="panel" style="overflow: hidden;">
+        <div class="panel-head"><span class="eyebrow">Balance Sheet</span><span class="note num">FY2025 · Dec 31</span></div>
+        <table class="kv"><tbody><tr><td>Cash &amp; equivalents</td><td class="num">Ð1.42B</td></tr><tr><td>Total current assets</td><td class="num">Ð3.12B</td></tr><tr><td>Total assets</td><td class="num">Ð12.80B</td></tr><tr><td>Total current liabilities</td><td class="num">Ð1.70B</td></tr><tr><td>Total debt</td><td class="num">Ð3.88B</td></tr><tr><td>Total liabilities</td><td class="num">Ð6.54B</td></tr><tr class="strong"><td>Shareholders’ equity</td><td class="num">Ð6.26B</td></tr><tr class="ratio"><td>Current ratio</td><td class="num">1.84</td></tr><tr class="ratio"><td>Debt / equity</td><td class="num">0.62</td></tr></tbody></table>
+      </section>
+
+      <section class="panel" style="overflow: hidden;">
+        <div class="panel-head"><span class="eyebrow">Cash Flow</span><span class="note num">FY2025</span></div>
+        <table class="kv"><tbody><tr><td>Operating cash flow</td><td class="num">Ð1.84B</td></tr><tr><td>Capital expenditures</td><td class="num">−Ð0.88B</td></tr><tr class="strong"><td>Free cash flow</td><td class="num">Ð0.96B</td></tr><tr><td>Dividends paid</td><td class="num">−Ð0.39B</td></tr><tr><td>Share repurchases</td><td class="num">−Ð0.22B</td></tr><tr><td>Dividend per share</td><td class="num">Ð1.61</td></tr><tr><td>Free cash flow per share</td><td class="num">Ð3.97</td></tr><tr class="ratio"><td>Free cash flow margin</td><td class="num">11.8%</td></tr><tr class="ratio"><td>Payout ratio</td><td class="num">34%</td></tr></tbody></table>
+      </section>
+
+      <section class="panel" style="overflow: hidden; display: flex; flex-direction: column;">
+        <div class="panel-head"><span class="eyebrow">Returns</span><span class="note num">FY2025</span></div>
+        
+          <div style="flex: 1; padding: 12px 18px;  display: flex; flex-direction: column; justify-content: center; gap: 9px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 14px; white-space: nowrap;">Return on equity (ROE)</span><span class="note" style="white-space: nowrap;">Net income ÷ shareholders’ equity</span></div>
+              <span class="num" style="font-size: 24px; font-weight: 600;">18.2%</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0;">
+              <svg width="100%" height="14" viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true" style="display: block;">
+                <rect x="0" y="4" width="300" height="6" rx="3" fill="#E4E0D4"></rect>
+                <rect x="0" y="4" width="218.4" height="6" rx="3" fill="#1A1F1C"></rect>
+                <rect x="138.2" y="0" width="2" height="14" fill="#80683A"></rect>
+              </svg>
+              <div style="position: relative; height: 15px; font-size: 11.5px;"><span class="num" style="position: absolute; left: calc(46.4% - 1px); top: 0; padding-left: 6px; border-left: 2px solid #80683A; line-height: 15px; color: var(--brass-dim); font-weight: 600; white-space: nowrap;">Shipping median 11.6%</span></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2);">
+              <svg width="40" height="16" viewBox="0 0 40 16" aria-hidden="true" style="display: block; flex: none;"><rect x="0.0" y="1.9" width="7" height="14.1" rx="1" fill="#BFB8A6"></rect><rect x="11.0" y="1.5" width="7" height="14.5" rx="1" fill="#BFB8A6"></rect><rect x="22.0" y="1.2" width="7" height="14.8" rx="1" fill="#BFB8A6"></rect><rect x="33.0" y="1.0" width="7" height="15.0" rx="1" fill="#1A1F1C"></rect></svg>
+              <span class="num">Up each year from 17.1% in FY2022</span>
+            </div>
+          </div>
+        
+          <div style="flex: 1; padding: 12px 18px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; justify-content: center; gap: 9px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+              <div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 14px; white-space: nowrap;">Return on assets (ROA)</span><span class="note" style="white-space: nowrap;">Net income ÷ total assets</span></div>
+              <span class="num" style="font-size: 24px; font-weight: 600;">8.9%</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0;">
+              <svg width="100%" height="14" viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true" style="display: block;">
+                <rect x="0" y="4" width="300" height="6" rx="3" fill="#E4E0D4"></rect>
+                <rect x="0" y="4" width="213.6" height="6" rx="3" fill="#1A1F1C"></rect>
+                <rect x="128.6" y="0" width="2" height="14" fill="#80683A"></rect>
+              </svg>
+              <div style="position: relative; height: 15px; font-size: 11.5px;"><span class="num" style="position: absolute; left: calc(43.2% - 1px); top: 0; padding-left: 6px; border-left: 2px solid #80683A; line-height: 15px; color: var(--brass-dim); font-weight: 600; white-space: nowrap;">Shipping median 5.4%</span></div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ink-2);">
+              <svg width="40" height="16" viewBox="0 0 40 16" aria-hidden="true" style="display: block; flex: none;"><rect x="0.0" y="2.3" width="7" height="13.7" rx="1" fill="#BFB8A6"></rect><rect x="11.0" y="1.8" width="7" height="14.2" rx="1" fill="#BFB8A6"></rect><rect x="22.0" y="1.3" width="7" height="14.7" rx="1" fill="#BFB8A6"></rect><rect x="33.0" y="1.0" width="7" height="15.0" rx="1" fill="#1A1F1C"></rect></svg>
+              <span class="num">Up each year from 8.1% in FY2022</span>
+            </div>
+          </div>
+      </section>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch;">
+
+      <section class="panel" style="overflow: hidden; grid-column: span 2; display: flex; flex-direction: column;">
+        <div class="panel-head">
+          <span class="eyebrow">Valuation</span>
+          <div style="display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--ink-3); white-space: nowrap;">
+            <span style="display: flex; align-items: center; gap: 6px;"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg>KRKN</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><svg width="4" height="14" viewBox="0 0 4 14" aria-hidden="true"><rect x="1" y="0" width="2" height="14" fill="#80683A"></rect></svg>Shipping &amp; Salvage median</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><svg width="14" height="8" viewBox="0 0 14 8" aria-hidden="true"><rect x="1" y="1" width="1" height="6" fill="#BFB8A6"></rect><rect x="6.5" y="1" width="1" height="6" fill="#BFB8A6"></rect><rect x="12" y="1" width="1" height="6" fill="#BFB8A6"></rect></svg>Other companies</span>
+          </div>
+        </div>
+        <table class="val">
+          <colgroup><col style="width: 132px;"><col style="width: 64px;"><col style="width: 76px;"><col style="width: 92px;"><col><col style="width: 98px;"></colgroup>
+          <thead><tr><th>Multiple</th><th>KRKN</th><th>Median</th><th>vs median</th><th style="padding-left: 14px; padding-right: 14px;"><span style="display: flex; justify-content: space-between;"><span>Low</span><span>Rank among 25 companies</span><span>High</span></span></th><th>Percentile</th></tr></thead>
+          <tbody><tr><td style="font-weight: 600;">P/E (trailing)</td><td class="num" style="font-weight: 600;">17.8</td><td class="num">24.6</td><td class="num" style="color: var(--ink-2);">−28%</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="128.1" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="72.5" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">29th</td></tr><tr><td style="font-weight: 600;">Forward P/E</td><td class="num" style="font-weight: 600;">15.9</td><td class="num">21.3</td><td class="num" style="color: var(--ink-2);">−25%</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.0" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="72.5" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">29th</td></tr><tr><td style="font-weight: 600;">Price / sales</td><td class="num" style="font-weight: 600;">2.50</td><td class="num">1.90</td><td class="num" style="color: var(--ink-2);">+32%</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.0" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="101.0" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">42nd</td></tr><tr><td style="font-weight: 600;">Price / book</td><td class="num" style="font-weight: 600;">3.25</td><td class="num">2.40</td><td class="num" style="color: var(--ink-2);">+35%</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="109.9" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="158.0" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">67th</td></tr><tr><td style="font-weight: 600;">EV / EBITDA</td><td class="num" style="font-weight: 600;">10.0</td><td class="num">16.4</td><td class="num" style="color: var(--ink-2);">−39%</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="137.2" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="53.5" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">21st</td></tr><tr><td style="font-weight: 600;">Dividend yield</td><td class="num" style="font-weight: 600;">1.9%</td><td class="num">1.2%</td><td class="num" style="color: var(--ink-2);">+0.7 pts</td><td style="padding-left: 8px; padding-right: 8px;"><svg width="240" height="20" viewBox="0 0 240 20" aria-hidden="true" style="display: block; margin: 0 auto;"><rect x="6" y="9.5" width="228" height="1" fill="#D9D4C6"></rect><rect x="5.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="15.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="24.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="34.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="43.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="53.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="62.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="72.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="81.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="91.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="110.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="119.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="129.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="138.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="148.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="157.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="167.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="176.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="186.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="195.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="205.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="214.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="224.0" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="233.5" y="7" width="1" height="6" fill="#BFB8A6"></rect><rect x="100.8" y="2" width="2" height="16" fill="#80683A"></rect><circle cx="148.5" cy="10" r="5.5" fill="#1A1F1C" stroke="#DDBE72" stroke-width="1.5"></circle></svg></td><td class="num" style="font-weight: 600;">63rd</td></tr></tbody>
+        </table>
+        <div class="note" style="margin-top: auto; padding: 9px 18px 10px; border-top: 1px solid var(--rule); background: var(--sheet-alt); white-space: nowrap;">Lower multiples mean paying less per doubloon of earnings, sales or book value. A higher yield pays more income.</div>
+      </section>
+
+      <section class="panel" style="overflow: hidden; display: flex; flex-direction: column;">
+        <div class="panel-head"><span class="eyebrow">Crew</span><span class="note">Management team</span></div>
+        
+          <div style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 18px; ">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: var(--deep); box-shadow: inset 0 0 0 1.5px rgba(221,190,114,0.85); display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; color: var(--brass-bright); flex: none; align-self: flex-start; margin-top: 2px;">JM</div>
+            <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><span style="font-weight: 600; white-space: nowrap;">Josiah Marlowe</span><span class="num note" style="white-space: nowrap;">9 years at KRKN</span></div>
+              <span style="font-size: 12.5px; color: var(--ink-2); font-weight: 600;">Chief Executive Officer</span>
+              <span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.4; margin-top: 2px;">Former Port Royal harbor master; grew the fleet from 61 to 104 cargo ships.</span>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--rule);">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: var(--deep); box-shadow: inset 0 0 0 1.5px rgba(221,190,114,0.85); display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; color: var(--brass-bright); flex: none; align-self: flex-start; margin-top: 2px;">CA</div>
+            <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><span style="font-weight: 600; white-space: nowrap;">Constance Ashby</span><span class="num note" style="white-space: nowrap;">5 years at KRKN</span></div>
+              <span style="font-size: 12.5px; color: var(--ink-2); font-weight: 600;">Chief Financial Officer</span>
+              <span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.4; margin-top: 2px;">Ran a colonial trading house’s treasury; set the 34% dividend payout policy.</span>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--rule);">
+            <div style="width: 38px; height: 38px; border-radius: 50%; background: var(--deep); box-shadow: inset 0 0 0 1.5px rgba(221,190,114,0.85); display: flex; align-items: center; justify-content: center; font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 13px; color: var(--brass-bright); flex: none; align-self: flex-start; margin-top: 2px;">TW</div>
+            <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;"><span style="font-weight: 600; white-space: nowrap;">Tobias Wren</span><span class="num note" style="white-space: nowrap;">3 years at KRKN</span></div>
+              <span style="font-size: 12.5px; color: var(--ink-2); font-weight: 600;">Chief Operating Officer</span>
+              <span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.4; margin-top: 2px;">Rose from ship’s navigator to head of routes; cut port turnaround to four days.</span>
+            </div>
+          </div>
+      </section>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: stretch;">
+
+      <section class="panel" style="overflow: hidden; display: flex; flex-direction: column;">
+        <div class="panel-head"><span class="eyebrow">Industry</span><span class="note">Shipping &amp; Salvage</span></div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--rule);">
+          <div style="padding: 11px 12px 11px 18px; border-right: 1px solid var(--rule);"><div class="kpi-k">Market size</div><div class="kpi-v num">Ð142B</div></div>
+          <div style="padding: 11px 12px; border-right: 1px solid var(--rule);"><div class="kpi-k">Growth a year</div><div class="num"><span class="chg neutral" style="font-size: 20px; font-weight: 600; color: var(--ink);"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>+6.5%</span></div></div>
+          <div style="padding: 11px 12px;"><div class="kpi-k">KRKN share</div><div class="kpi-v num">5.7%</div></div>
+        </div>
+        <div style="padding: 11px 18px; display: flex; flex-direction: column; gap: 5px; border-bottom: 1px solid var(--rule);">
+          <div style="display: flex; align-items: center; gap: 8px;"><span class="kpi-k">Competitive position</span><span class="tag" style="background: var(--deep); color: var(--brass-bright);">Largest of 5 listed</span></div>
+          <div style="font-size: 13px; color: var(--ink-2); line-height: 1.45;">Most revenue comes from convoy contracts out of Port Royal; storm salvage adds the rest.</div>
+        </div>
+        <div style="flex: 1; padding: 11px 18px 13px; display: flex; flex-direction: column; justify-content: center; gap: 4px;">
+          <div class="kpi-k" style="margin-bottom: 3px;">Market cap, listed shipping companies</div>
+          <div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: 8px; height: 19px;"><span class="mono" style="font-size: 12px; color: var(--ink);">KRKN</span><span style="display: block; height: 8px; border-radius: 0 2px 2px 0; width: 100.0%; background: #1A1F1C;"></span><span class="num" style="font-size: 12px; text-align: right; font-weight: 600;">Ð20.36B</span></div><div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: 8px; height: 19px;"><span class="mono" style="font-size: 12px; color: var(--ink-2);">FDUT</span><span style="display: block; height: 8px; border-radius: 0 2px 2px 0; width: 94.8%; background: #BFB8A6;"></span><span class="num" style="font-size: 12px; text-align: right; font-weight: 400;">Ð19.31B</span></div><div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: 8px; height: 19px;"><span class="mono" style="font-size: 12px; color: var(--ink-2);">LVTH</span><span style="display: block; height: 8px; border-radius: 0 2px 2px 0; width: 70.3%; background: #BFB8A6;"></span><span class="num" style="font-size: 12px; text-align: right; font-weight: 400;">Ð14.31B</span></div><div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: 8px; height: 19px;"><span class="mono" style="font-size: 12px; color: var(--ink-2);">DJON</span><span style="display: block; height: 8px; border-radius: 0 2px 2px 0; width: 44.4%; background: #BFB8A6;"></span><span class="num" style="font-size: 12px; text-align: right; font-weight: 400;">Ð9.04B</span></div><div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 58px; align-items: center; gap: 8px; height: 19px;"><span class="mono" style="font-size: 12px; color: var(--ink-2);">SALT</span><span style="display: block; height: 8px; border-radius: 0 2px 2px 0; width: 22.3%; background: #BFB8A6;"></span><span class="num" style="font-size: 12px; text-align: right; font-weight: 400;">Ð4.55B</span></div>
+        </div>
+      </section>
+
+      <section class="panel" style="overflow: hidden; display: flex; flex-direction: column;">
+        <div class="panel-head"><span class="eyebrow">Risks</span><span class="note">From filings and dispatches</span></div>
+        <div style="flex: 1; display: flex; gap: 10px; padding: 10px 18px; "><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style="flex: none; margin-top: 5px;"><path d="M5 0.8 L9.2 5 L5 9.2 L0.8 5 Z" fill="none" stroke="#80683A" stroke-width="1.3"></path></svg><div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 13.5px;">Storm losses</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.45;">A gale off Nassau sank two Cursed Doubloon Relics ships at 13:36. KRKN sails the same waters.</span></div></div><div style="flex: 1; display: flex; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--rule);"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style="flex: none; margin-top: 5px;"><path d="M5 0.8 L9.2 5 L5 9.2 L0.8 5 Z" fill="none" stroke="#80683A" stroke-width="1.3"></path></svg><div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 13.5px;">Debt load</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.45;">Ð3.88B of debt, 0.62 times equity. Higher interest costs would cut net income.</span></div></div><div style="flex: 1; display: flex; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--rule);"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style="flex: none; margin-top: 5px;"><path d="M5 0.8 L9.2 5 L5 9.2 L0.8 5 Z" fill="none" stroke="#80683A" stroke-width="1.3"></path></svg><div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 13.5px;">Cost pressure</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.45;">Costs are 62% of revenue. A 1-point rise trims operating income about 5%.</span></div></div><div style="flex: 1; display: flex; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--rule);"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" style="flex: none; margin-top: 5px;"><path d="M5 0.8 L9.2 5 L5 9.2 L0.8 5 Z" fill="none" stroke="#80683A" stroke-width="1.3"></path></svg><div style="display: flex; flex-direction: column; gap: 1px;"><span style="font-weight: 600; font-size: 13.5px;">A bigger rival</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.45;">Leviathan Logistics’ fleet purchase would narrow KRKN’s lead on Atlantic routes.</span></div></div>
+      </section>
+
+      <section class="panel" style="overflow: hidden; display: flex; flex-direction: column;">
+        <div class="panel-head"><span class="eyebrow">Recent Developments</span><a style="font-size: 13px; font-weight: 600; white-space: nowrap;">All dispatches</a></div>
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 9px 18px; "><div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-3);"><span class="tag" style="background: #E1ECEA; color: var(--sea);">Discovery</span><span class="num">13:22</span><span style="margin-left: auto;"><span class="chg gain" style="font-size: 12px; font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>KRKN +0.38% since</span></span></div><div style="font-weight: 600; font-size: 13.5px; line-height: 1.35;">Charts a profitable new trade route</div></div><div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 9px 18px; border-top: 1px solid var(--rule);"><div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-3);"><span class="tag" style="background: #E1ECEA; color: var(--sea);">Macro</span><span class="num">12:48</span><span style="margin-left: auto;"><span class="chg gain" style="font-size: 12px; font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>KRKN +1.29% since</span></span></div><div style="font-weight: 600; font-size: 13.5px; line-height: 1.35;">Crown lifts tariffs across the Spanish Main</div><div style="font-size: 12.5px; color: var(--ink-2);">KRKN is one of 11 companies affected.</div></div><div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 9px 18px; border-top: 1px solid var(--rule);"><div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-3);"><span class="tag" style="background: #E1ECEA; color: var(--sea);">Regulatory</span><span class="num">09:36</span><span style="margin-left: auto;"><span class="chg gain" style="font-size: 12px; font-weight: 600;"><svg class="tri" width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 1 L7.5 7 L0.5 7 Z" fill="currentColor"></path></svg>KRKN +2.52% since</span></span></div><div style="font-weight: 600; font-size: 13.5px; line-height: 1.35;">Wins a coveted royal charter</div></div><div style="flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 9px 18px; border-top: 1px solid var(--rule);"><div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--ink-3);"><span class="tag" style="background: var(--sheet-alt); color: var(--ink-2);">Results</span><span class="num">FY2025</span></div><div style="font-weight: 600; font-size: 13.5px; line-height: 1.35;">Revenue up 5.2% to Ð8.14B; net income up 4.6%</div><div style="font-size: 12.5px; color: var(--ink-2);">Dividend raised 6% to Ð1.61 per share.</div></div>
+      </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

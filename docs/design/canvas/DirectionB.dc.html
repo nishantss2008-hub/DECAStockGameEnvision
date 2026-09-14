@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Cormorant+SC:wght@600;700&family=IBM+Plex+Sans:wght@400;600&amp;display=swap">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #E6E3D9; color: #161816; font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; }
+    a { color: #2F6F68; } a:hover { color: #161816; }
+    .eyebrow { font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #454A45; }
+    .panel { background: #F8F6F0; border: 1px solid #D9D4C6; border-radius: 6px; }
+    td, th { padding: 7px 10px; text-align: right; border-bottom: 1px solid #D9D4C6; white-space: nowrap; }
+    th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #666B63; background: #EFECE3; font-weight: 600; }
+    td:first-child, th:first-child { text-align: left; padding-left: 14px; }
+  </style>
+</helmet>
+<div style="width: 760px; height: 600px; background: #E6E3D9; display: flex; flex-direction: column; overflow: hidden; ">
+  <header style="height: 50px; background: #111412; display: flex; align-items: center; gap: 22px; padding: 0 18px; border-bottom: 3px solid #5FA39A; background-image: radial-gradient(ellipse at 80% -40%, rgba(95,163,154,0.22), transparent 60%);">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <svg width="24" height="24" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14.5" fill="none" stroke="#B8954A" stroke-width="1.5"></circle><path d="M16 2.5 L18.2 13.8 L29.5 16 L18.2 18.2 L16 29.5 L13.8 18.2 L2.5 16 L13.8 13.8 Z" fill="#B8954A"></path><circle cx="16" cy="16" r="2" fill="#111412"></circle></svg>
+      <span style="font-family: 'Cinzel Decorative', Georgia, serif; font-size: 22px; color: #DDBE72; line-height: 1;">Buccaneer Exchange</span>
+    </div>
+    <div style="display: flex; gap: 16px; font-size: 13px; color: #9FB0A8;">
+      <span style="color: #DDBE72; font-weight: 600; box-shadow: 0 3px 0 #B8954A; padding-bottom: 4px;">Summary</span><span>Positions</span><span>Trade</span><span>Markets</span><span>Research</span>
+    </div>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #E4E8E2;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #5FD3A8;"></span>Market open · 41:17:08</div>
+  </header>
+  <div style="height: 30px; background: #1A1F1C; display: flex; align-items: center; gap: 18px; padding: 0 18px; font-size: 11.5px; color: #9FB0A8;">
+    <span style="font-family: 'Cormorant SC', Georgia, serif; font-weight: 700; letter-spacing: 0.1em; color: #B8954A;">PIRATE COMPOSITE</span><span style="color: #E4E8E2; font-weight: 600;">1,048.62</span><span style="color: #7FD3B0; font-weight: 600;">+0.84%</span>
+    <span>Shipping <b style="color: #7FD3B0;">+1.21%</b></span><span>Rum <b style="color: #EE9A89;">−0.42%</b></span><span>Relics <b style="color: #EE9A89;">−1.87%</b></span>
+  </div>
+
+  <div style="flex: 1; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; padding: 14px 18px;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="panel" style="padding: 14px;">
+        <div class="eyebrow">Crew Account</div>
+        <div style="font-size: 12px; color: #666B63; margin-top: 8px;">Total account value</div>
+        <div style="font-size: 24px; font-weight: 600; margin-top: 2px;">Ð1,084,219.55</div>
+        <div style="color: #1B7150; font-weight: 600; margin-top: 6px;">+Ð12,041.20 (+1.12%) today</div>
+        <div style="color: #A63A2B; font-weight: 600; margin-top: 2px; font-size: 12px;">CRSD −3.46% dragging</div>
+        <div style="display: flex; gap: 8px; margin-top: 14px;">
+          <span style="flex: 1; height: 32px; border-radius: 5px; background: #1A1F1C; color: #E9E2CC; display: flex; align-items: center; justify-content: center; font-weight: 600; box-shadow: inset 0 -2px 0 #B8954A;">Trade</span>
+          <span style="flex: 1; height: 32px; border-radius: 5px; border: 1px solid #BFB8A6; display: flex; align-items: center; justify-content: center; font-weight: 600;">Positions</span>
+        </div>
+      </div>
+      <div class="panel" style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+        <div class="eyebrow">Palette</div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px;">
+          <span style="height: 28px; border-radius: 3px; background: #111412;"></span><span style="height: 28px; border-radius: 3px; background: #1A1F1C;"></span><span style="height: 28px; border-radius: 3px; background: #B8954A;"></span><span style="height: 28px; border-radius: 3px; background: #E6E3D9; box-shadow: inset 0 0 0 1px #D9D4C6;"></span><span style="height: 28px; border-radius: 3px; background: #5FA39A;"></span><span style="height: 28px; border-radius: 3px; background: #A63A2B;"></span>
+        </div>
+        <div style="font-family: 'Cormorant SC', Georgia, serif; font-size: 15px; font-weight: 700; color: #161816;">The Cursed Coin · Dead Men Tell No Tales</div>
+        <div style="font-size: 12px; color: #454A45; line-height: 1.45;">Moonlit ghost ship: near-black hull with tarnished poster gold and a cursed sea-glass glow; fog-grey parchment keeps tables readable.</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0;">
+      <div class="panel" style="padding: 12px 14px 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;"><span class="eyebrow">Account Value</span><span style="display: flex; gap: 2px; padding: 2px; border-radius: 5px; background: #EFECE3; font-size: 11px; font-weight: 600; color: #666B63;"><span style="padding: 3px 8px;">1D</span><span style="padding: 3px 8px;">2D</span><span style="padding: 3px 8px; border-radius: 3px; background: #1A1F1C; color: #E9E2CC;">All</span></span></div>
+        <svg viewBox="0 0 760 240" width="100%" height="150" preserveAspectRatio="none" style="display: block; margin-top: 6px;">
+          <path d="M0 60 H760 M0 115 H760 M0 170 H760" stroke="#D9D4C6" stroke-dasharray="3 4"></path>
+          <path d="M0.0 179.8 L5.5 159.8 L10.9 159.5 L16.4 165.5 L21.9 164.2 L27.3 164.5 L32.8 157.3 L38.3 161.8 L43.7 169.6 L49.2 179.6 L54.7 168.1 L60.1 158.9 L65.6 150.2 L71.1 153.0 L76.5 151.7 L82.0 137.1 L87.5 142.0 L92.9 135.1 L98.4 128.2 L103.9 123.2 L109.4 130.9 L114.8 120.7 L120.3 118.2 L125.8 126.7 L131.2 117.5 L136.7 119.1 L142.2 125.1 L147.6 114.6 L153.1 115.3 L158.6 123.5 L164.0 112.4 L169.5 106.0 L175.0 101.5 L180.4 94.8 L185.9 109.1 L191.4 103.1 L196.8 101.2 L202.3 93.1 L207.8 94.2 L213.2 88.7 L218.7 92.0 L224.2 96.9 L229.6 90.7 L235.1 86.3 L240.6 91.7 L246.0 96.4 L251.5 94.7 L257.0 71.3 L262.4 69.2 L267.9 61.1 L273.4 66.6 L278.8 59.6 L284.3 46.5 L289.8 43.3 L295.3 38.9 L300.7 22.6 L306.2 30.1 L311.7 41.2 L317.1 35.1 L322.6 34.7 L328.1 26.8 L333.5 26.6 L339.0 28.2 L344.5 39.0 L349.9 35.0 L355.4 47.6 L360.9 56.1 L366.3 55.4 L371.8 64.3 L377.3 49.1 L382.7 34.0 L388.2 21.3 L393.7 19.2 L399.1 30.6 L404.6 30.8 L410.1 37.1 L415.5 37.6 L421.0 41.9 L426.5 45.6 L431.9 47.0 L437.4 44.8 L442.9 44.2 L448.3 41.2 L453.8 45.5 L459.3 34.9 L464.7 42.4 L470.2 37.1 L475.7 25.9 L481.2 33.0 L486.6 43.4 L492.1 33.5 L497.6 24.5 L503.0 28.3 L508.5 30.8 L514.0 32.8 L519.4 28.3 L524.9 32.7 L530.4 27.1 L535.8 29.3 L541.3 35.5 L546.8 28.7 L552.2 28.6 L557.7 31.2 L563.2 29.8 L568.6 24.3 L574.1 10.0 L579.6 21.4 L585.0 23.1 L590.5 26.5 L596.0 30.2 L601.4 30.5 L606.9 34.5 L612.4 36.4 L617.8 44.5 L623.3 37.3 L628.8 35.1 L634.2 38.2 L639.7 44.3 L645.2 41.4 L650.6 33.3 L656.1 45.0 L661.6 45.5 L667.1 47.4 L672.5 43.3 L678.0 38.0 L683.5 37.0 L688.9 21.7 L694.4 21.4 L699.9 21.2 L705.3 21.4 L710.8 38.3 L716.3 36.2 L721.7 48.0 L727.2 49.2 L732.7 60.8 L738.1 76.1 L743.6 84.6 L749.1 81.9 L754.5 85.3 L760.0 80.1 L760 220 L0 220 Z" fill="#1A1F1C" fill-opacity="0.12"></path>
+          <path d="M0.0 179.8 L5.5 184.7 L10.9 188.2 L16.4 190.4 L21.9 200.1 L27.3 204.1 L32.8 200.7 L38.3 203.2 L43.7 200.8 L49.2 201.8 L54.7 205.9 L60.1 202.3 L65.6 206.0 L71.1 202.3 L76.5 201.6 L82.0 206.2 L87.5 198.8 L92.9 195.0 L98.4 190.3 L103.9 192.0 L109.4 196.0 L114.8 194.1 L120.3 192.6 L125.8 186.0 L131.2 180.0 L136.7 185.0 L142.2 192.1 L147.6 188.7 L153.1 184.2 L158.6 187.7 L164.0 188.1 L169.5 191.2 L175.0 192.0 L180.4 191.3 L185.9 197.7 L191.4 193.7 L196.8 186.9 L202.3 189.7 L207.8 195.7 L213.2 189.4 L218.7 190.9 L224.2 185.2 L229.6 189.2 L235.1 195.8 L240.6 185.1 L246.0 190.8 L251.5 182.2 L257.0 185.2 L262.4 180.6 L267.9 183.9 L273.4 181.3 L278.8 184.7 L284.3 189.2 L289.8 194.6 L295.3 190.0 L300.7 187.1 L306.2 192.3 L311.7 192.6 L317.1 193.5 L322.6 195.1 L328.1 197.1 L333.5 200.9 L339.0 199.9 L344.5 201.0 L349.9 210.0 L355.4 207.0 L360.9 204.0 L366.3 200.3 L371.8 196.5 L377.3 197.6 L382.7 192.9 L388.2 197.9 L393.7 194.5 L399.1 184.9 L404.6 184.8 L410.1 182.5 L415.5 180.3 L421.0 174.3 L426.5 177.7 L431.9 183.4 L437.4 172.5 L442.9 172.9 L448.3 173.5 L453.8 176.4 L459.3 179.4 L464.7 179.3 L470.2 178.8 L475.7 180.1 L481.2 182.8 L486.6 171.6 L492.1 167.4 L497.6 163.2 L503.0 168.6 L508.5 168.5 L514.0 165.7 L519.4 165.7 L524.9 159.1 L530.4 153.1 L535.8 154.3 L541.3 157.3 L546.8 157.9 L552.2 157.0 L557.7 154.3 L563.2 160.6 L568.6 173.5 L574.1 172.4 L579.6 168.2 L585.0 178.9 L590.5 178.6 L596.0 177.7 L601.4 179.7 L606.9 177.5 L612.4 183.4 L617.8 178.2 L623.3 170.8 L628.8 160.9 L634.2 165.2 L639.7 157.5 L645.2 151.6 L650.6 144.2 L656.1 148.3 L661.6 154.4 L667.1 146.5 L672.5 150.9 L678.0 150.9 L683.5 155.4 L688.9 162.8 L694.4 162.9 L699.9 167.3 L705.3 166.2 L710.8 161.4 L716.3 161.6 L721.7 159.2 L727.2 157.6 L732.7 161.0 L738.1 163.6 L743.6 160.2 L749.1 161.6 L754.5 154.1 L760.0 156.0" fill="none" stroke="#80683A" stroke-width="2" stroke-dasharray="6 5"></path>
+          <path d="M0.0 179.8 L5.5 159.8 L10.9 159.5 L16.4 165.5 L21.9 164.2 L27.3 164.5 L32.8 157.3 L38.3 161.8 L43.7 169.6 L49.2 179.6 L54.7 168.1 L60.1 158.9 L65.6 150.2 L71.1 153.0 L76.5 151.7 L82.0 137.1 L87.5 142.0 L92.9 135.1 L98.4 128.2 L103.9 123.2 L109.4 130.9 L114.8 120.7 L120.3 118.2 L125.8 126.7 L131.2 117.5 L136.7 119.1 L142.2 125.1 L147.6 114.6 L153.1 115.3 L158.6 123.5 L164.0 112.4 L169.5 106.0 L175.0 101.5 L180.4 94.8 L185.9 109.1 L191.4 103.1 L196.8 101.2 L202.3 93.1 L207.8 94.2 L213.2 88.7 L218.7 92.0 L224.2 96.9 L229.6 90.7 L235.1 86.3 L240.6 91.7 L246.0 96.4 L251.5 94.7 L257.0 71.3 L262.4 69.2 L267.9 61.1 L273.4 66.6 L278.8 59.6 L284.3 46.5 L289.8 43.3 L295.3 38.9 L300.7 22.6 L306.2 30.1 L311.7 41.2 L317.1 35.1 L322.6 34.7 L328.1 26.8 L333.5 26.6 L339.0 28.2 L344.5 39.0 L349.9 35.0 L355.4 47.6 L360.9 56.1 L366.3 55.4 L371.8 64.3 L377.3 49.1 L382.7 34.0 L388.2 21.3 L393.7 19.2 L399.1 30.6 L404.6 30.8 L410.1 37.1 L415.5 37.6 L421.0 41.9 L426.5 45.6 L431.9 47.0 L437.4 44.8 L442.9 44.2 L448.3 41.2 L453.8 45.5 L459.3 34.9 L464.7 42.4 L470.2 37.1 L475.7 25.9 L481.2 33.0 L486.6 43.4 L492.1 33.5 L497.6 24.5 L503.0 28.3 L508.5 30.8 L514.0 32.8 L519.4 28.3 L524.9 32.7 L530.4 27.1 L535.8 29.3 L541.3 35.5 L546.8 28.7 L552.2 28.6 L557.7 31.2 L563.2 29.8 L568.6 24.3 L574.1 10.0 L579.6 21.4 L585.0 23.1 L590.5 26.5 L596.0 30.2 L601.4 30.5 L606.9 34.5 L612.4 36.4 L617.8 44.5 L623.3 37.3 L628.8 35.1 L634.2 38.2 L639.7 44.3 L645.2 41.4 L650.6 33.3 L656.1 45.0 L661.6 45.5 L667.1 47.4 L672.5 43.3 L678.0 38.0 L683.5 37.0 L688.9 21.7 L694.4 21.4 L699.9 21.2 L705.3 21.4 L710.8 38.3 L716.3 36.2 L721.7 48.0 L727.2 49.2 L732.7 60.8 L738.1 76.1 L743.6 84.6 L749.1 81.9 L754.5 85.3 L760.0 80.1" fill="none" stroke="#1A1F1C" stroke-width="3"></path>
+        </svg>
+      </div>
+      <div class="panel" style="overflow: hidden;">
+        <table style="border-collapse: collapse; width: 100%;">
+          <thead><tr><th>Symbol</th><th>Last</th><th>Today's G/L</th><th>Total G/L</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td><b>KRKN</b> <span style="color: #666B63;">Kraken Shipping</span></td><td>Ð84.12</td><td style="color: #1B7150;">+2.31%</td><td style="color: #1B7150;">+Ð31,860</td><td style="font-weight: 600;">Ð252,360</td></tr>
+            <tr><td><b>PRYL</b> <span style="color: #666B63;">Port Royal Banking</span></td><td>Ð212.40</td><td style="color: #1B7150;">+0.88%</td><td style="color: #1B7150;">+Ð22,720</td><td style="font-weight: 600;">Ð169,920</td></tr>
+            <tr><td><b>CRSD</b> <span style="color: #666B63;">Cursed Doubloon</span></td><td>Ð31.07</td><td style="color: #A63A2B;">−3.46%</td><td style="color: #A63A2B;">−Ð6,930</td><td style="font-weight: 600;">Ð31,070</td></tr>
+          </tbody>
+        </table>
+        <div style="display: flex; gap: 8px; padding: 10px 14px;">
+          <span style="height: 30px; padding: 0 18px; border-radius: 5px; background: #1B7150; color: #fff; display: flex; align-items: center; font-weight: 600;">Buy</span>
+          <span style="height: 30px; padding: 0 18px; border-radius: 5px; background: #A63A2B; color: #fff; display: flex; align-items: center; font-weight: 600;">Sell</span>
+          <span style="margin-left: auto; align-self: center; color: #2F6F68; font-weight: 600;">Research KRKN</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
