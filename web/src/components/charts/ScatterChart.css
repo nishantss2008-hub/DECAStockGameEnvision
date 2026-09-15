@@ -1,0 +1,165 @@
+/* ScatterChart (MOBILE §7.13 page 4). Opaque content layer; works in light, dark and .hull. */
+.scatter-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  min-inline-size: 0;
+  color: var(--label);
+}
+
+/* Footnote legend: shape samples + words. */
+.scatter-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+.scatter-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scatter-chart__y-title,
+.scatter-chart__x-title {
+  margin: 0;
+  font-size: var(--t-caption-1);
+  line-height: calc(16 / 12);
+  font-weight: 600;
+  color: var(--label-2);
+}
+.scatter-chart__x-title {
+  text-align: center;
+}
+
+.scatter-chart__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 4px;
+}
+
+.scatter-chart__plot {
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  min-inline-size: 0;
+}
+.scatter-chart__svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.scatter-chart__grid {
+  stroke: var(--separator);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.scatter-chart__grid--zero {
+  stroke: var(--control-off);
+}
+
+.scatter-chart__trend {
+  stroke: var(--chart-baseline);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  fill: none;
+}
+
+/* Others: hollow circles. Your holdings: filled diamonds. */
+.scatter-chart__mark {
+  fill: none;
+  stroke: var(--label-2);
+  stroke-width: 1.5;
+}
+.scatter-chart__mark--highlight {
+  fill: var(--label);
+  stroke: var(--scatter-surface, var(--bg-grouped));
+  stroke-width: 1;
+}
+
+/* Text on the plot: Caption 1 with a halo in the surface colour so grid and trend lines never cut
+   through it. Positions come from labelPlacement.ts (they avoid marks and each other). Set
+   --scatter-surface when the chart sits on a card instead of the grouped page. */
+.scatter-chart__label {
+  position: absolute;
+  white-space: nowrap;
+  font-size: var(--t-caption-1);
+  line-height: calc(16 / 12);
+  color: var(--label);
+  text-shadow:
+    0 0 2px var(--scatter-surface, var(--bg-grouped)),
+    0 0 2px var(--scatter-surface, var(--bg-grouped)),
+    0 0 4px var(--scatter-surface, var(--bg-grouped));
+  pointer-events: none;
+}
+.scatter-chart__label--trend {
+  color: var(--label-2);
+}
+.scatter-chart__callout {
+  font-weight: 600;
+}
+
+.scatter-chart__y-axis {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--t-caption-1);
+  line-height: calc(16 / 12);
+  color: var(--label-2);
+  text-align: end;
+}
+.scatter-chart__y-sizer {
+  display: block;
+  block-size: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: nowrap;
+}
+.scatter-chart__y-label {
+  position: absolute;
+  inset-inline-end: 0;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.scatter-chart__x-axis {
+  position: relative;
+  grid-column: 1;
+  grid-row: 2;
+  block-size: calc(16 / 12 * max(11px, 0.706rem));
+  font-size: var(--t-caption-1);
+  line-height: calc(16 / 12);
+  color: var(--label-2);
+}
+.scatter-chart__x-label {
+  position: absolute;
+  inset-block-start: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* Caption: Footnote, visible under the plot (COPY §10 scatter.caption). */
+.scatter-chart__caption {
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+@media (forced-colors: active) {
+  .scatter-chart__mark {
+    stroke: CanvasText;
+  }
+  .scatter-chart__mark--highlight {
+    fill: CanvasText;
+  }
+}

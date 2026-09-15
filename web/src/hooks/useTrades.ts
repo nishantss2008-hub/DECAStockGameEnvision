@@ -1,66 +1,23 @@
 /**
- * Realtime subscription to the current team's trade blotter.
- *
- * Streams the `trades` collection filtered to the authenticated team
- * (teamId == current teamId), ordered newest-first by executedAt and capped at
- * the 100 most recent fills. For an admin (or any signed-in user with no
- * teamId) this returns an empty list and is never loading. Re-subscribes when
- * the authenticated teamId changes.
+ * The signed-in crew's fills (`trades` where teamId is the crew), newest first, at most `limit`
+ * (default 100). The host (no teamId) gets an empty, non-loading result;
+ * while the session is still being restored the result is loading.
  */
 
-import { useEffect, useState } from 'react';
-import {
-  collection,
-  limit as fsLimit,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from 'firebase/firestore';
+import { useMemo } from 'react';
 import type { Trade } from '@deca/shared';
-import { db } from '../firebase';
 import { useAuth } from '../lib/auth';
+import { crewFeedSpec, feedLimit } from './crewFeed';
+import { useQuerySnapshot, type SnapshotStatus } from './useSnapshot';
 
-export interface UseTradesResult {
+export interface UseTradesResult extends SnapshotStatus {
   trades: Trade[];
-  loading: boolean;
 }
 
-export function useTrades(): UseTradesResult {
-  const { teamId } = useAuth();
-  const [trades, setTrades] = useState<Trade[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setTrades([]);
-
-    if (!teamId) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const q = query(
-      collection(db, 'trades'),
-      where('teamId', '==', teamId),
-      orderBy('executedAt', 'desc'),
-      fsLimit(100),
-    );
-
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setTrades(snap.docs.map((d) => d.data() as Trade));
-        setLoading(false);
-      },
-      () => {
-        setTrades([]);
-        setLoading(false);
-      },
-    );
-
-    return unsub;
-  }, [teamId]);
-
-  return { trades, loading };
+export function useTrades(limit?: number): UseTradesResult {
+  const { teamId, loading: authLoading } = useAuth();
+  const max = feedLimit(limit);
+  const spec = useMemo(() => (teamId ? crewFeedSpec<Trade>('trades', teamId, 'executedAt', max) : null), [teamId, max]);
+  const { items: trades, loading, fromCache, error } = useQuerySnapshot(spec);
+  return { trades, loading: Boolean(authLoading) || loading, fromCache, error };
 }

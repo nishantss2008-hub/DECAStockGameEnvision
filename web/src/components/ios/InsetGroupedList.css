@@ -1,0 +1,91 @@
+/* InsetGroupedList (MOBILE §5.4). */
+.ios-list {
+  --list-card-radius: 24px;
+  margin: 0;
+}
+/* Section rhythm: 24px between headerless groups, 32px before sections with headers. */
+.ios-list + .ios-list {
+  margin-block-start: 24px;
+}
+.ios-list + .ios-list--has-header {
+  margin-block-start: 32px;
+}
+
+.ios-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 8px;
+  min-block-size: 22px;
+}
+.ios-list__title {
+  margin: 0;
+  min-inline-size: 0;
+}
+/* Prominent: Headline 17/22 --label at x = margin. */
+.ios-list__header[data-variant='prominent'] .ios-list__title {
+  font-size: var(--t-headline);
+  line-height: 1.294;
+  font-weight: 600;
+  color: var(--label);
+}
+/* Plain: Footnote 13/18 --label-2, sentence case, x = margin + 16. */
+.ios-list__header[data-variant='plain'] {
+  padding-inline: 16px;
+}
+.ios-list__header[data-variant='plain'] .ios-list__title {
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  font-weight: 400;
+  color: var(--label-2);
+}
+.ios-list__action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  font-size: var(--t-body);
+}
+.ios-list__action :is(a, button) {
+  position: relative;
+  color: var(--tint);
+  text-decoration: none;
+}
+/* 44px target for the "See all" action. */
+.ios-list__action :is(a, button)::before {
+  content: '';
+  position: absolute;
+  inset: -11px -8px;
+}
+
+/* Card: overflow clip (not hidden) so sticky headers inside still work. */
+.ios-list__card {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--list-card-radius);
+  background: var(--cell);
+  overflow: clip;
+}
+.ios-list[data-surface='sheet'] .ios-list__card {
+  background: var(--elevated-cell);
+}
+@supports not (overflow: clip) {
+  .ios-list__card {
+    overflow: hidden;
+  }
+}
+
+.ios-list__footer {
+  margin-block-start: 8px;
+  padding-inline: 16px;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+
+@media (forced-colors: active) {
+  .ios-list__card {
+    border: 1px solid CanvasText;
+  }
+}

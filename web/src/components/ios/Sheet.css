@@ -1,0 +1,312 @@
+/* Sheet (MOBILE §5.8). Opaque --elevated surface, never glass (§2.4). z: scrim 60, sheet 70 (§4.6). */
+
+.ios-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  min-height: 100dvh;
+  background: var(--scrim);
+  opacity: calc(1 - var(--drawer-swipe-progress, 0));
+  transition: opacity 500ms var(--ease-spring, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-sheet-scrim--info {
+  background: var(--scrim-info);
+}
+.ios-sheet-scrim[data-starting-style],
+.ios-sheet-scrim[data-ending-style] {
+  opacity: 0;
+}
+.ios-sheet-scrim[data-swiping] {
+  transition-duration: 0ms;
+}
+.ios-sheet-scrim[data-ending-style] {
+  transition-duration: calc(var(--drawer-swipe-strength, 1) * 400ms);
+}
+
+.ios-sheet-viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.ios-sheet {
+  --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  --sheet-pad: 16px;
+  --sheet-kb: max(var(--drawer-keyboard-inset, 0px), var(--kb, 0px));
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(100vh - var(--sheet-top));
+  max-height: calc(100dvh - var(--sheet-top));
+  background: var(--elevated);
+  color: var(--label);
+  box-shadow: var(--float-shadow);
+  outline: none;
+  touch-action: none;
+  transform: translateY(calc(var(--drawer-snap-point-offset, 0px) + var(--drawer-swipe-movement-y, 0px)));
+  transition:
+    transform 500ms var(--ease-spring, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    margin 250ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    border-radius 250ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+  will-change: transform;
+}
+.ios-sheet[data-swiping] {
+  transition: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ios-sheet[data-starting-style],
+.ios-sheet[data-ending-style] {
+  transform: translateY(calc(100% + 16px));
+}
+.ios-sheet[data-ending-style] {
+  transition-duration: calc(var(--drawer-swipe-strength, 1) * 400ms);
+}
+
+/* Large detent: attached to the side edges, 24px top corners. The ::after bleed hides the
+   gap when the sheet is pulled up past its rest position. */
+.ios-sheet[data-layout='attached'] {
+  border-radius: var(--r-sheet-large, 24px) var(--r-sheet-large, 24px) 0 0;
+}
+.ios-sheet[data-layout='attached']::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 48px;
+  background: inherit;
+  pointer-events: none;
+}
+.ios-sheet[data-detents='large'] {
+  height: calc(100vh - var(--sheet-top));
+  height: calc(100dvh - var(--sheet-top));
+}
+
+/* Medium detent: inset 8px from the sides and bottom with the 32px radius. */
+.ios-sheet[data-layout='inset'] {
+  width: calc(100% - 16px);
+  /* 8px from the bottom edge too (MOBILE §5.8, kit .sheet.is-medium bottom 8); the body and footer
+     padding below keep content clear of the home indicator instead. */
+  margin: 0 8px 8px;
+  max-height: calc(100vh - var(--sheet-top) - 8px);
+  max-height: calc(100dvh - var(--sheet-top) - 8px);
+  border-radius: var(--r-sheet-medium, 32px);
+}
+.ios-sheet[data-detents='medium'] {
+  max-height: 50vh;
+  max-height: 50dvh;
+}
+
+/* Rail (short landscape) and split view: centred panel instead of a full-width sheet (§4.5). */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 744px) and (min-height: 501px) {
+  .ios-sheet,
+  .ios-sheet[data-layout='inset'] {
+    width: min(540px, calc(100% - 16px));
+    margin-inline: auto;
+  }
+}
+
+.ios-sheet__grabber {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  width: 64px;
+  height: 44px;
+  margin: 0;
+  padding: 6px 0 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  cursor: grab;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-sheet__grabber-bar {
+  display: block;
+  width: 36px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--control-off);
+}
+.ios-sheet__grabber:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+  border-radius: 12px;
+}
+
+.ios-sheet__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  /* Close and header actions sit 16px from the sheet edge (kit .sheet-header padding 0 16). */
+  padding: 6px var(--sheet-pad);
+  box-sizing: border-box;
+}
+.ios-sheet__header--centered {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.ios-sheet__header--leading {
+  align-items: flex-start;
+  padding-top: 20px;
+}
+.ios-sheet[data-header='hidden'] {
+  padding-top: 20px;
+}
+
+.ios-sheet__slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+}
+.ios-sheet__slot--trailing {
+  justify-content: flex-end;
+}
+
+.ios-sheet__heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ios-sheet__title {
+  margin: 0;
+  color: var(--label);
+  outline: none;
+}
+.ios-sheet__title--centered {
+  font-size: var(--t-headline);
+  line-height: calc(22 / 17);
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ios-sheet__title--leading {
+  font-size: var(--t-title-2);
+  line-height: calc(28 / 22);
+  font-weight: 700;
+}
+.ios-sheet__title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.ios-sheet__subtitle {
+  margin: 2px 0 0;
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  color: var(--label-2);
+}
+
+.ios-sheet__description {
+  margin: 0;
+  padding: 0 var(--sheet-pad) 8px;
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  color: var(--label-2);
+}
+
+.ios-sheet__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-press, 100ms) ease-out;
+}
+.ios-sheet__close:active {
+  transform: scale(0.96);
+}
+.ios-sheet__close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.ios-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding: 0 var(--sheet-pad) 16px;
+}
+.ios-sheet:not([data-has-footer]) .ios-sheet__body {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--sheet-kb));
+}
+.ios-sheet[data-layout='inset']:not([data-has-footer]) .ios-sheet__body {
+  padding-bottom: calc(max(16px, env(safe-area-inset-bottom, 0px) - 8px) + var(--sheet-kb));
+}
+
+/* Pinned footer rides above the software keyboard (§5.8, §9.4). */
+.ios-sheet__footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px var(--sheet-pad) calc(12px + max(env(safe-area-inset-bottom, 0px), var(--sheet-kb)));
+  background: var(--elevated);
+  box-shadow: inset 0 0.5px var(--separator);
+}
+.ios-sheet[data-layout='inset'] .ios-sheet__footer {
+  padding-bottom: calc(max(12px, env(safe-area-inset-bottom, 0px) - 8px) + var(--sheet-kb));
+  border-radius: 0 0 var(--r-sheet-medium, 32px) var(--r-sheet-medium, 32px);
+}
+
+/* Reduced motion: 150ms fade, detents snap instantly (§8.2). */
+@media (prefers-reduced-motion: reduce) {
+  .ios-sheet-scrim {
+    transition: opacity var(--dur-fade, 150ms) linear;
+  }
+  .ios-sheet {
+    transition: opacity var(--dur-fade, 150ms) linear;
+  }
+  .ios-sheet[data-starting-style],
+  .ios-sheet[data-ending-style] {
+    transform: translateY(calc(var(--drawer-snap-point-offset, 0px) + var(--drawer-swipe-movement-y, 0px)));
+    opacity: 0;
+  }
+  .ios-sheet__close {
+    transition: none;
+  }
+  .ios-sheet__close:active {
+    transform: none;
+  }
+}
+
+@supports not (transition-timing-function: linear(0, 1)) {
+  .ios-sheet,
+  .ios-sheet-scrim {
+    transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+/* Increased contrast: the sheet edge must be visible against the dimmed page. */
+@media (prefers-contrast: more) {
+  .ios-sheet {
+    box-shadow: var(--float-shadow), inset 0 0 0 1px var(--control-off);
+  }
+}

@@ -1,0 +1,131 @@
+/* SegmentedControl (MOBILE §5.6). */
+.ios-seg {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.ios-seg__track {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(56px, 1fr);
+  grid-auto-flow: column;
+  padding: 2px;
+  min-block-size: 32px;
+  border-radius: 999px;
+  background: var(--fill);
+}
+.ios-seg--large .ios-seg__track {
+  min-block-size: 36px;
+}
+
+/* Focus ring around the whole track. */
+.ios-seg__track:has(.ios-seg__input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.ios-seg__thumb {
+  position: absolute;
+  inset-block: 2px;
+  inset-inline-start: 2px;
+  inline-size: calc((100% - 4px) / var(--seg-count, 1));
+  border-radius: 999px;
+  background: var(--segment-thumb);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  transform: translateX(calc(var(--seg-index, 0) * 100%));
+  transition: transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+[dir='rtl'] .ios-seg__thumb {
+  transform: translateX(calc(var(--seg-index, 0) * -100%));
+}
+
+.ios-seg__segment {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 56px;
+  padding: 2px 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* 44px tall hit area (MOBILE §4.4): the segment is 28px inside the 32px track (32px inside the
+   36px large track); percentages in inset-block resolve against the segment height. */
+.ios-seg__segment::before {
+  content: '';
+  position: absolute;
+  inset-block: min(0px, calc((100% - 44px) / 2));
+  inset-inline: 0;
+}
+
+.ios-seg__input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.ios-seg__label {
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  font-weight: 500;
+  color: var(--label-2);
+  text-align: center;
+  white-space: nowrap;
+  transition: opacity var(--dur-press, 100ms) linear;
+}
+.ios-seg__segment[data-selected] .ios-seg__label {
+  font-weight: 600;
+  color: var(--on-segment-thumb);
+}
+.ios-seg__segment:active:not([data-disabled]) .ios-seg__label {
+  opacity: 0.6;
+}
+.ios-seg__segment[data-disabled] {
+  cursor: default;
+}
+.ios-seg__segment[data-disabled] .ios-seg__label {
+  color: var(--label-4);
+}
+
+/* Large text (root ≥23px): 2–3 segments grow taller and wrap their labels instead of overflowing
+   (4 or more become a menu button, MOBILE §3.5). */
+html[data-large-text] .ios-seg__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+@supports not (selector(:has(*))) {
+  .ios-seg__input:focus-visible + .ios-seg__label {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-seg__thumb {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-seg__track {
+    border: 1px solid ButtonText;
+  }
+  .ios-seg__thumb {
+    background: Highlight;
+  }
+  .ios-seg__segment[data-selected] .ios-seg__label {
+    color: HighlightText;
+  }
+}

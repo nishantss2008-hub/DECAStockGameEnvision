@@ -1,143 +1,156 @@
-/* =========================================================================
-   Buccaneer Exchange — Design Tokens
-   Pirate palette: weathered parchment, deep sea navy, aged gold, ink.
-   Display serif for headers (Pirata One), readable serif for body
-   (IM Fell English), with robust fallbacks.
-   ========================================================================= */
+/* =========================================================================================
+   Buccaneer Exchange: midnight theme tokens (phone-first).
+   Source of truth: docs/design/MOBILE.md.
+     Part 1  Colour, appearance, increased contrast and glass: MOBILE §2.6, copied exactly.
+     Part 2  Type, layout, z-order and motion tokens: MOBILE §3.2, §3.3, §4.2, §4.3, §4.6, §8.1, §9.4.
+   Tests: tokens.test.ts (values, dark-list parity, glass fallbacks), contrast.test.ts (WCAG 2.2
+   for every permitted pairing in §2.5), motion.test.ts (motion tokens match theme/motion.ts).
+   Placement rules that keep contrast above 4.5:1 (§2.2, §2.4):
+     - never --label-3 on --fill, --tint-soft or glass;
+     - --gain / --loss text only on opaque surfaces or inside change pills;
+     - text on glass: only --label, --label-2, --tint-strong, --destructive-strong.
+   ========================================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English:ital@0;1&family=Cinzel:wght@500;600;700&display=swap');
+/* ---- Part 1: MOBILE §2.6 ---------------------------------------------------------------- */
 
 :root {
-  /* ---- Core palette ---------------------------------------------------- */
-  /* Deep sea navy — primary background, darkest first */
-  --navy-900: #0b1622;
-  --navy-800: #102031;
-  --navy-700: #16293d;
-  --navy-600: #1d344c;
-  --navy-500: #284663;
+  color-scheme: light dark;
+  --bg-grouped:#E6E3D9; --bg:#F8F6F0; --bg-2:#EFECE3; --cell:#F8F6F0; --elevated:#EFECE3; --elevated-cell:#F8F6F0;
+  --label:#161816; --label-2:#454A45; --label-3:#5F645C; --label-4:rgba(22,24,22,.22);
+  --separator:#D9D4C6; --control-off:#857F70; --fill:rgba(69,64,48,.10); --fill-2:rgba(69,64,48,.06); --fill-on-glass:rgba(69,64,48,.10);
+  --tint:#735B2A; --tint-strong:#5A4720; --tint-soft:rgba(184,149,74,.18); --platter:rgba(184,149,74,.22);
+  --prominent:#1A1F1C; --on-prominent:#DDBE72; --accent:#2F6F68; --accent-dot:#5FA39A; --focus:#2F6F68;
+  --gain:#1B7150; --loss:#A63A2B; --gain-fill:#DFEEE6; --loss-fill:#F3E0DB; --on-side:#F8F6F0;
+  --destructive:#A63A2B; --destructive-strong:#862B1F;
+  --segment-thumb:#1A1F1C; --on-segment-thumb:#DDBE72; --chart-baseline:#80683A;
+  --seal-crimson:#8E1F1A; --seal-brass:#B8954A; --seal-highlight:#DDBE72;
+  --glass:rgba(248,246,240,.85); --glass-solid:#F8F6F0; --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.55),0 0 0 .5px rgba(22,24,22,.10);
+  --float-shadow:0 8px 24px rgba(22,24,22,.12); --scrim:rgba(0,0,0,.35); --scrim-info:rgba(0,0,0,.20);
+}
+/* DARK LIST — keep the two copies identical (tokens.test.ts) */
+@media (prefers-color-scheme: dark) { :root {
+  --bg-grouped:#0B0D0C; --bg:#0B0D0C; --bg-2:#1A1F1C; --cell:#1A1F1C; --elevated:#1A1F1C; --elevated-cell:#232A26;
+  --label:#E4E8E2; --label-2:#9FB0A8; --label-3:#8A9A93; --label-4:rgba(228,232,226,.20);
+  --separator:#34403A; --control-off:#6E7C75; --fill:rgba(159,176,168,.16); --fill-2:rgba(159,176,168,.10); --fill-on-glass:rgba(0,0,0,.25);
+  --tint:#DDBE72; --tint-strong:#DDBE72; --tint-soft:rgba(221,190,114,.16); --platter:rgba(221,190,114,.16);
+  --prominent:#DDBE72; --on-prominent:#111412; --accent:#5FA39A; --focus:#5FA39A;
+  --gain:#7FD3B0; --loss:#EE9A89; --gain-fill:#173B2D; --loss-fill:#43231E; --on-side:#0B0D0C;
+  --destructive:#EE9A89; --destructive-strong:#EE9A89;
+  --segment-thumb:#9FB0A8; --on-segment-thumb:#0B0D0C; --chart-baseline:#B8954A;
+  --glass:rgba(17,20,18,.85); --glass-solid:#111412; --glass-edge:inset 0 0 0 .5px rgba(228,232,226,.10),0 0 0 .5px rgba(0,0,0,.60);
+  --float-shadow:0 8px 24px rgba(0,0,0,.45); --scrim:rgba(0,0,0,.55); --scrim-info:rgba(0,0,0,.35);
+} }
+.dark, .hull {
+  color-scheme: dark;
+  --bg-grouped:#0B0D0C; --bg:#0B0D0C; --bg-2:#1A1F1C; --cell:#1A1F1C; --elevated:#1A1F1C; --elevated-cell:#232A26;
+  --label:#E4E8E2; --label-2:#9FB0A8; --label-3:#8A9A93; --label-4:rgba(228,232,226,.20);
+  --separator:#34403A; --control-off:#6E7C75; --fill:rgba(159,176,168,.16); --fill-2:rgba(159,176,168,.10); --fill-on-glass:rgba(0,0,0,.25);
+  --tint:#DDBE72; --tint-strong:#DDBE72; --tint-soft:rgba(221,190,114,.16); --platter:rgba(221,190,114,.16);
+  --prominent:#DDBE72; --on-prominent:#111412; --accent:#5FA39A; --focus:#5FA39A;
+  --gain:#7FD3B0; --loss:#EE9A89; --gain-fill:#173B2D; --loss-fill:#43231E; --on-side:#0B0D0C;
+  --destructive:#EE9A89; --destructive-strong:#EE9A89;
+  --segment-thumb:#9FB0A8; --on-segment-thumb:#0B0D0C; --chart-baseline:#B8954A;
+  --glass:rgba(17,20,18,.85); --glass-solid:#111412; --glass-edge:inset 0 0 0 .5px rgba(228,232,226,.10),0 0 0 .5px rgba(0,0,0,.60);
+  --float-shadow:0 8px 24px rgba(0,0,0,.45); --scrim:rgba(0,0,0,.55); --scrim-info:rgba(0,0,0,.35);
+  color: var(--label);
+}
+.hull { /* Sign in + ceremonies: dark tokens (above) plus the hull glow */
+  background: radial-gradient(120% 60% at 85% 0%, rgba(95,163,154,.18), transparent 60%), #111412; }
 
-  /* Aged gold / brass — accents, headings, treasure */
-  --gold-700: #8a6a1f;
-  --gold-600: #b08a2e;
-  --gold-500: #c9a13b;
-  --gold-400: #d9b859;
-  --gold-300: #e8cd80;
-  --gold-200: #f2e0a6;
+/* Increased contrast (§2.3). Light values, then dark values for both dark selectors. */
+@media (prefers-contrast: more) {
+  :root { --label-2:#33372F; --label-3:#454A45; --tint:#5A4720; --tint-strong:#5A4720; --accent:#1F5751; --focus:#1F5751;
+    --gain:#0F5A3E; --loss:#862B1F; --destructive:#862B1F; --separator:#BFB8A6; --control-off:#6B6558; }
+  .dark, .hull { --label-2:#C4D0CA; --label-3:#A9B7B0; --tint:#EDD493; --tint-strong:#EDD493; --accent:#8CCBC1; --focus:#8CCBC1;
+    --gain:#A3E6C8; --loss:#F7B8AA; --destructive:#F7B8AA; --destructive-strong:#F7B8AA; --separator:#4A5A52; --control-off:#8A9A93; }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root { --label-2:#C4D0CA; --label-3:#A9B7B0; --tint:#EDD493; --tint-strong:#EDD493; --accent:#8CCBC1; --focus:#8CCBC1;
+    --gain:#A3E6C8; --loss:#F7B8AA; --destructive:#F7B8AA; --destructive-strong:#F7B8AA; --separator:#4A5A52; --control-off:#8A9A93; }
+}
 
-  /* Weathered parchment — panels & cards */
-  --parchment-500: #d8c39a;
-  --parchment-400: #e4d3ad;
-  --parchment-300: #ecdcbb;
-  --parchment-200: #f3e7cb;
-  --parchment-100: #f8efd9;
+/* Glass (§2.4): floating chrome only (tab bar, collapsed top bar, bar buttons, menus, toasts).
+   Solid by default; see-through only where backdrop-filter works; solid again under increased
+   contrast, reduced transparency (Chrome, Chromebooks) and the per-device Solid bars switch. */
+.glass { background: var(--glass-solid); box-shadow: var(--glass-edge), var(--float-shadow); }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); }
+}
+@media (prefers-contrast: more), (prefers-reduced-transparency: reduce) {
+  .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 0 0 1px var(--control-off); }
+}
+html[data-solid-bars] .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
 
-  /* Ink — text on parchment */
-  --ink-900: #241a10;
-  --ink-800: #33271a;
-  --ink-700: #4a3a26;
-  --ink-600: #6b5638;
+/* ---- Part 2: type, layout, z-order, motion ---------------------------------------------- */
 
-  /* Sea foam / mist — muted text on navy */
-  --mist-400: #8fa6bd;
-  --mist-300: #b3c4d6;
-  --mist-200: #d3dded;
+:root {
+  /* Font stacks (§3.2). System font for everything students read; no font is downloaded here.
+     Cinzel Decorative is self-hosted and loaded only on hull routes (§3.1). */
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, "Roboto Mono", monospace;
+  --font-brand: "Cinzel Decorative", Georgia, "Times New Roman", serif;
 
-  /* Gains / losses — kept in the palette, still clearly green/red */
-  --gain-500: #3f9b6b;
-  --gain-400: #54bd86;
-  --gain-300: #7fd6a6;
-  --loss-500: #c0473f;
-  --loss-400: #d96a62;
-  --loss-300: #e89089;
+  /* Dynamic Type scale (§3.3). rem = Body, so everything follows the phone's Text Size (§3.5).
+     Clamp bounds are the xSmall and AX5 sizes. Leading is a unitless ratio so it scales too. */
+  --t-large-title: clamp(31px, 2rem, 60px);      --lh-large-title: calc(41 / 34);
+  --t-title-1: clamp(25px, 1.647rem, 58px);      --lh-title-1: calc(34 / 28);
+  --t-title-2: clamp(19px, 1.294rem, 56px);      --lh-title-2: calc(28 / 22);
+  --t-title-3: clamp(17px, 1.176rem, 55px);      --lh-title-3: calc(25 / 20);
+  --t-headline: 1rem;                            --lh-headline: calc(22 / 17);
+  --t-body: 1rem;                                --lh-body: calc(22 / 17);
+  --t-callout: .941rem;                          --lh-callout: calc(21 / 16);
+  --t-subhead: .882rem;                          --lh-subhead: calc(20 / 15);
+  --t-footnote: max(12px, .765rem);              --lh-footnote: calc(18 / 13);
+  --t-caption-1: max(11px, .706rem);             --lh-caption-1: calc(16 / 12);
+  --t-caption-2: max(11px, .647rem);             --lh-caption-2: calc(13 / 11);
+  --t-amount: clamp(40px, 2.824rem, 64px);       --lh-amount: calc(56 / 48);
 
-  /* Signal accents */
-  --rust-500: #a8552c;     /* warm warning / sell */
-  --teal-500: #2f7d7a;     /* informational / sea */
-  --blood-700: #6e1f1f;    /* danger, destructive */
+  /* Margins, spacing steps and radii (§4.2). Shapes are concentric: inner = outer - padding. */
+  --margin: 16px;
+  --space-2: 2px; --space-4: 4px; --space-8: 8px; --space-12: 12px; --space-16: 16px;
+  --space-20: 20px; --space-24: 24px; --space-32: 32px; --space-44: 44px;
+  --r-card: 24px; --r-inner: 16px; --r-tile: 8px;
+  --r-sheet-medium: 32px; --r-sheet-large: 24px; --r-alert: 28px; --r-capsule: 9999px;
+  --hit-target: 44px;
 
-  /* ---- Semantic roles -------------------------------------------------- */
-  --bg-deep: var(--navy-900);
-  --bg-base: var(--navy-800);
-  --bg-raised: var(--navy-700);
-  --bg-inset: var(--navy-600);
+  /* Safe areas and fixed chrome (§4.3, §9.4). Read env() here once; the numbers in MOBILE are
+     for drawing only. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --gutter-left: max(var(--margin), env(safe-area-inset-left, 0px));
+  --gutter-right: max(var(--margin), env(safe-area-inset-right, 0px));
+  --topbar-height: 44px;
+  --tabbar-height: 62px;
+  --tabbar-bottom: max(8px, env(safe-area-inset-bottom, 0px) - 12px);
+  --content-bottom: calc(var(--tabbar-height) + var(--tabbar-bottom) + 16px);
+  --content-bottom-actions: calc(var(--content-bottom) + 66px);
+  --sheet-max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 8px);
+  /* Set from JS by the visualViewport listener (§9.4): iOS keyboard height and viewport offset. */
+  --kb: 0px;
+  --vv-top: 0px;
 
-  --panel-bg: var(--parchment-200);
-  --panel-bg-strong: var(--parchment-100);
-  --panel-border: var(--gold-700);
-  --panel-text: var(--ink-800);
-  --panel-text-muted: var(--ink-600);
+  /* Z-order (§4.6). While a scrim shows, everything beneath it is inert. */
+  --z-content: 0; --z-sticky: 10; --z-topbar: 20; --z-floating: 30; --z-tabbar: 40; --z-toast: 50;
+  --z-scrim: 60; --z-sheet: 70; --z-scrim-over-sheet: 75;
+  --z-alert: 80; /* menus, action sheets, alerts */
 
-  --accent: var(--gold-500);
-  --accent-strong: var(--gold-400);
-  --accent-dim: var(--gold-700);
+  /* Motion (§8.1). Spring curves sampled from SwiftUI's documented springs; mirrored in motion.ts. */
+  --ease-spring: linear(0, 0.06, 0.186, 0.329, 0.466, 0.584, 0.682, 0.76, 0.821, 0.868, 0.903, 0.929, 0.949, 0.963, 0.973, 0.981, 1); /* 500ms */
+  --ease-snappy: linear(0, 0.062, 0.198, 0.356, 0.509, 0.642, 0.75, 0.833, 0.895, 0.938, 0.967, 0.985, 0.996, 1.003, 1.005, 1.006, 1); /* 400ms */
+  --ease-bouncy: linear(0, 0.059, 0.197, 0.366, 0.535, 0.685, 0.808, 0.902, 0.968, 1.01, 1.034, 1.044, 1.046, 1.041, 1.034, 1.027, 1.019, 1.012, 1.007, 1.003, 1); /* 600ms, ceremonies only */
+  --ease-fallback: cubic-bezier(.2, .8, .2, 1);
+  --dur-press: 100ms; --dur-release: 250ms; --dur-fade: 150ms; --dur-flash: 300ms;
+  --dur-snappy: 400ms; --dur-spring: 500ms; --dur-bouncy: 600ms;
+}
 
-  --text-on-deep: var(--mist-200);
-  --text-on-deep-muted: var(--mist-400);
-  --heading-on-deep: var(--gold-300);
+/* 20px margins on wider phones (Air, Plus, Pro Max). */
+@media (min-width: 420px) {
+  :root { --margin: 20px; }
+}
 
-  --gain: var(--gain-400);
-  --gain-strong: var(--gain-500);
-  --loss: var(--loss-400);
-  --loss-strong: var(--loss-500);
-
-  --danger: var(--blood-700);
-  --danger-text: #f3d4cf;
-
-  /* ---- Typography ------------------------------------------------------ */
-  --font-display: 'Pirata One', 'Cinzel', 'Trajan Pro', Georgia, serif;
-  --font-heading: 'Cinzel', 'Pirata One', Georgia, serif;
-  --font-body: 'IM Fell English', 'Iowan Old Style', 'Palatino Linotype',
-    Palatino, Georgia, 'Times New Roman', serif;
-  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
-
-  --fs-xs: 0.75rem;
-  --fs-sm: 0.875rem;
-  --fs-base: 1rem;
-  --fs-md: 1.125rem;
-  --fs-lg: 1.375rem;
-  --fs-xl: 1.75rem;
-  --fs-2xl: 2.25rem;
-  --fs-3xl: 3rem;
-  --fs-display: 3.75rem;
-
-  --lh-tight: 1.15;
-  --lh-snug: 1.35;
-  --lh-normal: 1.55;
-
-  /* ---- Spacing & radii ------------------------------------------------- */
-  --sp-1: 0.25rem;
-  --sp-2: 0.5rem;
-  --sp-3: 0.75rem;
-  --sp-4: 1rem;
-  --sp-5: 1.5rem;
-  --sp-6: 2rem;
-  --sp-8: 3rem;
-  --sp-10: 4rem;
-
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 14px;
-  --radius-pill: 999px;
-
-  /* ---- Borders, shadows, motion --------------------------------------- */
-  --border-ink: 1px solid rgba(36, 26, 16, 0.35);
-  --border-gold: 1px solid var(--gold-700);
-  --border-deep: 1px solid rgba(201, 161, 59, 0.22);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.55);
-  --shadow-gold: 0 0 0 1px rgba(201, 161, 59, 0.4), 0 6px 18px rgba(0, 0, 0, 0.5);
-  --shadow-inset-parchment: inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -18px 40px rgba(138, 106, 31, 0.12);
-
-  --ring-focus: 0 0 0 3px rgba(217, 184, 89, 0.45);
-
-  --ease: cubic-bezier(0.4, 0.14, 0.3, 1);
-  --dur-fast: 120ms;
-  --dur: 200ms;
-  --dur-slow: 360ms;
-
-  --maxw-content: 1280px;
-  --nav-height: 64px;
+/* linear() easing needs Safari 17.2+ / Chrome 113+; the support floor is Safari 16.4 (§9.4). */
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root { --ease-spring: var(--ease-fallback); --ease-snappy: var(--ease-fallback); --ease-bouncy: var(--ease-fallback); }
 }

@@ -1,0 +1,137 @@
+/* Toast (MOBILE §5.12). Glass capsule below the top bar row, never over the collapsed glass bar.
+   `.glass` and its solid fallbacks come from theme/tokens.css. z 50 (§4.6). */
+.ios-toast-viewport {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 44px + 8px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  width: min(361px, calc(100% - 2 * max(16px, env(safe-area-inset-left, 0px))));
+  margin-inline: auto;
+  /* No transform/filter/opacity here: an ancestor with those becomes the Backdrop Root and the
+     toast's glass would stop blurring the page (§2.4). */
+  outline: none;
+}
+.ios-toast-viewport:empty {
+  display: none;
+}
+
+.ios-toast {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  min-height: 52px;
+  border-radius: 26px;
+  color: var(--label);
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: calc(10 - var(--toast-index, 0));
+  transform: translateY(calc(var(--toast-swipe-movement-y, 0px) + var(--toast-index, 0) * 8px))
+    scale(calc(1 - var(--toast-index, 0) * 0.04));
+  transition:
+    transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    opacity 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-toast[data-expanded] {
+  transform: translateY(calc(var(--toast-offset-y, 0px) + var(--toast-index, 0) * 8px + var(--toast-swipe-movement-y, 0px)));
+}
+.ios-toast[data-starting-style] {
+  opacity: 0;
+  transform: translateY(-24px);
+}
+.ios-toast[data-ending-style] {
+  opacity: 0;
+  transform: translateY(calc(var(--toast-swipe-movement-y, 0px) - 24px));
+}
+.ios-toast[data-swiping] {
+  transition: none;
+}
+.ios-toast[data-limited] {
+  display: none;
+}
+.ios-toast:focus-visible {
+  box-shadow: var(--glass-edge), 0 0 0 2px var(--focus);
+}
+
+.ios-toast__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 4px 4px 4px 16px;
+  box-sizing: border-box;
+}
+.ios-toast__content[data-behind] {
+  opacity: 0;
+}
+
+.ios-toast__icon {
+  flex: none;
+}
+
+.ios-toast__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--t-callout);
+  line-height: calc(21 / 16);
+  color: var(--label);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Text on glass: --tint-strong only (§2.4). */
+.ios-toast__action {
+  flex: none;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: var(--tint-strong);
+  font: inherit;
+  font-size: var(--t-callout);
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-toast__action:focus-visible,
+.ios-toast__close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.ios-toast__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-toast {
+    transition: opacity var(--dur-fade, 150ms) linear;
+  }
+  .ios-toast[data-starting-style],
+  .ios-toast[data-ending-style] {
+    transform: none;
+  }
+}

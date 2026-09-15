@@ -1,0 +1,165 @@
+/* SearchField (MOBILE §5.3). */
+.ios-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.ios-search__field {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: 40px;
+  padding-inline: 12px 2px;
+  border-radius: 999px;
+  background: var(--fill);
+  transition: flex-basis 250ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-search--pinned .ios-search__field {
+  min-block-size: 36px;
+  background: var(--fill-on-glass);
+}
+/* 44px tall hit area on the 40px (inline) and 36px (pinned) capsule (MOBILE §4.4). */
+.ios-search__field::before {
+  content: '';
+  position: absolute;
+  inset-block: min(0px, calc((100% - 44px) / 2));
+  inset-inline: 0;
+  cursor: text;
+}
+.ios-search__field:has(.ios-search__input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.ios-search__icon {
+  flex: none;
+  color: var(--label-2);
+  pointer-events: none;
+}
+
+.ios-search__input {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch; /* fills the capsule height, so the whole 40px (or 36px pinned) row is the field */
+  min-inline-size: 0;
+  min-block-size: 36px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  /* Never below 16px, so iOS does not zoom on focus. */
+  font-size: max(16px, 1rem);
+  line-height: 1.294;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+.ios-search__input::placeholder {
+  color: var(--label-2);
+  opacity: 1;
+}
+.ios-search__input::-webkit-search-cancel-button,
+.ios-search__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Clear: 17px circle in a 44px target. */
+.ios-search__clear {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 36px;
+  block-size: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-search__clear::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.ios-search__clear-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 17px;
+  block-size: 17px;
+  border-radius: 50%;
+  background: var(--label-3);
+  color: var(--cell);
+}
+.ios-search__clear:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Cancel: plain Body text in tint (tint-strong when pinned in the glass bar). */
+.ios-search__cancel {
+  position: relative;
+  flex: none;
+  min-block-size: 44px;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--tint);
+  font: inherit;
+  font-size: var(--t-body);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  animation: ios-search-cancel-in 250ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-search--pinned .ios-search__cancel {
+  color: var(--tint-strong);
+}
+.ios-search__cancel:active {
+  opacity: 0.6;
+}
+.ios-search__cancel:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+@keyframes ios-search-cancel-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-search__field {
+    transition: none;
+  }
+  .ios-search__cancel {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-search__field {
+    border: 1px solid ButtonText;
+  }
+  .ios-search__clear-circle {
+    background: ButtonText;
+    color: ButtonFace;
+  }
+}

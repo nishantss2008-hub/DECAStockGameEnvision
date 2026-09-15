@@ -1,0 +1,48 @@
+/* RangeBar (MOBILE §5.13): 4px track, 8px marker. */
+.range-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.range-bar__track {
+  position: relative;
+  block-size: 4px;
+  /* Keep the marker inside the track at both ends. */
+  margin-inline: 4px;
+  border-radius: 2px;
+  background: var(--fill);
+}
+
+.range-bar__marker {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: calc(var(--range-pos, 0.5) * 100%);
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--label);
+  box-shadow: 0 0 0 2px var(--cell);
+  transform: translate(-50%, -50%);
+}
+
+/* Footnote 13/18 tabular, --label-2. */
+.range-bar__ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  .range-bar__track {
+    border: 1px solid CanvasText;
+  }
+  .range-bar__marker {
+    background: CanvasText;
+  }
+}

@@ -1,0 +1,111 @@
+/* Keypad (MOBILE §5.16, §7.10). Heights are min-heights so keys grow with Dynamic Type (§3.5). */
+.ios-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ios-keypad__key,
+.ios-keypad__blank {
+  min-height: 48px;
+}
+.ios-keypad[data-compact] .ios-keypad__key,
+.ios-keypad[data-compact] .ios-keypad__blank {
+  min-height: 44px;
+}
+
+.ios-keypad__key {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  /* Title 1 regular, capped at 34px at large text sizes (§3.5). */
+  font-size: min(var(--t-title-1), 34px);
+  line-height: 1;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums lining-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Pressed: 64px --fill circle behind the digit. */
+.ios-keypad__key::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  max-height: calc(100% + 16px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--fill);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity 250ms ease-out;
+  pointer-events: none;
+}
+.ios-keypad__key:active:not(:disabled)::before {
+  opacity: 1;
+  transition-duration: var(--dur-press, 100ms);
+}
+.ios-keypad__key:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.ios-keypad__key:disabled {
+  color: var(--label-4);
+  cursor: default;
+}
+.ios-keypad__glyph {
+  position: relative;
+  display: inline-flex;
+}
+
+.ios-keypad-amount {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.ios-keypad-amount__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  /* --t-amount display: 48/56, 600 (§3.3). Never below 16px, so iOS never zooms. */
+  font-size: var(--t-amount);
+  line-height: calc(56 / 48);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: center;
+  caret-color: var(--tint);
+  text-overflow: clip;
+}
+.ios-keypad-amount[data-empty] .ios-keypad-amount__input {
+  color: var(--label-2);
+}
+.ios-keypad-amount__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-keypad__key::before {
+    transition: none;
+  }
+}

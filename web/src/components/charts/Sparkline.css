@@ -1,0 +1,36 @@
+/* Sparkline (MOBILE §5.5): stroke 1.5, gain / loss / --label-3, dashed session-open line. */
+.sparkline {
+  display: block;
+  flex: none;
+  overflow: visible;
+  color: var(--label-3);
+}
+.sparkline--fill {
+  inline-size: 100%;
+}
+.sparkline[data-trend='up'] {
+  color: var(--gain);
+}
+.sparkline[data-trend='down'] {
+  color: var(--loss);
+}
+
+.sparkline__line {
+  fill: none;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.sparkline__reference {
+  stroke: var(--chart-baseline);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (forced-colors: active) {
+  .sparkline {
+    color: CanvasText;
+  }
+}

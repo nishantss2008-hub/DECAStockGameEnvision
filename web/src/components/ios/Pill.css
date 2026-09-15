@@ -1,0 +1,101 @@
+/* Badge / Pill (MOBILE §5.20). */
+.ios-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* ChangePill: min 64×26, radius 13, Footnote semibold tabular. Gain/loss text only on its own fill. */
+.ios-pill--change {
+  min-inline-size: 64px;
+  min-block-size: 26px;
+  padding: 0 8px;
+  border-radius: 13px;
+  font-size: var(--t-footnote);
+  line-height: 18px;
+  background: var(--fill);
+  color: var(--label-2);
+}
+.ios-pill--change[data-direction='up'] {
+  background: var(--gain-fill);
+  color: var(--gain);
+}
+.ios-pill--change[data-direction='down'] {
+  background: var(--loss-fill);
+  color: var(--loss);
+}
+.ios-pill__visual {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.ios-triangle {
+  flex: none;
+}
+
+/* TagPill: 22px, radius 11, Caption 1 semibold label-2 on fill. */
+.ios-pill--tag {
+  min-block-size: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: var(--t-caption-1);
+  line-height: 16px;
+  background: var(--fill);
+  color: var(--label-2);
+}
+
+/* YouPill: on-prominent on prominent (9.30 / 10.31:1). */
+.ios-pill--you {
+  min-block-size: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: var(--t-caption-1);
+  line-height: 16px;
+  background: var(--prominent);
+  color: var(--on-prominent);
+}
+
+/* CountBadge: min 18×18, radius 9, Caption 2 semibold; hull pill with gold number. */
+.ios-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--prominent);
+  color: var(--on-prominent);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 600;
+}
+
+/* StatusDot: 8×8. */
+.ios-status-dot {
+  display: inline-block;
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+.ios-status-dot[data-tone='open'] {
+  background: var(--accent-dot);
+}
+.ios-status-dot[data-tone='paused'] {
+  background: var(--tint);
+}
+
+@media (forced-colors: active) {
+  .ios-pill,
+  .ios-badge {
+    border: 1px solid CanvasText;
+  }
+  .ios-status-dot {
+    background: CanvasText;
+  }
+}

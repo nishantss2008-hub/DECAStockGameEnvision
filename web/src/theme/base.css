@@ -1,0 +1,326 @@
+/* =========================================================================================
+   Buccaneer Exchange: base styles (phone-first). Import after tokens.css.
+   Source of truth: docs/design/MOBILE.md §3 (type), §8.2 (reduced motion), §9.4 (base CSS
+   checklist), §10 (accessibility). Tested by base.test.ts.
+
+   Contracts for component CSS:
+   - Resets are wrapped in :where() (zero specificity), so any class selector wins.
+   - Type: .t-large-title … .t-amount set size + leading + weight; add .t-emph for the
+     emphasized weight of that style. Numbers: .num (tabular lining numerals).
+   - Reduced motion: a global net finishes CSS animations at once and drops movement
+     transitions (transform, position, size, backdrop blur) while keeping colour and opacity
+     fades. A component that already implements its own §8.2 reduced-motion fade adds the class
+     .motion-safe to that element to opt out of the net.
+   - Hull routes (Sign in, ceremonies) set html[data-hull] so the page behind them is hull-coloured.
+   ========================================================================================= */
+
+/* ---- Root and Dynamic Type (§3.5) -------------------------------------------------------- */
+
+html {
+  font-size: 106.25%; /* 17px = Body, so 1rem is the Body size */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  background-color: var(--bg-grouped);
+  overscroll-behavior-y: contain; /* no pull-to-refresh: prices are live (§8.3) */
+  accent-color: var(--tint);
+}
+
+/* iOS only (macOS Safari has no Dynamic Type): the root follows Settings > Text Size. */
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  html {
+    font: -apple-system-body;
+    font-family: var(--font-ui);
+  }
+}
+
+/* Safari tints its bars from the html/body background, so both stay explicit (§9.2). */
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: normal; /* the OS applies optical tracking to the system font */
+  color: var(--label);
+  background-color: var(--bg-grouped);
+  overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html[data-hull],
+html[data-hull] body {
+  background-color: #111412;
+  color-scheme: dark;
+}
+
+/* ---- Reset (zero specificity) ------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:where(body, h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ul, ol, fieldset, legend, menu) {
+  margin: 0;
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+:where(p, h1, h2, h3, h4, h5, h6, li, dt, dd, figcaption, blockquote, legend) {
+  overflow-wrap: break-word;
+}
+
+/* Safari drops list semantics when bullets are removed, so lists that lose them say role="list". */
+:where(ul, ol)[role="list"] {
+  list-style: none;
+  padding: 0;
+}
+
+:where(fieldset) {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+:where(legend) {
+  padding: 0;
+}
+
+:where(img, picture, video, canvas) {
+  display: block;
+  max-width: 100%;
+}
+
+:where(img, video) {
+  height: auto;
+}
+
+:where(table) {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+:where(button) {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+:where(button:disabled, [aria-disabled="true"]) {
+  cursor: default;
+}
+
+:where(a) {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Links inside running text: tinted AND underlined, so colour is never the only cue. */
+:where(a:not([class])) {
+  color: var(--tint);
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+
+:where(input[type="search"])::-webkit-search-decoration,
+:where(input[type="search"])::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- Form controls and touch (§9.4) ------------------------------------------------------ */
+
+/* 16px or larger, so iOS never zooms on focus. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
+::placeholder {
+  color: var(--label-2);
+  opacity: 1;
+}
+
+/* No double-tap-to-zoom delay on controls; pinch zoom stays available everywhere. */
+:where(a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="switch"], [role="menuitem"], [role="option"], [role="radio"], [role="checkbox"]) {
+  touch-action: manipulation;
+}
+
+/* ---- Dynamic Type classes (§3.3) --------------------------------------------------------- */
+
+.t-large-title { font-size: var(--t-large-title); line-height: var(--lh-large-title); font-weight: 400; --t-emphasized: 700; }
+.t-title-1 { font-size: var(--t-title-1); line-height: var(--lh-title-1); font-weight: 400; --t-emphasized: 700; }
+.t-title-2 { font-size: var(--t-title-2); line-height: var(--lh-title-2); font-weight: 400; --t-emphasized: 700; }
+.t-title-3 { font-size: var(--t-title-3); line-height: var(--lh-title-3); font-weight: 400; --t-emphasized: 600; }
+.t-headline { font-size: var(--t-headline); line-height: var(--lh-headline); font-weight: 600; --t-emphasized: 600; }
+.t-body { font-size: var(--t-body); line-height: var(--lh-body); font-weight: 400; --t-emphasized: 600; }
+.t-callout { font-size: var(--t-callout); line-height: var(--lh-callout); font-weight: 400; --t-emphasized: 600; }
+.t-subhead { font-size: var(--t-subhead); line-height: var(--lh-subhead); font-weight: 400; --t-emphasized: 600; }
+.t-footnote { font-size: var(--t-footnote); line-height: var(--lh-footnote); font-weight: 400; --t-emphasized: 600; }
+.t-caption-1 { font-size: var(--t-caption-1); line-height: var(--lh-caption-1); font-weight: 400; --t-emphasized: 600; }
+.t-caption-2 { font-size: var(--t-caption-2); line-height: var(--lh-caption-2); font-weight: 400; --t-emphasized: 600; }
+.t-amount { font-size: var(--t-amount); line-height: var(--lh-amount); font-weight: 600; --t-emphasized: 600; }
+
+/* Must follow the style classes: same specificity, later wins. */
+.t-emph { font-weight: var(--t-emphasized, 600); }
+
+/* Numbers (§3.4): tabular lining figures everywhere a number appears. */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Wordmark and ceremony titles only, always 22px or larger, never numbers (§3.1). */
+.font-brand {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ---- Frames, safe areas and scrolling (§4.3, §9.4) --------------------------------------- */
+
+.app-frame {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Page shells use the small viewport so content does not jump when Safari's bars collapse. */
+.page-shell {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-right { padding-right: env(safe-area-inset-right, 0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-left { padding-left: env(safe-area-inset-left, 0px); }
+
+/* Side margins that also clear the notch in landscape. */
+.gutter-x {
+  padding-left: var(--gutter-left);
+  padding-right: var(--gutter-right);
+}
+
+/* Bottom padding on tab screens so the last row clears the floating tab bar. */
+.clear-tabbar { padding-bottom: var(--content-bottom); }
+.clear-tabbar-actions { padding-bottom: var(--content-bottom-actions); }
+
+/* Sheets and horizontal scrollers keep their scroll to themselves. */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* Rows with swipe or long-press actions. */
+.no-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---- Focus and screen-reader utilities (§10) --------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Rows and cards draw the ring inside their own edge. */
+.focus-inset:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-contrast: more) {
+  :focus-visible {
+    outline-width: 3px;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight;
+  }
+}
+
+.sr-only,
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.sr-only-focusable:focus,
+.sr-only-focusable:focus-within {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
+  white-space: normal !important;
+}
+
+/* ---- Reduced motion (§8.2) --------------------------------------------------------------- */
+
+@keyframes bx-fade-in { from { opacity: 0; } }
+@keyframes bx-fade-out { to { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  /* Safety net. Animations finish at once and keep their end state (loops stop, ceremonies
+     settle). Transitions keep colour, opacity and brightness fades; movement, resizing and
+     backdrop blur change instantly. Opt out per element with .motion-safe. */
+  *:not(.motion-safe),
+  *:not(.motion-safe)::before,
+  *:not(.motion-safe)::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, box-shadow, filter, visibility !important;
+  }
+
+  /* Push, pop and results page changes become a 150ms cross-fade, except after the browser's
+     own swipe-back animation (html[data-nav="ua"], §9.6), which gets no second animation. */
+  ::view-transition-group(*) {
+    animation-duration: 0ms !important;
+  }
+  :root:not([data-nav="ua"])::view-transition-old(*) {
+    animation: bx-fade-out var(--dur-fade) linear both !important;
+  }
+  :root:not([data-nav="ua"])::view-transition-new(*) {
+    animation: bx-fade-in var(--dur-fade) linear both !important;
+  }
+}

@@ -1,0 +1,77 @@
+/* SwipeActions (MOBILE §5.17). No glass: rows are content (§2.4). */
+.ios-swipe {
+  position: relative;
+  overflow: clip;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.ios-swipe__actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  visibility: hidden;
+}
+.ios-swipe__actions[data-visible] {
+  visibility: visible;
+}
+
+.ios-swipe__action {
+  display: flex;
+  flex: 0 0 76px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  color: var(--on-side);
+  font: inherit;
+  font-size: var(--t-caption-1);
+  line-height: calc(16 / 12);
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-swipe__action[data-tone='sell'] {
+  background: var(--loss);
+}
+.ios-swipe__action[data-tone='buy'] {
+  background: var(--gain);
+}
+.ios-swipe__action:active {
+  filter: brightness(0.92);
+}
+
+.ios-swipe__label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ios-swipe__content {
+  position: relative;
+  background: var(--cell);
+  touch-action: pan-y;
+  transition: transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-swipe__content :is(a, img) {
+  -webkit-user-drag: none;
+}
+.ios-swipe[data-dragging] .ios-swipe__content {
+  transition: none;
+}
+
+/* Reduced motion: follows the finger, release snaps instantly (§8.2). */
+@media (prefers-reduced-motion: reduce) {
+  .ios-swipe__content {
+    transition: none;
+  }
+}

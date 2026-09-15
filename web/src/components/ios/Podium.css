@@ -1,0 +1,148 @@
+/* Podium (MOBILE §5.22). Hull screen only: place inside a .hull root for the dark tokens. */
+.podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto auto auto;
+  column-gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each place spans the three shared rows (medal · step · caption) so steps line up at the bottom. */
+.podium__place {
+  order: var(--podium-order, 0);
+  grid-row: span 3;
+  display: grid;
+  grid-template-rows: subgrid;
+  justify-items: center;
+  min-inline-size: 0;
+  text-align: center;
+}
+@supports not (grid-template-rows: subgrid) {
+  .podium__place {
+    grid-template-rows: 1fr auto auto;
+  }
+}
+
+.podium__medal {
+  align-self: end;
+  margin-block-end: 8px;
+}
+
+/* Hull step #1A1F1C with a 1px brass top rule. */
+.podium__step {
+  align-self: end;
+  inline-size: 100%;
+  block-size: var(--podium-step, 56px);
+  border-block-start: 1px solid #b8954a;
+  border-start-start-radius: 8px;
+  border-start-end-radius: 8px;
+  background: #1a1f1c;
+}
+
+.podium__caption {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-block-start: 8px;
+  min-inline-size: 0;
+}
+/* Crew name: Subhead. */
+.podium__name {
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  font-weight: 600;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+/* Value: Footnote tabular. */
+.podium__value,
+.podium__change {
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+}
+.podium__value {
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+/* Large text (root ≥23px, MOBILE §3.5): three columns cannot hold the crew names and seven-figure
+   values, which overlapped and ran off the screen. The places stack in rank order as rows of
+   medal · caption; the steps are decoration (aria-hidden) and are dropped. */
+html[data-large-text] .podium {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  row-gap: 16px;
+}
+html[data-large-text] .podium__place {
+  order: 0;
+  grid-row: auto;
+  grid-template-rows: none;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-items: start;
+  column-gap: 16px;
+  text-align: start;
+}
+html[data-large-text] .podium__medal {
+  align-self: center;
+  margin-block-end: 0;
+}
+html[data-large-text] .podium__step {
+  display: none;
+}
+html[data-large-text] .podium__caption {
+  align-self: center;
+  align-items: flex-start;
+  padding-block-start: 0;
+}
+html[data-large-text] .podium__value {
+  white-space: normal;
+}
+
+/* Ceremony: steps rise (600ms bouncy, 80ms stagger from 3rd to 1st), medal and caption fade in. */
+@media (prefers-reduced-motion: no-preference) {
+  .podium--animate .podium__step {
+    transform-origin: 50% 100%;
+    animation: podium-rise 600ms var(--ease-bouncy, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+    animation-delay: calc(var(--podium-i, 0) * 80ms);
+  }
+  .podium--animate .podium__medal,
+  .podium--animate .podium__caption {
+    animation: podium-fade 300ms linear both;
+    animation-delay: calc(var(--podium-i, 0) * 80ms + 300ms);
+  }
+}
+/* Reduced motion: everything appears with a 150ms fade. */
+@media (prefers-reduced-motion: reduce) {
+  .podium--animate .podium__step,
+  .podium--animate .podium__medal,
+  .podium--animate .podium__caption {
+    animation: podium-fade 150ms linear both;
+  }
+}
+@keyframes podium-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes podium-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .podium__step {
+    border: 1px solid CanvasText;
+  }
+}

@@ -1,0 +1,554 @@
+/* Dev-only component gallery (kit.html). Uses the app tokens; nothing here ships to students. */
+
+.kit {
+  --kit-gutter-start: max(16px, env(safe-area-inset-left, 0px));
+  --kit-gutter-end: max(16px, env(safe-area-inset-right, 0px));
+  min-height: 100dvh;
+  background: var(--bg-grouped);
+  color: var(--label);
+  padding-inline: var(--kit-gutter-start) var(--kit-gutter-end);
+}
+/* On a phone the panes are full bleed, so components get exactly the 361px content width of a
+   393px screen; headers carry the side margin instead. */
+@media (max-width: 599px) {
+  .kit {
+    padding-inline: 0;
+  }
+  .kit-header,
+  .kit-section__header {
+    padding-inline: var(--kit-gutter-start) var(--kit-gutter-end);
+  }
+}
+
+/* ─── Header, toolbar, index ─────────────────────────────────────────────── */
+
+.kit-header {
+  display: grid;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-block: calc(env(safe-area-inset-top, 0px) + 24px) 8px;
+}
+.kit-header__eyebrow {
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+}
+.kit-header__title {
+  margin: 2px 0 0;
+  font-size: var(--t-large-title);
+  line-height: var(--lh-large-title);
+  font-weight: 700;
+}
+.kit-header__lede {
+  max-width: 62ch;
+  margin: 4px 0 0;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  color: var(--label-2);
+}
+
+.kit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.kit-toolbar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.kit-toolbar__label {
+  font-size: var(--t-caption-1);
+  line-height: var(--lh-caption-1);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.kit-index ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.kit-index__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px; /* MOBILE §4.4 hit target, like every control in the kit */
+  padding: 0 14px;
+  border-radius: 18px;
+  background: var(--cell);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+  color: var(--label);
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  font-weight: 600;
+  text-decoration: none;
+}
+.kit-index__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ─── Sections and appearance panes ─────────────────────────────────────── */
+
+.kit-main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-block: 8px 96px;
+}
+
+.kit-section {
+  margin-block-start: 40px;
+  scroll-margin-top: 16px;
+}
+.kit-section__header {
+  margin-block-end: 12px;
+}
+.kit-section__title {
+  margin: 0;
+  font-size: var(--t-title-2);
+  line-height: var(--lh-title-2);
+  font-weight: 700;
+}
+.kit-section__spec {
+  margin: 2px 0 0;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+}
+.kit-section__note {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  color: var(--label-2);
+}
+
+.kit-section__panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .kit-section__panes[data-count='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* A pane is a small page: grouped background with the phone's 16px content margin. */
+.kit-pane {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 28px;
+  background: var(--bg-grouped);
+  color: var(--label);
+  box-shadow: inset 0 0 0 1px var(--separator);
+}
+/* On a phone the pane is full bleed, so components get exactly the 361px content width of a 393px screen. */
+@media (max-width: 599px) {
+  .kit-pane {
+    padding-inline: var(--kit-gutter-start) var(--kit-gutter-end);
+    border-radius: 0;
+    box-shadow: inset 0 1px 0 var(--separator), inset 0 -1px 0 var(--separator);
+  }
+}
+.kit-pane__label {
+  margin: 0 0 12px;
+  font-size: var(--t-caption-1);
+  line-height: var(--lh-caption-1);
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.kit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: 28px 24px;
+}
+
+.kit-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+.kit-demo[data-wide] {
+  grid-column: 1 / -1;
+}
+.kit-demo__label {
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  font-weight: 600;
+  color: var(--label-2);
+}
+.kit-demo__body {
+  min-width: 0;
+}
+
+/* ─── Layout helpers ─────────────────────────────────────────────────────── */
+
+.kit-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+/* InsetGroupedList already spaces consecutive sections (24px, or 32px before a header). */
+.kit-stack--lists {
+  gap: 0;
+}
+.kit-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+.kit-inline--end {
+  align-items: flex-end;
+}
+.kit-center {
+  justify-content: center;
+  text-align: center;
+}
+.kit-secondary {
+  color: var(--label-2);
+}
+.kit-card {
+  padding: 24px 16px;
+  border-radius: var(--r-card);
+  background: var(--cell);
+}
+.kit-hull-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px;
+  border-radius: var(--r-card);
+}
+.kit-voyage {
+  margin: 0;
+  font-size: clamp(24px, 8vw, 32px);
+  line-height: 1.2;
+  color: var(--tint);
+}
+.kit-wordmark {
+  margin: 8px 0 0;
+  font-size: 22px;
+  text-align: center;
+  color: var(--tint);
+}
+.kit-sheet-surface {
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--elevated);
+}
+
+/* ─── Phone frame ────────────────────────────────────────────────────────── */
+
+/* transform makes the frame the containing block for the fixed tab bar and top bar inside it. */
+.kit-phone {
+  position: relative;
+  width: 100%;
+  max-width: 430px;
+  overflow: hidden;
+  border-radius: 28px;
+  background: var(--bg-grouped);
+  box-shadow: inset 0 0 0 1px var(--separator);
+  transform: translateZ(0);
+}
+.kit-phone__scroll {
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.kit-phone__content {
+  padding: 12px 16px 100px;
+}
+
+/* ─── Foundations ────────────────────────────────────────────────────────── */
+
+.kit-type__row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding-block: 6px;
+  box-shadow: inset 0 -0.5px var(--separator);
+}
+.kit-type__name {
+  font-size: var(--t-caption-1);
+  line-height: var(--lh-caption-1);
+  color: var(--label-2);
+}
+.kit-type__sample {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kit-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px 12px;
+  margin: 0;
+  padding: 0;
+}
+.kit-swatch {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  align-items: center;
+}
+.kit-swatch__chip {
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--separator);
+}
+.kit-swatch__name {
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+}
+.kit-swatch__token {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption-2);
+  line-height: var(--lh-caption-2);
+  color: var(--label-2);
+  overflow-wrap: anywhere;
+}
+
+.kit-glass-demo {
+  position: relative;
+  min-height: 200px;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--cell);
+}
+.kit-glass-demo__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+.kit-glass-demo__stripe {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: var(--t-title-3);
+  line-height: var(--lh-title-3);
+  font-weight: 700;
+  color: var(--label);
+}
+.kit-glass-demo__stripe:nth-child(odd) {
+  background: var(--gain-fill);
+}
+.kit-glass-demo__stripe:nth-child(even) {
+  background: var(--loss-fill);
+}
+.kit-glass-demo__panel {
+  position: absolute;
+  inset-inline: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border-radius: 26px;
+}
+.kit-glass-strip {
+  padding: 6px 8px;
+  border-radius: 24px;
+}
+.kit-glass-backdrop {
+  display: flex;
+  padding: 16px;
+  border-radius: var(--r-inner);
+  background: linear-gradient(135deg, var(--gain-fill), var(--loss-fill));
+}
+
+/* ─── Rows and compositions ──────────────────────────────────────────────── */
+
+.kit-icon-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+}
+.kit-standing-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.kit-standing-leading__rank {
+  width: 28px;
+  text-align: center;
+}
+.kit-trailing-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: end;
+}
+.kit-trailing-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.kit-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 22px;
+  color: var(--label-2);
+}
+.kit-inline-lines {
+  padding: 0 16px 12px;
+  list-style: none;
+}
+
+.kit-button-grid {
+  display: flex;
+  flex-direction: column;
+}
+.kit-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-block: 10px;
+  box-shadow: inset 0 -0.5px var(--separator);
+}
+.kit-button-row__name {
+  flex: 0 0 100%;
+  font-size: var(--t-caption-1);
+  line-height: var(--lh-caption-1);
+  color: var(--label-2);
+}
+
+.kit-dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  margin: 0;
+}
+.kit-dl dt {
+  font-size: var(--t-caption-1);
+  line-height: var(--lh-caption-1);
+  color: var(--label-2);
+}
+.kit-dl dd {
+  margin: 0 0 8px;
+  justify-self: start;
+}
+
+.kit-crest-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+  padding: 0;
+}
+.kit-crest-list__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kit-spark-fill {
+  width: 100%;
+  color: var(--label);
+}
+
+.kit-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--elevated);
+}
+
+.kit-swipe-item {
+  list-style: none;
+}
+.kit-swipe-item:not(:last-child) .kit-swipe-row {
+  box-shadow: inset 0 -0.5px var(--separator);
+}
+.kit-swipe-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: var(--cell);
+  color: var(--label);
+  text-decoration: none;
+}
+.kit-swipe-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.kit-swipe-row__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ─── Overlay demos ──────────────────────────────────────────────────────── */
+
+.kit-triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.kit-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.kit-trigger p {
+  margin: 0;
+}
+.kit-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.kit-sheet-body p {
+  margin: 0;
+}
+.kit-sheet-body.kit-center {
+  align-items: center;
+}
+.kit-sheet-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kit-welcome {
+  padding-top: 24px;
+}
+.kit-welcome__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 0;
+}

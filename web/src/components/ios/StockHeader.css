@@ -1,0 +1,140 @@
+/* StockHeader (MOBILE §5.14). Ledger layer: system type, semantic colours, no ornaments. */
+.stock-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+  color: var(--label);
+}
+
+.stock-header__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.stock-header__names {
+  min-inline-size: 0;
+}
+
+/* Title 2 bold, two lines max. */
+.stock-header__name {
+  margin: 0;
+  font-size: var(--t-title-2);
+  line-height: calc(28 / 22);
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Footnote --label-2. */
+.stock-header__meta {
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+.stock-header__quote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+/* Large Title bold tabular; never wraps, never truncates (MOBILE §3.4). */
+.stock-header__price {
+  margin: 0;
+  font-size: var(--t-large-title);
+  line-height: calc(41 / 34);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.stock-header__price-value {
+  display: inline-block;
+  padding-inline: 4px;
+  margin-inline: -4px;
+  border-radius: 8px;
+}
+html[data-large-text] .stock-header__price {
+  /* Drops to Title 1 before a big price could overflow at accessibility sizes. */
+  font-size: var(--t-title-1);
+  line-height: calc(34 / 28);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stock-header__price[data-flash='up'] .stock-header__price-value {
+    animation: stock-header-flash-up 300ms linear;
+  }
+  .stock-header__price[data-flash='down'] .stock-header__price-value {
+    animation: stock-header-flash-down 300ms linear;
+  }
+}
+@keyframes stock-header-flash-up {
+  from {
+    background-color: var(--gain-fill);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes stock-header-flash-down {
+  from {
+    background-color: var(--loss-fill);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+/* Change line: Subhead semibold with triangle. One text flow: the value stays whole, "this session"
+   may wrap under it, and the "?" stays glued to the last word. */
+.stock-header__line {
+  display: block;
+  margin: 0;
+  min-block-size: 20px; /* Subhead line; the "?" does not grow it, so the header stays 141 (kit .stock-header) */
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+}
+.stock-header__change .signed-change__value {
+  font-weight: 600;
+}
+.stock-header__scrub {
+  color: var(--label-2);
+  font-weight: 600;
+}
+
+/* "this session": plain secondary words after the coloured value (MOBILE §5.14). */
+.stock-header__suffix {
+  color: var(--label-2);
+  font-weight: 400;
+}
+.stock-header__glue {
+  white-space: nowrap;
+}
+
+/* "As of tick 1,284 · 14:02:30": Footnote --label-3 (opaque surfaces only). */
+.stock-header__asof {
+  display: block;
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-3);
+}
+/* Hidden while scrubbing but keeps its height, so nothing below jumps. */
+.stock-header__asof[data-hidden] {
+  visibility: hidden;
+}
+
+/* Collapsed-bar subtitle (on glass): inherits --label-2 from the bar, no gain/loss colour. */
+.stock-bar-subtitle {
+  white-space: nowrap;
+}
+.stock-bar-subtitle__change {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}

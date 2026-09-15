@@ -1,0 +1,109 @@
+/* WaxSeal (MOBILE §5.23). Seal colours are ornament-only tokens (MOBILE §2.2 --seal-*). */
+.wax-seal {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.wax-seal[data-tone='crimson'] {
+  --wax-body: var(--seal-crimson, #8e1f1a);
+  --wax-ring: #6e1814;
+  --wax-rim: var(--seal-brass, #b8954a);
+  --wax-emboss: rgba(255, 255, 255, 0.18);
+  --wax-emboss-shadow: rgba(0, 0, 0, 0.22);
+}
+.wax-seal[data-tone='brass'] {
+  --wax-body: #c9982f;
+  --wax-ring: #8c6a1f;
+  --wax-rim: var(--seal-highlight, #ddbe72);
+  --wax-emboss: rgba(74, 53, 9, 0.72); /* #4A3509 monogram */
+  --wax-emboss-shadow: rgba(255, 255, 255, 0.22);
+}
+
+.wax-seal__shadow {
+  fill: rgba(0, 0, 0, 0.28);
+}
+.wax-seal__body {
+  fill: var(--wax-body);
+}
+/* 1px brass rim highlight at any size. */
+.wax-seal__rim {
+  fill: none;
+  stroke: var(--wax-rim);
+  stroke-width: 1px;
+  stroke-opacity: 0.75;
+  vector-effect: non-scaling-stroke;
+}
+.wax-seal__ring {
+  fill: none;
+  stroke: var(--wax-ring);
+}
+.wax-seal__gloss {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.2;
+}
+
+/* Embossed rose: the glyph's light, dark and line parts all take the emboss colour. */
+.wax-seal__emboss-face {
+  --rose-light: var(--wax-emboss);
+  --rose-dark: var(--wax-emboss);
+  --rose-line: var(--wax-emboss);
+  --rose-hub: transparent;
+}
+.wax-seal__emboss-shadow {
+  --rose-light: var(--wax-emboss-shadow);
+  --rose-dark: var(--wax-emboss-shadow);
+  --rose-line: var(--wax-emboss-shadow);
+  --rose-hub: transparent;
+}
+
+.wax-seal__monogram {
+  font-family: var(--font-brand, 'Cinzel Decorative', Georgia, 'Times New Roman', serif);
+  font-weight: 700;
+  font-size: 25px;
+}
+.wax-seal__monogram-shadow {
+  fill: var(--wax-emboss-shadow);
+}
+.wax-seal__monogram-face {
+  fill: var(--wax-emboss);
+}
+
+/* Stamp: scale 1.15 → 1 + fade, 250ms snappy. Reduced motion: fade only, 150ms.
+   .motion-safe opts out of the base.css reduced-motion net because both cases are handled here. */
+@media (prefers-reduced-motion: no-preference) {
+  .wax-seal--stamp {
+    transform-origin: 50% 50%;
+    animation: wax-seal-stamp 250ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1)) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wax-seal--stamp {
+    animation: wax-seal-fade 150ms linear both;
+  }
+}
+@keyframes wax-seal-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes wax-seal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .wax-seal {
+    forced-color-adjust: none;
+  }
+}

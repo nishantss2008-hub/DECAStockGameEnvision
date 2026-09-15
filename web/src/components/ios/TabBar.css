@@ -1,0 +1,224 @@
+/* TabBar (MOBILE §5.1, §4.3, §4.5). Glass material comes from the global .glass rule (tokens.css),
+   which also handles Solid bars, prefers-contrast: more and prefers-reduced-transparency. */
+.ios-tabbar {
+  --tab-item: calc((100% - 8px) / var(--tab-count, 5));
+  position: fixed;
+  z-index: 40;
+  inset-inline: max(var(--margin, 16px), env(safe-area-inset-left)) max(var(--margin, 16px), env(safe-area-inset-right));
+  inset-block-end: max(8px, calc(env(safe-area-inset-bottom) - 12px));
+  block-size: 62px;
+  padding: 4px;
+  border-radius: 31px;
+  view-transition-name: tabbar;
+}
+@media (min-width: 420px) {
+  .ios-tabbar {
+    inset-inline: max(var(--margin, 20px), env(safe-area-inset-left)) max(var(--margin, 20px), env(safe-area-inset-right));
+  }
+}
+
+.ios-tabbar__list {
+  position: relative;
+  display: flex;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ios-tabbar__item {
+  flex: 1 1 0;
+  min-inline-size: 44px;
+}
+
+/* Selected platter (brass), slides between items. */
+.ios-tabbar__platter {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-start: 4px;
+  inline-size: var(--tab-item);
+  border-radius: 27px;
+  background: var(--platter);
+  transform: translateX(calc(var(--tab-index, 0) * 100%));
+  transition: transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+  pointer-events: none;
+}
+[dir='rtl'] .ios-tabbar__platter {
+  transform: translateX(calc(var(--tab-index, 0) * -100%));
+}
+
+.ios-tabbar__link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  block-size: 100%;
+  padding-block-start: 8px;
+  padding-inline: 2px;
+  border-radius: 27px;
+  color: var(--label-2);
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  transition: transform 250ms var(--ease-fallback, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-tabbar__link[data-selected] {
+  color: var(--tint-strong);
+}
+
+/* Pressed: platter at 50% + scale .96 (100ms). */
+.ios-tabbar__link::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--platter);
+  opacity: 0;
+  transition: opacity var(--dur-press, 100ms) linear;
+}
+.ios-tabbar__link:active {
+  transform: scale(0.96);
+  transition-duration: var(--dur-press, 100ms);
+}
+.ios-tabbar__link:not([data-selected]):active::before {
+  opacity: 0.5;
+}
+.ios-tabbar__link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.ios-tabbar__icon {
+  position: relative;
+  display: block;
+  inline-size: 24px;
+  block-size: 24px;
+  flex: none;
+}
+.ios-tabbar__icon svg {
+  display: block;
+}
+
+.ios-tabbar__badge {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-start: calc(100% - 10px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--prominent);
+  color: var(--on-prominent);
+  box-shadow: 0 0 0 2px var(--glass-solid);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Caption 2 11/13, medium; semibold when selected; capped at 13px at large text sizes. */
+.ios-tabbar__label {
+  position: relative;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: min(13px, var(--t-caption-2));
+  line-height: 1.18;
+  font-weight: 500;
+}
+.ios-tabbar__link[data-selected] .ios-tabbar__label {
+  font-weight: 600;
+}
+
+/* Hide only while typing into a text field on touch devices (keyboard open). */
+@media (pointer: coarse) {
+  html:has(:is(input:is(:not([type]), [type='text'], [type='search'], [type='password'], [type='email'], [type='number']):not([inputmode='none']), textarea):focus) .ios-tabbar {
+    display: none;
+  }
+}
+
+/* Rail: 72px vertical glass rail at the leading edge (short landscape). */
+.ios-tabbar[data-layout='rail'] {
+  --tab-item: calc((100% - 8px) / var(--tab-count, 5));
+  inset-inline: max(8px, env(safe-area-inset-left)) auto;
+  inset-block: 0;
+  margin-block: auto;
+  inline-size: 72px;
+  block-size: calc(var(--tab-count, 5) * 60px + 8px);
+  max-block-size: calc(100dvh - 16px);
+  border-radius: 36px;
+}
+.ios-tabbar[data-layout='rail'] .ios-tabbar__list {
+  flex-direction: column;
+}
+.ios-tabbar[data-layout='rail'] .ios-tabbar__item {
+  min-block-size: 44px;
+}
+.ios-tabbar[data-layout='rail'] .ios-tabbar__platter {
+  inset-inline: 4px;
+  inset-block: 4px auto;
+  inline-size: auto;
+  block-size: var(--tab-item);
+  transform: translateY(calc(var(--tab-index, 0) * 100%));
+}
+.ios-tabbar[data-layout='rail'] .ios-tabbar__link {
+  justify-content: center;
+  padding-block-start: 0;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .ios-tabbar[data-layout='auto'] {
+    --tab-item: calc((100% - 8px) / var(--tab-count, 5));
+    inset-inline: max(8px, env(safe-area-inset-left)) auto;
+    inset-block: 0;
+    margin-block: auto;
+    inline-size: 72px;
+    block-size: calc(var(--tab-count, 5) * 60px + 8px);
+    max-block-size: calc(100dvh - 16px);
+    border-radius: 36px;
+  }
+  .ios-tabbar[data-layout='auto'] .ios-tabbar__list {
+    flex-direction: column;
+  }
+  .ios-tabbar[data-layout='auto'] .ios-tabbar__item {
+    min-block-size: 44px;
+  }
+  .ios-tabbar[data-layout='auto'] .ios-tabbar__platter {
+    inset-inline: 4px;
+    inset-block: 4px auto;
+    inline-size: auto;
+    block-size: var(--tab-item);
+    transform: translateY(calc(var(--tab-index, 0) * 100%));
+  }
+  .ios-tabbar[data-layout='auto'] .ios-tabbar__link {
+    justify-content: center;
+    padding-block-start: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-tabbar__platter,
+  .ios-tabbar__link,
+  .ios-tabbar__link::before {
+    transition: none;
+  }
+  .ios-tabbar__link:active {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-tabbar {
+    border: 1px solid CanvasText;
+  }
+  .ios-tabbar__link[data-selected] {
+    outline: 2px solid Highlight;
+    outline-offset: -4px;
+  }
+}

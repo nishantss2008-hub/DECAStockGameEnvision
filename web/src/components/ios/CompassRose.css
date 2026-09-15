@@ -1,0 +1,83 @@
+/* CompassRose ornament and hull loader (MOBILE §5.19, §1 hull layer). Ornament only, never data. */
+.compass-rose {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+.compass-rose[data-tone='brass'] {
+  --rose-light: var(--seal-highlight, #ddbe72);
+  --rose-dark: #80683a;
+  --rose-line: var(--seal-brass, #b8954a);
+  --rose-hub: #111412;
+}
+.compass-rose[data-tone='current'] {
+  --rose-light: currentColor;
+  --rose-dark: currentColor;
+  --rose-line: currentColor;
+  --rose-hub: transparent;
+}
+.compass-rose[data-tone='current'] .compass-rose-glyph__dark {
+  fill-opacity: 0.45;
+}
+
+.compass-rose-glyph__line {
+  fill: none;
+  stroke: var(--rose-line, currentColor);
+}
+.compass-rose-glyph__light {
+  fill: var(--rose-light, currentColor);
+}
+.compass-rose-glyph__dark {
+  fill: var(--rose-dark, currentColor);
+}
+.compass-rose-glyph__hub {
+  fill: var(--rose-hub, transparent);
+  stroke: var(--rose-line, currentColor);
+}
+
+/* 360° every 2s; never under reduced motion (static, and the loader text says what is happening). */
+@media (prefers-reduced-motion: no-preference) {
+  .compass-rose--spin {
+    animation: compass-rose-spin 2s linear infinite;
+  }
+}
+@keyframes compass-rose-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.compass-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+/* Subhead --label-2 (on hull: 8.17:1). */
+.compass-loader__label {
+  margin: 4px 0 0;
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  color: var(--label-2);
+}
+/* Flavor: Footnote --label-3 (hull 6.29:1, opaque ground only). */
+.compass-loader__flavor {
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-3);
+}
+
+@media (forced-colors: active) {
+  .compass-rose {
+    --rose-light: CanvasText;
+    --rose-dark: CanvasText;
+    --rose-line: CanvasText;
+    --rose-hub: Canvas;
+  }
+}

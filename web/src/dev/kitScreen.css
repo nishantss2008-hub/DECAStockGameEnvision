@@ -1,0 +1,14 @@
+/* Live screen (kit.html?screen=positions): the app's page shell, not a gallery pane. */
+.kit-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--bg-grouped);
+  color: var(--label);
+  /* Last row clears the floating tab bar (MOBILE §4.3). */
+  padding-bottom: var(--content-bottom, 100px);
+}
+.kit-screen__content {
+  /* InsetGroupedList spaces consecutive sections itself (32px before a header). */
+  /* First content 12px under the status line (MOBILE §4.3: status line ends 170, content 182). */
+  padding: 12px var(--gutter-right, 16px) 0 var(--gutter-left, 16px);
+}

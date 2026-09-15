@@ -1,0 +1,294 @@
+/* ListRow variants (MOBILE §5.5). Heights are min-heights (MOBILE §3.5). */
+.ios-row-item {
+  position: relative;
+  list-style: none;
+}
+/* 0.5px hairline, inset from the leading edge; none after the last row. */
+.ios-row-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: var(--row-separator-inset, 16px);
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  block-size: 1px;
+  box-shadow: inset 0 -0.5px 0 var(--separator);
+  pointer-events: none;
+}
+
+.ios-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 44px;
+  margin: 0;
+  /* 11 + 22 + 11: a one-line Body row is the 44 MOBILE §5.5's table lists (12 would give 46; kit .row). */
+  padding: 11px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: 1.294;
+  text-align: start;
+  text-decoration: none;
+  transition: background-color 250ms linear;
+}
+.ios-row--interactive {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-row--interactive:active {
+  background: var(--fill-2);
+  transition-duration: var(--dur-press, 100ms);
+}
+.ios-row--interactive:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+/* The focus ring follows the card radius on the first and last rows. */
+.ios-row-item:first-child > .ios-row {
+  border-start-start-radius: var(--list-card-radius, 24px);
+  border-start-end-radius: var(--list-card-radius, 24px);
+}
+.ios-row-item:last-child > .ios-row {
+  border-end-start-radius: var(--list-card-radius, 24px);
+  border-end-end-radius: var(--list-card-radius, 24px);
+}
+.ios-row--highlighted {
+  background: var(--tint-soft);
+}
+
+.ios-row__leading {
+  flex: none;
+  display: inline-flex;
+}
+.ios-row__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+/* Label and "?" share one text flow; the last word and the "?" never separate (labelText.ts). */
+.ios-row__text--inline {
+  display: block;
+}
+.ios-row__label-end {
+  white-space: nowrap;
+}
+:is(.ios-row__text--inline, .ios-explain__label-wrap) .ios-row__info {
+  display: inline-flex;
+  margin-inline-start: 4px;
+  vertical-align: middle;
+  white-space: normal;
+}
+.ios-row__title {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ios-row__title--ticker {
+  font-weight: 600;
+}
+.ios-row__subtitle {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+.ios-row__trailing {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  max-inline-size: 60%;
+  text-align: end;
+}
+.ios-row__detail {
+  color: var(--label-2);
+}
+.ios-row__value {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ios-row__chevron {
+  flex: none;
+  color: var(--label-3);
+}
+[dir='rtl'] .ios-row__chevron {
+  transform: scaleX(-1);
+}
+.ios-row__info {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+}
+
+/* StockRow: 64px = 8 + price 22 over ChangePill 26 + 8 (kit .row-stock). */
+.ios-row--stock {
+  min-block-size: 64px;
+  padding-block: 8px;
+}
+.ios-row--stock .ios-row__trailing {
+  gap: 0;
+}
+.ios-row__spark {
+  flex: none;
+  display: inline-flex;
+  inline-size: 48px;
+  block-size: 20px;
+}
+.ios-row__spark > svg {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* KeyValueRow: 44px, value in --label or --label-2. */
+.ios-row__kv-value {
+  white-space: nowrap;
+}
+.ios-row__kv-value[data-tone='secondary'] {
+  color: var(--label-2);
+}
+
+/* DisclosureRow: 44 / 60 with a subtitle (10 + 22 + 18 + 10); the 29px icon tile keeps the row at 44. */
+.ios-row--two-line {
+  min-block-size: 60px;
+  padding-block: 10px;
+}
+.ios-row__leading.ios-row__tile {
+  margin-block: -3.5px;
+}
+.ios-row__tile {
+  align-items: center;
+  justify-content: center;
+  inline-size: 29px;
+  block-size: 29px;
+  border-radius: 8px;
+  background: var(--tint-soft);
+  color: var(--tint);
+}
+
+/* ActionRow: leading-aligned Body in tint or destructive. */
+.ios-row--action[data-tone='tint'] {
+  color: var(--tint);
+}
+.ios-row--action[data-tone='destructive'] {
+  color: var(--destructive);
+}
+
+/* ToggleRow: the 31px switch overhangs the 22px line so the row stays 44 (kit .row-toggle). */
+.ios-row__toggle-label {
+  cursor: pointer;
+}
+.ios-row--toggle > .ios-toggle {
+  margin-block: -4.5px;
+}
+
+/* ExplainRow: ≥88px, three lines, no colour judgement. */
+.ios-row--explain {
+  min-block-size: 88px;
+  align-items: stretch;
+}
+.ios-explain {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ios-explain__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ios-explain__label-wrap {
+  display: block;
+  min-inline-size: 0;
+}
+.ios-explain__label {
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.ios-explain__value {
+  flex: none;
+  font-size: var(--t-headline);
+  line-height: 1.294;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ios-explain__sentence {
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  color: var(--label);
+}
+.ios-explain__average,
+.ios-explain__note {
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-3);
+}
+.ios-explain__note {
+  color: var(--label-2);
+}
+/* --label-3 is forbidden on --tint-soft (MOBILE §2.5): use --label-2 on a highlighted row. */
+.ios-row--highlighted .ios-explain__average {
+  color: var(--label-2);
+}
+
+/* A switch's description is read before deciding, so it wraps instead of truncating. */
+.ios-row--toggle .ios-row__subtitle {
+  white-space: normal;
+}
+
+/* Large text (root ≥23px) or forced: trailing values move under the title, left-aligned (MOBILE §5.5). */
+:is(html[data-large-text] .ios-row, .ios-row--stacked):not(.ios-row--explain, .ios-row--action, .ios-row--toggle) {
+  flex-wrap: wrap;
+}
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .ios-row__trailing {
+  /* The indent is part of the line, so basis + margin = 100%: a full-width basis plus the indent
+     pushed the values past the card edge, where overflow: clip cut them off. */
+  --row-trailing-indent: calc(var(--row-leading-width, -12px) + 12px);
+  flex-basis: calc(100% - var(--row-trailing-indent));
+  align-items: flex-start;
+  min-inline-size: 0;
+  max-inline-size: none;
+  margin-inline-start: var(--row-trailing-indent);
+  text-align: start;
+}
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .ios-row__spark {
+  display: none;
+}
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .ios-row__chevron {
+  order: 2;
+}
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .ios-row__subtitle {
+  white-space: normal;
+}
+:is(html[data-large-text] .ios-row--explain, .ios-row--explain.ios-row--stacked) .ios-explain__head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-row {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-row--highlighted {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

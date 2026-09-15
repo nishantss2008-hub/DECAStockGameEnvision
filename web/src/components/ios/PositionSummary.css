@@ -1,0 +1,127 @@
+/* PositionSummary (MOBILE §5.15). Ledger layer: opaque card, system type, no ornaments. */
+.position-summary {
+  min-inline-size: 0;
+  color: var(--label);
+}
+
+/* Prominent section header: Headline 17/22 --label, 8px above the card. */
+.position-summary__title {
+  margin: 0 0 8px;
+  font-size: var(--t-headline);
+  line-height: calc(22 / 17);
+  font-weight: 600;
+  color: var(--label);
+}
+
+.position-summary__card {
+  border-radius: 24px;
+  background: var(--cell);
+  overflow: clip;
+}
+@supports not (overflow: clip) {
+  .position-summary__card {
+    overflow: hidden;
+  }
+}
+
+/* 2 columns × 3 rows of min 64px cells, hairlines between rows and between columns. */
+.position-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+.position-summary__cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-block-size: 64px;
+  min-inline-size: 0;
+  padding: 10px 16px;
+}
+.position-summary__cell:nth-child(n + 3) {
+  border-block-start: 0.5px solid var(--separator);
+}
+.position-summary__cell:nth-child(odd) {
+  border-inline-end: 0.5px solid var(--separator);
+}
+
+/* Label: Footnote --label-2, "?" right after it (the button brings its own 44px target). */
+.position-summary__label {
+  display: flex;
+  align-items: center;
+  column-gap: 2px;
+  min-block-size: 18px; /* the "?" has a 0-tall margin box, so the Footnote line stays 18 and the cell 64 */
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+/* Value: Headline tabular. Numbers never truncate (MOBILE §3.4). */
+.position-summary__value {
+  margin: 0;
+  font-size: var(--t-headline);
+  line-height: calc(22 / 17);
+  font-weight: 600;
+  color: var(--label);
+  overflow-wrap: normal;
+}
+
+.position-summary__none {
+  margin: 0;
+  padding: 16px;
+  min-block-size: 64px;
+  display: flex;
+  align-items: center;
+  font-size: var(--t-body);
+  line-height: calc(22 / 17);
+  color: var(--label);
+}
+
+/* Footer inside the card: Footnote --label-2 + "?". */
+.position-summary__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 2px;
+  margin: 0;
+  padding: 8px 16px;
+  min-block-size: 44px;
+  border-block-start: 0.5px solid var(--separator);
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+.position-summary__glue {
+  white-space: nowrap;
+}
+
+/* Large text (root ≥ 23px): one column, hairline between every cell. */
+html[data-large-text] .position-summary__grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+html[data-large-text] .position-summary__cell {
+  border-inline-end: 0;
+}
+html[data-large-text] .position-summary__cell:nth-child(n + 2) {
+  border-block-start: 0.5px solid var(--separator);
+}
+
+@media (prefers-contrast: more) {
+  .position-summary__cell:nth-child(n + 3),
+  .position-summary__footer,
+  html[data-large-text] .position-summary__cell:nth-child(n + 2) {
+    border-block-start-width: 1px;
+  }
+  .position-summary__cell:nth-child(odd) {
+    border-inline-end-width: 1px;
+  }
+}
+
+@media (forced-colors: active) {
+  .position-summary__card {
+    border: 1px solid CanvasText;
+  }
+}

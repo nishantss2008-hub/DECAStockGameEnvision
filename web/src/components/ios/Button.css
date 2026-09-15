@@ -1,0 +1,182 @@
+/* Buttons (MOBILE §5.7). All capsules; heights are min-heights so labels can grow with Dynamic Type. */
+.ios-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    transform 250ms var(--ease-fallback, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    filter 250ms var(--ease-fallback, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    opacity 250ms var(--ease-fallback, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+
+/* Hit area ≥44px (MOBILE §4.4) in both directions; narrow buttons grow sideways too. */
+.ios-button::before {
+  content: '';
+  position: absolute;
+  inset-block: calc(-1 * var(--hit-y, 0px));
+  inset-inline: min(0px, calc((100% - 44px) / 2));
+}
+
+.ios-button[data-size='large'] {
+  min-block-size: 50px;
+  padding: 0 20px;
+  font-size: var(--t-body);
+  line-height: 1.294;
+}
+.ios-button[data-size='medium'] {
+  --hit-y: 5px;
+  min-block-size: 34px;
+  padding: 0 14px;
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+}
+.ios-button[data-size='small'] {
+  --hit-y: 8px;
+  min-block-size: 28px;
+  padding: 0 10px;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+}
+.ios-button--full {
+  display: flex;
+  inline-size: 100%;
+}
+
+.ios-button__label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ios-button__icon {
+  flex: none;
+}
+
+/* Styles */
+.ios-button[data-style='prominent'] {
+  background: var(--prominent);
+  color: var(--on-prominent);
+}
+.ios-button[data-style='buy'] {
+  background: var(--gain);
+  color: var(--on-side);
+}
+.ios-button[data-style='sell'] {
+  background: var(--loss);
+  color: var(--on-side);
+}
+.ios-button[data-style='tinted'] {
+  background: var(--tint-soft);
+  color: var(--tint-strong);
+}
+.ios-button[data-style='tinted-sell'],
+.ios-button[data-style='destructive-tinted'] {
+  background: var(--loss-fill);
+  color: var(--loss);
+}
+.ios-button[data-style='gray'] {
+  background: var(--fill);
+  color: var(--label);
+}
+.ios-button[data-style='plain'] {
+  background: transparent;
+  color: var(--tint);
+}
+.ios-button[data-style='destructive-plain'] {
+  background: transparent;
+  color: var(--destructive);
+}
+.ios-button[data-style='glass'] {
+  color: var(--label);
+}
+
+/* Pressed: scale .97 + brightness, 100ms in / 250ms out. */
+.ios-button:active:not([aria-disabled='true']) {
+  transform: scale(0.97);
+  filter: brightness(0.92);
+  transition-duration: var(--dur-press, 100ms);
+}
+.ios-button[data-style='plain']:active:not([aria-disabled='true']),
+.ios-button[data-style='destructive-plain']:active:not([aria-disabled='true']) {
+  filter: none;
+  opacity: 0.6;
+}
+@media (prefers-color-scheme: dark) {
+  .ios-button:active:not([aria-disabled='true']) {
+    filter: brightness(1.12);
+  }
+}
+.dark .ios-button:active:not([aria-disabled='true']),
+.hull .ios-button:active:not([aria-disabled='true']) {
+  filter: brightness(1.12);
+}
+
+/* Disabled (focusable): fill + label-3; inactive controls are exempt from contrast minimums. */
+.ios-button[aria-disabled='true'] {
+  cursor: default;
+}
+.ios-button[aria-disabled='true']:not([aria-busy='true']) {
+  background: var(--fill);
+  color: var(--label-3);
+}
+.ios-button[aria-disabled='true']:not([aria-busy='true'])[data-style='plain'],
+.ios-button[aria-disabled='true']:not([aria-busy='true'])[data-style='destructive-plain'] {
+  background: transparent;
+}
+
+.ios-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Loading spinner, 17px. */
+.ios-button__spinner {
+  flex: none;
+  inline-size: 17px;
+  block-size: 17px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  animation: ios-button-spin 800ms linear infinite;
+}
+@keyframes ios-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-button,
+  .ios-button:active:not([aria-disabled='true']) {
+    transform: none;
+    transition-property: filter, opacity;
+  }
+  /* Label already says what is happening; keep the ring still. */
+  .ios-button__spinner {
+    animation: none;
+    border-inline-end-color: currentColor;
+    opacity: 0.6;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-button {
+    border: 1px solid ButtonText;
+  }
+  .ios-button[aria-disabled='true'] {
+    color: GrayText;
+    border-color: GrayText;
+  }
+}

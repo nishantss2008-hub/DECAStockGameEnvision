@@ -1,0 +1,105 @@
+/* Menu (MOBILE §5.10). The `.glass` material, its solid fallbacks (Solid bars, increased contrast,
+   reduced transparency, no backdrop-filter) come from theme/tokens.css (§2.4, §2.6). z 80 (§4.6). */
+.ios-menu-positioner {
+  z-index: 80;
+  outline: none;
+}
+
+.ios-menu {
+  box-sizing: border-box;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 32px));
+  max-height: var(--available-height, 70vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px 0;
+  border-radius: var(--r-alert, 28px);
+  color: var(--label);
+  outline: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-menu[data-starting-style],
+.ios-menu[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.9);
+}
+.ios-menu[data-instant] {
+  transition: none;
+}
+
+.ios-menu__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.ios-menu__group-label {
+  padding: 6px 16px 2px;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+/* Group separator: an 8px --fill-2 bar, no extra margin (MOBILE §5.10, kit .menu-sep). */
+.ios-menu__separator {
+  height: 8px;
+  margin: 0;
+  background: var(--fill-2);
+}
+
+.ios-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 11px 16px;
+  box-sizing: border-box;
+  font-size: var(--t-body);
+  line-height: calc(22 / 17);
+  color: var(--label);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.ios-menu__item[data-highlighted] {
+  background: var(--fill-2);
+}
+.ios-menu__item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+/* Text on glass may only use --label, --label-2, --tint-strong, --destructive-strong (§2.4). */
+.ios-menu__item[data-destructive] {
+  color: var(--destructive-strong);
+}
+.ios-menu__item[data-disabled] {
+  color: var(--label-4);
+}
+
+.ios-menu__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ios-menu__icon {
+  flex: none;
+}
+.ios-menu__check {
+  display: inline-flex;
+  flex: none;
+  width: 17px;
+  margin-inline-start: -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-menu {
+    transition: opacity var(--dur-fade, 150ms) linear;
+  }
+  .ios-menu[data-starting-style],
+  .ios-menu[data-ending-style] {
+    transform: none;
+  }
+}

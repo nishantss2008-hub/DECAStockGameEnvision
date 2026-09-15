@@ -1,10 +1,10 @@
 /**
  * Client for the authority (write) service.
  *
- * All mutations go through these helpers, which attach a fresh Firebase ID
- * token as a Bearer credential. Reads come from Firestore directly elsewhere.
- * Non-2xx responses are thrown as `ApiRequestError` carrying the parsed
- * `{ error, message }` envelope when available.
+ * All mutations go through these helpers, which attach a fresh Firebase ID token as a
+ * Bearer credential. Reads come from Firestore directly (see hooks/). Non-2xx responses
+ * throw `ApiRequestError` carrying the `{ error, message }` envelope; a request that never
+ * reaches the server throws code `network` (COPY §9 ticket-errors.network).
  */
 
 import type { ApiError } from '@deca/shared';
@@ -12,10 +12,11 @@ import { auth } from '../firebase';
 
 const API_BASE: string = import.meta.env.VITE_API_BASE ?? '';
 
-/** Error thrown for any non-2xx response from the authority service. */
+/** Error thrown for any failed call to the authority service. */
 export class ApiRequestError extends Error {
+  /** HTTP status; 0 when the request never got a response. */
   readonly status: number;
-  /** Machine-readable error code from the service, when present. */
+  /** Machine-readable error code from the service ('insufficient_funds', 'bad_login', …). */
   readonly code: string;
 
   constructor(status: number, body: Partial<ApiError> | null, fallback: string) {
@@ -26,25 +27,43 @@ export class ApiRequestError extends Error {
   }
 }
 
-/** Build the Authorization header from the current user's ID token. */
+/** Joins the configured base URL with a path, tolerating leading/trailing slashes. */
+export function apiUrl(path: string): string {
+  const base = API_BASE.replace(/\/+$/, '');
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const current = auth.currentUser;
   if (!current) {
     throw new ApiRequestError(401, { error: 'unauthenticated', message: 'Not signed in.' }, 'Not signed in.');
   }
-  const token = await current.getIdToken();
+  let token: string;
+  try {
+    token = await current.getIdToken();
+  } catch (err) {
+    // An expired token refreshes over the network, so an offline phone fails here, before fetch.
+    const code = (err as { code?: unknown } | null)?.code;
+    if (code === 'auth/network-request-failed') {
+      throw new ApiRequestError(0, { error: 'network', message: 'Network request failed' }, 'Network request failed');
+    }
+    throw new ApiRequestError(401, { error: 'unauthenticated', message: 'Not signed in.' }, 'Not signed in.');
+  }
   return { Authorization: `Bearer ${token}` };
 }
 
-/** Join the configured base URL with a path, tolerating leading/trailing slashes. */
-function url(path: string): string {
-  const base = API_BASE.replace(/\/+$/, '');
-  const suffix = path.startsWith('/') ? path : `/${path}`;
-  return `${base}${suffix}`;
+/** fetch() that turns a transport failure into ApiRequestError(0, 'network'). */
+export async function fetchOrNetworkError(input: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new ApiRequestError(0, { error: 'network', message: detail || 'Network request failed' }, 'Network request failed');
+  }
 }
 
-/** Parse a response, throwing ApiRequestError on non-2xx. */
-async function handle<T>(res: Response): Promise<T> {
+/** Parses a response, throwing ApiRequestError on non-2xx. */
+export async function parseApiResponse<T>(res: Response): Promise<T> {
   let body: unknown = null;
   const text = await res.text();
   if (text) {
@@ -54,34 +73,36 @@ async function handle<T>(res: Response): Promise<T> {
       body = null;
     }
   }
-
   if (!res.ok) {
-    throw new ApiRequestError(
-      res.status,
-      (body as Partial<ApiError> | null) ?? null,
-      `Request failed (${res.status})`,
-    );
+    const envelope = body && typeof body === 'object' ? (body as Partial<ApiError>) : null;
+    throw new ApiRequestError(res.status, envelope, `Request failed (${res.status})`);
   }
   return body as T;
 }
 
-/** POST `body` as JSON to `path` and return the parsed JSON response. */
-export async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
+async function send<T>(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { ...(await authHeaders()) };
-  // Only declare a JSON content-type when we actually send a body — otherwise the
-  // server's JSON parser rejects the empty body (e.g. game start/pause/resume/end).
+  // Only declare JSON when a body is sent: the server's JSON parser rejects an empty body.
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(url(path), {
-    method: 'POST',
+  const res = await fetchOrNetworkError(apiUrl(path), {
+    method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return handle<T>(res);
+  return parseApiResponse<T>(res);
+}
+
+/** POST `body` as JSON to `path` and return the parsed JSON response. */
+export function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
+  return send<T>('POST', path, body);
 }
 
 /** GET `path` and return the parsed JSON response. */
-export async function apiGet<T = unknown>(path: string): Promise<T> {
-  const headers = await authHeaders();
-  const res = await fetch(url(path), { method: 'GET', headers });
-  return handle<T>(res);
+export function apiGet<T = unknown>(path: string): Promise<T> {
+  return send<T>('GET', path);
+}
+
+/** DELETE `path` and return the parsed JSON response. */
+export function apiDelete<T = unknown>(path: string): Promise<T> {
+  return send<T>('DELETE', path);
 }

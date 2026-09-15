@@ -1,0 +1,232 @@
+/* LargeTitleNavBar (MOBILE §5.2, §4.3). */
+.ios-navbar {
+  --navbar-row: 44px;
+  --navbar-gutter: max(var(--margin, 16px), env(safe-area-inset-left));
+  --navbar-gutter-end: max(var(--margin, 16px), env(safe-area-inset-right));
+}
+
+/* Fixed bar: safe area + 44px row. Expanded = no background. */
+.ios-navbar__bar {
+  position: fixed;
+  z-index: 20;
+  inset-block-start: 0;
+  inset-inline: 0;
+  padding-block-start: env(safe-area-inset-top);
+  /* Keeps the bar visible while the iOS keyboard shifts the visual viewport (shell sets --vv-top, §9.4). */
+  transform: translateY(var(--vv-top, 0px));
+  view-transition-name: topbar;
+}
+/* Collapsed: glass (switches on instantly; blur is never animated) with a 0.5px hard bottom edge. */
+.ios-navbar[data-collapsed] .ios-navbar__bar {
+  box-shadow: inset 0 -0.5px 0 var(--separator);
+}
+@media (prefers-contrast: more) {
+  .ios-navbar[data-collapsed] .ios-navbar__bar {
+    box-shadow: inset 0 -1px 0 var(--control-off);
+  }
+}
+
+.ios-navbar__row {
+  display: grid;
+  grid-template-columns: minmax(44px, 1fr) minmax(0, auto) minmax(44px, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-block-size: var(--navbar-row);
+  padding-inline: var(--navbar-gutter) var(--navbar-gutter-end);
+}
+.ios-navbar__leading,
+.ios-navbar__trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.ios-navbar__trailing {
+  justify-content: flex-end;
+}
+.ios-navbar__center {
+  min-inline-size: 0;
+  text-align: center;
+}
+
+/* Inline title: Headline + Caption 1 subtitle, fades in over 150ms when collapsed. */
+.ios-navbar__inline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  opacity: 0;
+  transition: opacity var(--dur-fade, 150ms) linear;
+}
+.ios-navbar[data-collapsed] .ios-navbar__inline {
+  opacity: 1;
+}
+.ios-navbar__inline-title,
+.ios-navbar__subtitle {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ios-navbar__inline-title {
+  font-size: var(--t-headline);
+  line-height: 1.294;
+  font-weight: 600;
+  color: var(--label);
+}
+.ios-navbar__subtitle {
+  font-size: var(--t-caption-1);
+  line-height: 1.333;
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.ios-navbar__search {
+  min-inline-size: min(60vw, 280px);
+}
+
+/* Bar buttons: 44×44 circles, 20px icon. */
+.ios-navbar-button {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--label);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Expanded: the global .glass rule (tokens.css) supplies material and its Solid bars / contrast /
+   reduced-transparency fallbacks. Collapsed: plain fill circle, because glass never sits on glass. */
+.ios-navbar-button--circle:not(.glass) {
+  background: var(--fill-on-glass);
+}
+.ios-navbar-button--avatar {
+  background: transparent;
+}
+/* Shared trailing capsule (kit .bar-capsule): one glass shape, buttons touching, while expanded;
+   separate fill circles 8px apart once the bar itself is glass. */
+.ios-navbar-capsule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 22px;
+}
+.ios-navbar-capsule.glass {
+  gap: 0;
+}
+.ios-navbar-capsule.glass > .ios-navbar-button--circle {
+  background: transparent;
+}
+.ios-navbar-button:active {
+  transform: scale(0.96);
+}
+.ios-navbar-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Large title block: starts below the fixed bar (107px on a 59px safe area). */
+.ios-navbar__large {
+  padding-block-start: calc(env(safe-area-inset-top) + var(--navbar-row) + 4px);
+  padding-inline: var(--navbar-gutter) var(--navbar-gutter-end);
+}
+.ios-navbar__title {
+  margin: 0;
+  font-size: var(--t-large-title);
+  line-height: 1.206;
+  font-weight: 700;
+  color: var(--label);
+  overflow-wrap: anywhere;
+}
+.ios-navbar__title:focus {
+  outline: none;
+}
+.ios-navbar__title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ios-navbar__sentinel {
+  block-size: 1px;
+  margin-block-start: -1px;
+  pointer-events: none;
+}
+.ios-navbar__status {
+  margin-block-start: 2px;
+  min-inline-size: 0;
+}
+.ios-navbar__banner {
+  margin-block-start: 12px;
+}
+
+/* Status line: Subhead label-2, 8px dot, one line truncating at the end. */
+.ios-statusline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font: inherit;
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  text-align: start;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.ios-statusline__text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Large text: wrap instead of truncating, so the countdown is never cut off (MOBILE §10). */
+html[data-large-text] .ios-statusline__text {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ios-statusline--button {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 44px tall hit area on the 20px line. */
+.ios-statusline--button::before {
+  content: '';
+  position: absolute;
+  inset: -12px 0;
+}
+.ios-statusline--button:active {
+  opacity: 0.6;
+}
+.ios-statusline--button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-navbar-button:active {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ios-navbar[data-collapsed] .ios-navbar__bar {
+    border-block-end: 1px solid CanvasText;
+    background: Canvas;
+  }
+  .ios-navbar-button {
+    border: 1px solid ButtonText;
+  }
+}

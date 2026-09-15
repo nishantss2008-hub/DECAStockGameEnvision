@@ -1,0 +1,55 @@
+/* EmptyState (MOBILE §5.18). */
+.ios-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--label);
+}
+.ios-empty[data-variant='hull'] {
+  border-radius: var(--r-card, 24px);
+  background: #111412;
+}
+
+.ios-empty__icon,
+.ios-empty__art {
+  flex: none;
+  margin-bottom: 4px;
+  color: var(--label-3);
+}
+.ios-empty[data-variant='hull'] .ios-empty__icon,
+.ios-empty[data-variant='hull'] .ios-empty__art {
+  color: var(--seal-brass);
+}
+
+.ios-empty__title {
+  margin: 0;
+  font-size: var(--t-title-3);
+  line-height: calc(25 / 20);
+  font-weight: 600;
+  color: var(--label);
+}
+.ios-empty[data-variant='hull'] .ios-empty__title {
+  color: var(--tint);
+}
+
+.ios-empty__body {
+  max-width: 280px;
+  margin: 0;
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  color: var(--label-2);
+}
+
+.ios-empty__action {
+  margin-top: 8px;
+}
+
+.ios-empty__flavor {
+  margin: 4px 0 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-3);
+}

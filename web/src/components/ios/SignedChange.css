@@ -1,0 +1,71 @@
+/* SignedChange (BRIEF §4, MOBILE §3.4). Colour is never the only signal: sign + triangle + words. */
+.signed-change {
+  display: inline;
+  white-space: nowrap;
+  color: var(--label-2);
+}
+.signed-change[data-direction='up'] {
+  color: var(--gain);
+}
+.signed-change[data-direction='down'] {
+  color: var(--loss);
+}
+/* Glass bars: inherit the bar's text colour; sign + triangle still carry the direction. */
+.signed-change[data-tone='plain'] {
+  color: inherit;
+}
+
+.signed-change__visual {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+}
+/* Caret + main value: one unbreakable unit, caret centred on the text. */
+.signed-change__main {
+  white-space: nowrap;
+}
+.signed-change__main .ios-triangle {
+  vertical-align: middle;
+  margin-inline-end: 0.25em;
+}
+
+.signed-change--strong .signed-change__value {
+  font-weight: 600;
+}
+
+.signed-change__companion {
+  white-space: nowrap;
+}
+/* Narrow cells: the value stays whole, the companion percent may drop to the next line. */
+.signed-change--wrap {
+  white-space: normal;
+}
+.signed-change--wrap .signed-change__visual {
+  flex-wrap: wrap;
+}
+.signed-change--wrap .signed-change__value {
+  white-space: normal;
+}
+/* Large text (root ≥23px, MOBILE §3.5): the companion percent and the suffix wrap too, so a long
+   change line never runs past the screen edge; the caret + main value stay one unit. */
+html[data-large-text] .signed-change {
+  white-space: normal;
+}
+html[data-large-text] .signed-change__visual {
+  flex-wrap: wrap;
+}
+html[data-large-text] .signed-change__value {
+  white-space: normal;
+}
+
+/* "this session": plain secondary words after the coloured value (MOBILE §5.14). */
+.signed-change__suffix {
+  color: var(--label-2);
+  font-weight: 400;
+}
+
+@media (forced-colors: active) {
+  .signed-change {
+    color: CanvasText;
+  }
+}

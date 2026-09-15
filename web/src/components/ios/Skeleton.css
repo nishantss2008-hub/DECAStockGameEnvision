@@ -1,0 +1,78 @@
+/* Skeleton loading (MOBILE §5.19). */
+.ios-skeleton {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  background-color: var(--fill-2);
+  background-image: linear-gradient(90deg, transparent 0%, var(--fill-2) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ios-skeleton-shimmer 1.2s linear infinite;
+}
+
+@keyframes ios-skeleton-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Reduced motion: static at 60% opacity. */
+@media (prefers-reduced-motion: reduce) {
+  .ios-skeleton {
+    animation: none;
+    background-image: none;
+    opacity: 0.6;
+  }
+}
+
+.ios-skeleton-group {
+  position: relative;
+}
+
+.ios-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  box-sizing: border-box;
+}
+.ios-skeleton-row + .ios-skeleton-row {
+  box-shadow: inset 0 0.5px var(--separator);
+}
+.ios-skeleton-row__lines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.ios-skeleton-row__trail {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.ios-skeleton-list {
+  overflow: clip;
+  border-radius: var(--r-card, 24px);
+  background: var(--cell);
+}
+
+.ios-skeleton-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--r-card, 24px);
+  background: var(--cell);
+}
+
+.ios-skeleton-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

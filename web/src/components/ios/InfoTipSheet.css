@@ -1,0 +1,43 @@
+/* InfoTip explanation (MOBILE §5.9, §7.14). Opaque sheet; all three blocks visible without dragging. */
+.ios-infotip-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 8px;
+}
+.ios-infotip-lines__block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ios-infotip-lines__heading {
+  margin: 0;
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+  font-weight: 600;
+  color: var(--label); /* kit .infotip-h */
+}
+.ios-infotip-lines__body {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: calc(22 / 17);
+  color: var(--label);
+}
+
+/* Inline expansion inside a sheet row: three Subhead lines. */
+.ios-infotip-lines[data-density='inline'] {
+  gap: 8px;
+  padding-top: 4px;
+}
+.ios-infotip-lines[data-density='inline'] .ios-infotip-lines__body {
+  font-size: var(--t-subhead);
+  line-height: calc(20 / 15);
+}
+
+.ios-infotip-sheet__actions {
+  display: flex;
+  padding-top: 24px;
+}
+.ios-infotip-sheet__actions .ios-button {
+  text-decoration: none;
+}

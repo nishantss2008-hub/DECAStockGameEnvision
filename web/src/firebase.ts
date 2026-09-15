@@ -11,6 +11,12 @@
  * placeholder apiKey, and it never passes the real project's apiKey, storage,
  * messaging or analytics ids (web/.env may hold them), so nothing can reach a
  * real project.
+ *
+ * Emulator address (set by scripts/dev-local.sh):
+ *   VITE_EMULATOR_HOST             default 127.0.0.1; the computer's LAN IP with LAN=1, so phones on
+ *                                  the same Wi-Fi reach the emulators
+ *   VITE_FIRESTORE_EMULATOR_PORT   default 8080 (8080 + PORT_OFFSET for a parallel stack)
+ *   VITE_AUTH_EMULATOR_PORT        default 9099 (9099 + PORT_OFFSET)
  */
 
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
@@ -24,6 +30,28 @@ export const useEmulators = Boolean(env.DEV) && env.VITE_USE_EMULATORS === '1';
 
 export const EMULATOR_PROJECT_ID = 'demo-deca';
 const EMULATOR_API_KEY = 'demo-api-key';
+
+export interface EmulatorEndpoints {
+  host: string;
+  firestorePort: number;
+  authPort: number;
+}
+
+function portOr(value: unknown, fallback: number): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  return Number.isInteger(n) && n > 0 && n < 65_536 ? n : fallback;
+}
+
+/** Where the Auth and Firestore emulators listen. Missing or invalid values fall back to 127.0.0.1:8080 / :9099. */
+export function emulatorEndpoints(vars: Record<string, unknown> = env): EmulatorEndpoints {
+  const rawHost = vars.VITE_EMULATOR_HOST;
+  const host = typeof rawHost === 'string' && /^[A-Za-z0-9.-]+$/.test(rawHost.trim()) ? rawHost.trim() : '127.0.0.1';
+  return {
+    host,
+    firestorePort: portOr(vars.VITE_FIRESTORE_EMULATOR_PORT, 8080),
+    authPort: portOr(vars.VITE_AUTH_EMULATOR_PORT, 9099),
+  };
+}
 
 function emulatorConfig(): FirebaseOptions {
   const requested = env.VITE_FIREBASE_PROJECT_ID;
@@ -58,10 +86,13 @@ export const db = getFirestore(app);
 
 if (useEmulators) {
   try {
-    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    const { host, firestorePort, authPort } = emulatorEndpoints();
+    connectAuthEmulator(auth, `http://${host}:${authPort}`, { disableWarnings: true });
+    connectFirestoreEmulator(db, host, firestorePort);
     // eslint-disable-next-line no-console
-    console.info(`[firebase] Connected to local Auth + Firestore emulators (project ${firebaseConfig.projectId}).`);
+    console.info(
+      `[firebase] Connected to local Auth (${host}:${authPort}) + Firestore (${host}:${firestorePort}) emulators (project ${firebaseConfig.projectId}).`,
+    );
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[firebase] Failed to connect to emulators:', err);

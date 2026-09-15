@@ -1,39 +1,33 @@
 /**
- * Realtime subscription to the public game state document (`game/state`).
+ * The public game document `game/state`: phase, settings, tick cadence and the engine heartbeat.
  *
- * Returns the current GameState (or null while loading / if the doc is absent)
- * plus a loading flag that flips to false after the first snapshot resolves.
+ * Also returns the GameClock for the game and feeds live `serverTime` heartbeats into the
+ * app-wide clock-skew estimate (lib/gameTime), so countdowns stay right on devices whose clock
+ * is off. Metadata-only snapshots are delivered, so `fromCache` turns true as soon as the
+ * connection drops ("Reconnecting…", MOBILE §7.16) and false again when it returns.
  */
 
-import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import type { GameState } from '@deca/shared';
-import { db } from '../firebase';
+import { useCallback, useMemo } from 'react';
+import type { GameClock, GameState } from '@deca/shared';
+import { clockFromGame, serverClock } from '../lib/gameTime';
+import { useDocSnapshot, type SnapshotStatus } from './useSnapshot';
 
-export interface UseGameResult {
+export interface UseGameResult extends SnapshotStatus {
   game: GameState | null;
-  loading: boolean;
+  clock: GameClock | null;
 }
 
+export const GAME_STATE_PATH = 'game/state';
+
 export function useGame(): UseGameResult {
-  const [game, setGame] = useState<GameState | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const ref = doc(db, 'game', 'state');
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        setGame(snap.exists() ? (snap.data() as GameState) : null);
-        setLoading(false);
-      },
-      () => {
-        setGame(null);
-        setLoading(false);
-      },
-    );
-    return unsub;
+  const onSnapshotData = useCallback((game: GameState | null, fromCache: boolean) => {
+    // A cached heartbeat is old news: it would make the server look behind the device.
+    if (!fromCache && game && typeof game.serverTime === 'number') serverClock.observe(game.serverTime, Date.now());
   }, []);
-
-  return { game, loading };
+  const { data: game, loading, fromCache, error } = useDocSnapshot<GameState>(GAME_STATE_PATH, {
+    includeMetadataChanges: true,
+    onSnapshotData,
+  });
+  const clock = useMemo(() => clockFromGame(game), [game]);
+  return { game, clock, loading, fromCache, error };
 }

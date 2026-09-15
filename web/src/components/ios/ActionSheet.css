@@ -1,0 +1,147 @@
+/* ActionSheet (MOBILE §5.11). Opaque, not glass (§2.4). Second scrim 75, panel 80 (§4.6). */
+.ios-action-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  background: var(--scrim);
+  transition: opacity 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-action-sheet-scrim[data-starting-style],
+.ios-action-sheet-scrim[data-ending-style] {
+  opacity: 0;
+}
+
+.ios-action-sheet-viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 8px max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+.ios-action-sheet {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(100%, 540px);
+  outline: none;
+  transform-origin: bottom center;
+  transition:
+    opacity 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1)),
+    transform 400ms var(--ease-snappy, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.ios-action-sheet[data-starting-style],
+.ios-action-sheet[data-ending-style] {
+  opacity: 0;
+  transform: translateY(24px) scale(0.9);
+}
+
+.ios-action-sheet__group {
+  display: flex;
+  flex-direction: column;
+  overflow: clip;
+  border-radius: var(--r-alert, 28px);
+  background: var(--elevated);
+  box-shadow: var(--float-shadow);
+}
+
+.ios-action-sheet__header {
+  padding: 14px 20px 12px;
+  text-align: center;
+  box-shadow: inset 0 -0.5px var(--separator);
+}
+.ios-action-sheet__title {
+  margin: 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  font-weight: 600;
+  color: var(--label-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Large text: the question wraps instead of truncating (it is what the student is deciding). */
+html[data-large-text] .ios-action-sheet__title {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ios-action-sheet__message {
+  margin: 2px 0 0;
+  font-size: var(--t-footnote);
+  line-height: calc(18 / 13);
+  color: var(--label-2);
+}
+
+.ios-action-sheet__action,
+.ios-action-sheet__cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  margin: 0;
+  padding: 8px 20px;
+  border: 0;
+  font: inherit;
+  font-size: var(--t-body);
+  line-height: calc(22 / 17);
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ios-action-sheet__action {
+  background: transparent;
+  color: var(--tint);
+}
+.ios-action-sheet__action + .ios-action-sheet__action {
+  box-shadow: inset 0 0.5px var(--separator);
+}
+.ios-action-sheet__action[data-destructive] {
+  color: var(--destructive);
+}
+.ios-action-sheet__action:active {
+  background: var(--fill-2);
+}
+.ios-action-sheet__action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+  border-radius: 20px;
+}
+
+.ios-action-sheet__cancel {
+  border-radius: 999px;
+  background: var(--elevated);
+  color: var(--label);
+  font-weight: 600;
+  box-shadow: var(--float-shadow);
+}
+.ios-action-sheet__cancel:active {
+  filter: brightness(0.92);
+}
+.ios-action-sheet__cancel:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-action-sheet,
+  .ios-action-sheet-scrim {
+    transition: opacity var(--dur-fade, 150ms) linear;
+  }
+  .ios-action-sheet[data-starting-style],
+  .ios-action-sheet[data-ending-style] {
+    transform: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .ios-action-sheet__group,
+  .ios-action-sheet__cancel {
+    box-shadow: var(--float-shadow), inset 0 0 0 1px var(--control-off);
+  }
+}
