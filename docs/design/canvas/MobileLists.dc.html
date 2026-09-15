@@ -1,0 +1,1019 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&amp;display=swap">
+  <style>
+/* ==========================================================================
+   Buccaneer Exchange · mobile kit for canvas artboards (.dc.html)
+   Source of truth: docs/design/MOBILE.md §2.6 tokens, §3 type, §4 layout, §5 components.
+   Canonical markup for every class: docs/design/canvas/_kit/KIT.md.
+   Paste this whole file into the artboard <helmet><style>. Static artboards only:
+   light tokens live on :root (and .light), dark tokens on .dark / .hull. There is no
+   prefers-color-scheme query here, so a light artboard never flips in a dark viewer.
+   All sizes are px at the default "Large" Dynamic Type size on the 393x852 frame.
+   ========================================================================== */
+
+/* ---------- 1. Tokens (MOBILE §2.6) ---------- */
+:root, .light {
+  color-scheme: light;
+  --bg-grouped:#E6E3D9; --bg:#F8F6F0; --bg-2:#EFECE3; --cell:#F8F6F0; --elevated:#EFECE3; --elevated-cell:#F8F6F0;
+  --label:#161816; --label-2:#454A45; --label-3:#5F645C; --label-4:rgba(22,24,22,.22);
+  --separator:#D9D4C6; --control-off:#857F70; --fill:rgba(69,64,48,.10); --fill-2:rgba(69,64,48,.06); --fill-on-glass:rgba(69,64,48,.10);
+  --tint:#735B2A; --tint-strong:#5A4720; --tint-soft:rgba(184,149,74,.18); --platter:rgba(184,149,74,.22);
+  --prominent:#1A1F1C; --on-prominent:#DDBE72; --accent:#2F6F68; --accent-dot:#5FA39A; --focus:#2F6F68;
+  --gain:#1B7150; --loss:#A63A2B; --gain-fill:#DFEEE6; --loss-fill:#F3E0DB; --on-side:#F8F6F0;
+  --destructive:#A63A2B; --destructive-strong:#862B1F;
+  --segment-thumb:#1A1F1C; --on-segment-thumb:#DDBE72; --chart-baseline:#80683A;
+  --seal-crimson:#8E1F1A; --seal-brass:#B8954A; --seal-highlight:#DDBE72;
+  --glass:rgba(248,246,240,.85); --glass-solid:#F8F6F0; --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.55),0 0 0 .5px rgba(22,24,22,.10);
+  --float-shadow:0 8px 24px rgba(22,24,22,.12); --scrim:rgba(0,0,0,.35); --scrim-info:rgba(0,0,0,.20);
+  --press-filter:brightness(.92);
+  color: var(--label);
+}
+/* DARK LIST — identical to MOBILE §2.6 (.dark, .hull) */
+.dark, .hull {
+  color-scheme: dark;
+  --bg-grouped:#0B0D0C; --bg:#0B0D0C; --bg-2:#1A1F1C; --cell:#1A1F1C; --elevated:#1A1F1C; --elevated-cell:#232A26;
+  --label:#E4E8E2; --label-2:#9FB0A8; --label-3:#8A9A93; --label-4:rgba(228,232,226,.20);
+  --separator:#34403A; --control-off:#6E7C75; --fill:rgba(159,176,168,.16); --fill-2:rgba(159,176,168,.10); --fill-on-glass:rgba(0,0,0,.25);
+  --tint:#DDBE72; --tint-strong:#DDBE72; --tint-soft:rgba(221,190,114,.16); --platter:rgba(221,190,114,.16);
+  --prominent:#DDBE72; --on-prominent:#111412; --accent:#5FA39A; --focus:#5FA39A;
+  --gain:#7FD3B0; --loss:#EE9A89; --gain-fill:#173B2D; --loss-fill:#43231E; --on-side:#0B0D0C;
+  --destructive:#EE9A89; --destructive-strong:#EE9A89;
+  --segment-thumb:#9FB0A8; --on-segment-thumb:#0B0D0C; --chart-baseline:#B8954A;
+  --glass:rgba(17,20,18,.85); --glass-solid:#111412; --glass-edge:inset 0 0 0 .5px rgba(228,232,226,.10),0 0 0 .5px rgba(0,0,0,.60);
+  --float-shadow:0 8px 24px rgba(0,0,0,.45); --scrim:rgba(0,0,0,.55); --scrim-info:rgba(0,0,0,.35);
+  --press-filter:brightness(1.12);
+  color: var(--label);
+}
+.hull { /* Sign in + ceremonies: dark tokens plus the hull glow */
+  background: radial-gradient(120% 60% at 85% 0%, rgba(95,163,154,.18), transparent 60%), #111412; }
+/* Increased contrast (MOBILE §2.3) as a static class: add .contrast-more next to .light / .dark */
+.contrast-more { --label-2:#33372F; --label-3:#454A45; --tint:#5A4720; --tint-strong:#5A4720; --accent:#1F5751; --focus:#1F5751;
+  --gain:#0F5A3E; --loss:#862B1F; --destructive:#862B1F; --separator:#BFB8A6; --control-off:#6B6558; }
+.dark.contrast-more, .hull.contrast-more { --label-2:#C4D0CA; --label-3:#A9B7B0; --tint:#EDD493; --tint-strong:#EDD493; --accent:#8CCBC1; --focus:#8CCBC1;
+  --gain:#A3E6C8; --loss:#F7B8AA; --destructive:#F7B8AA; --destructive-strong:#F7B8AA; --separator:#4A5A52; --control-off:#8A9A93; }
+
+/* Scale tokens (MOBILE §3.2, §4.2, §8.1) */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, "Roboto Mono", monospace;
+  --font-brand: "Cinzel Decorative", Georgia, "Times New Roman", serif;
+  --margin: 16px;
+  --r-card: 24px; --r-inner: 16px; --r-tile: 8px; --r-sheet-medium: 32px; --r-sheet-large: 24px; --r-alert: 28px;
+  --ease-spring: linear(0, 0.06, 0.186, 0.329, 0.466, 0.584, 0.682, 0.76, 0.821, 0.868, 0.903, 0.929, 0.949, 0.963, 0.973, 0.981, 1);
+  --ease-snappy: linear(0, 0.062, 0.198, 0.356, 0.509, 0.642, 0.75, 0.833, 0.895, 0.938, 0.967, 0.985, 0.996, 1.003, 1.005, 1.006, 1);
+  --ease-bouncy: linear(0, 0.059, 0.197, 0.366, 0.535, 0.685, 0.808, 0.902, 0.968, 1.01, 1.034, 1.044, 1.046, 1.041, 1.034, 1.027, 1.019, 1.012, 1.007, 1.003, 1);
+  --ease-fallback: cubic-bezier(.2, .8, .2, 1);
+  --dur-press: 100ms; --dur-fade: 150ms; --dur-flash: 300ms;
+  --sector-shipping:#2F6F68; --sector-banking:#6F5A2E; --sector-maps:#4C5B40; --sector-arms:#7A3328; --sector-relics:#3F3F52;
+  --sector-hospitality:#5B4A63; --sector-provisions:#7A5A2E; --sector-livestock:#4E6B3A; --sector-marque:#3E5566; --crew-hull:#232A26;
+}
+
+/* ---------- 2. Base and utilities ---------- */
+* { box-sizing: border-box; }
+body { margin: 0; background: #E6E3D9; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+a { color: var(--tint); text-decoration: none; }
+a:hover { color: var(--tint-strong); text-decoration: underline; }
+button { font-family: inherit; }
+.bx { font-family: var(--font-ui); font-size: 17px; line-height: 22px; letter-spacing: normal; color: var(--label);
+  font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-weight: 500; }
+.nowrap { white-space: nowrap; }
+.trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.brand { font-family: var(--font-brand); font-weight: 700; white-space: nowrap; letter-spacing: normal; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bg-grouped { background: var(--bg-grouped); } .bg-plain { background: var(--bg); } .bg-2 { background: var(--bg-2); }
+.bg-cell { background: var(--cell); } .bg-elevated { background: var(--elevated); } .bg-elevated-cell { background: var(--elevated-cell); }
+.hstack { display: flex; align-items: center; } .vstack { display: flex; flex-direction: column; }
+.spacer { flex: 1 1 auto; min-width: 0; } .w-full { width: 100%; }
+/* gap-* and mt-* live in section 32 at the end of this file, so they win over component margins (.btn, .card, …) */
+
+/* ---------- 3. Type (MOBILE §3.3, default Large size) ---------- */
+.t-large-title { font-size: 34px; line-height: 41px; font-weight: 400; }
+.t-title1      { font-size: 28px; line-height: 34px; font-weight: 400; }
+.t-title2      { font-size: 22px; line-height: 28px; font-weight: 400; }
+.t-title3      { font-size: 20px; line-height: 25px; font-weight: 400; }
+.t-headline    { font-size: 17px; line-height: 22px; font-weight: 600; }
+.t-body        { font-size: 17px; line-height: 22px; font-weight: 400; }
+.t-callout     { font-size: 16px; line-height: 21px; font-weight: 400; }
+.t-subhead     { font-size: 15px; line-height: 20px; font-weight: 400; }
+.t-footnote    { font-size: 13px; line-height: 18px; font-weight: 400; }
+.t-caption1    { font-size: 12px; line-height: 16px; font-weight: 400; }
+.t-caption2    { font-size: 11px; line-height: 13px; font-weight: 400; }
+.t-amount      { font-size: 48px; line-height: 56px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; }
+.t-large-title.t-em, .t-title1.t-em, .t-title2.t-em { font-weight: 700; }
+.t-title3.t-em, .t-body.t-em, .t-callout.t-em, .t-subhead.t-em, .t-footnote.t-em, .t-caption1.t-em, .t-caption2.t-em { font-weight: 600; }
+.t-medium { font-weight: 500; }
+/* xxxLarge text (root 23px): only for large-text specimens; rows add .is-stacked */
+.type-xxxl .t-headline, .type-xxxl .t-body, .type-xxxl .row-title, .type-xxxl .row-value, .type-xxxl .explain-value { font-size: 23px; line-height: 29px; }
+.type-xxxl .t-subhead, .type-xxxl .explain-label, .type-xxxl .explain-sentence { font-size: 21px; line-height: 27px; }
+.type-xxxl .t-footnote, .type-xxxl .row-sub, .type-xxxl .explain-avg, .type-xxxl .metrics-cells { font-size: 19px; line-height: 24px; }
+.type-xxxl .t-caption1 { font-size: 18px; line-height: 23px; }
+.type-xxxl .t-title2 { font-size: 28px; line-height: 34px; }
+.type-xxxl .pill-change { height: auto; min-height: 30px; font-size: 19px; line-height: 24px; border-radius: 15px; }
+
+/* Colour roles as text */
+.c-label { color: var(--label); } .c-label-2 { color: var(--label-2); } .c-label-3 { color: var(--label-3); }
+.c-tint { color: var(--tint); } .c-tint-strong { color: var(--tint-strong); } .c-accent { color: var(--accent); }
+.c-gain { color: var(--gain); } .c-loss { color: var(--loss); } .c-destructive { color: var(--destructive); }
+.c-destructive-strong { color: var(--destructive-strong); } .c-gold { color: #DDBE72; }
+
+/* ---------- 4. Icons, triangles, signed changes (MOBILE §3.4, §5 intro) ---------- */
+/* Inline SVG, lucide-shaped originals, 24 grid: <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">…</svg> */
+.ic { width: 24px; height: 24px; flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round; }
+.ic.s12 { width: 12px; height: 12px; } .ic.s14 { width: 14px; height: 14px; } .ic.s17 { width: 17px; height: 17px; }
+.ic.s18 { width: 18px; height: 18px; } .ic.s20 { width: 20px; height: 20px; } .ic.s22 { width: 22px; height: 22px; }
+.ic.s28 { width: 28px; height: 28px; } .ic.s36 { width: 36px; height: 36px; } .ic.s44 { width: 44px; height: 44px; }
+.ic.w2 { stroke-width: 2; } .ic.w225 { stroke-width: 2.25; } .ic.w25 { stroke-width: 2.5; }
+.ic-fill { fill: currentColor; stroke: none; }
+/* Triangle: 8px beside 11-15px text, 10px beside 17px+ (never announced) */
+.tri { width: 8px; height: 8px; flex: none; display: block; fill: currentColor; }
+.tri.s10 { width: 10px; height: 10px; }
+.chg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.chg.is-up { color: var(--gain); } .chg.is-down { color: var(--loss); } .chg.is-flat { color: var(--label-3); }
+.chg.is-neutral { color: var(--label-2); } /* rank moves and glass subtitles: never gain/loss colour */
+
+/* ---------- 5. Frame skeleton (MOBILE §4.3, §11.1; no drawn status bar or home indicator) ---------- */
+.phone { position: relative; width: 393px; overflow: hidden; background: var(--bg-grouped); color: var(--label);
+  font-family: var(--font-ui); font-size: 17px; line-height: 22px; font-variant-numeric: tabular-nums lining-nums; }
+.phone.is-plain { background: var(--bg); }
+.phone.hull { background: radial-gradient(120% 60% at 85% 0%, rgba(95,163,154,.18), transparent 60%), #111412; }
+.phone.is-se { width: 375px; }
+.safe-top { height: 59px; }                          /* 0-59: plain safe-area background */
+.screen { padding: 103px 16px 100px; }               /* content column: under the 44px bar row, 16px margins, clears the tab bar */
+.screen.has-float { padding-bottom: 166px; }         /* + floating Buy/Sell */
+.at-topbar { position: absolute; left: 0; right: 0; top: 59px; z-index: 20; }     /* bar row 59-103 */
+.at-bar-strip { position: absolute; left: 0; right: 0; top: 0; z-index: 20; }     /* collapsed glass strip 0-103 */
+.at-float { position: absolute; left: 16px; right: 16px; top: 698px; z-index: 30; } /* floating Buy/Sell 698-748 */
+.at-tabbar { position: absolute; left: 16px; top: 768px; z-index: 40; }            /* tab bar 768-830 */
+.at-toast { position: absolute; left: 16px; right: 16px; top: 111px; z-index: 50; } /* 59 + 44 + 8 */
+.edge-fade { position: absolute; left: 0; right: 0; top: 678px; height: 20px; z-index: 29;
+  background: linear-gradient(180deg, rgba(0,0,0,0), var(--bg-grouped)); }
+.fold { position: absolute; left: 0; right: 0; top: 852px; height: 0; border-top: 1px dashed #5FA39A; z-index: 90; }
+.fold-label { position: absolute; right: 8px; top: -11px; height: 20px; padding: 0 8px; border-radius: 10px; background: #111412;
+  color: #E4E8E2; font-size: 12px; line-height: 20px; white-space: nowrap; font-family: var(--font-ui); }
+/* iPhone SE 375×667 (MOBILE §4.1: safe area 20 / 0; tab bar bottom max(8, 0 − 12) = 8; §7.10 SE compression) */
+.is-se .safe-top { height: 20px; }
+.is-se .screen { padding: 64px 16px 86px; }            /* 20 + 44 · 62 + 8 + 16 */
+.is-se .screen.has-float { padding-bottom: 152px; }
+.is-se .at-topbar { top: 20px; }                       /* bar row 20-64 */
+.is-se .bar-strip { height: 64px; padding-top: 20px; } /* collapsed strip 0-64 */
+.is-se .at-toast { top: 72px; }                        /* 20 + 44 + 8 */
+.is-se .at-tabbar { top: 597px; }                      /* tab bar 597-659 */
+.is-se .tabbar:not(.is-rail) { width: 343px; }         /* 375 − 32; items 67 wide */
+.is-se .at-float { top: 527px; }                       /* floating Buy/Sell 527-577 */
+.is-se .edge-fade { top: 507px; }
+.is-se .fold { top: 667px; }
+.is-se .sheet.is-large { top: 30px; }                  /* 20 + 10 */
+.is-se .sheet.is-medium { height: 333px; }             /* 50% of 667 */
+.is-se .sheet-footer { padding-bottom: 12px; }         /* no home-indicator inset on SE */
+.is-se .key { height: 44px; }
+.is-se .ticket-quote { height: 36px; }
+
+/* ---------- 6. TabBar (MOBILE §5.1) ---------- */
+.tabbar { display: flex; width: 361px; height: 62px; padding: 4px; border-radius: 31px; }
+.tab { position: relative; flex: 1 1 0; min-width: 0; height: 54px; border-radius: 27px; display: flex; flex-direction: column;
+  align-items: center; padding-top: 8px; color: var(--label-2); text-decoration: none; }
+.tab .ic { width: 24px; height: 24px; }
+.tab-label { margin-top: 2px; max-width: 100%; font-size: 11px; line-height: 13px; font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.tab.is-selected { background: var(--platter); color: var(--tint-strong); }
+.tab.is-selected .ic { stroke-width: 2.25; }
+.tab.is-selected .tab-label { font-weight: 600; }
+.tab.is-pressed::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--platter); opacity: .5; }
+.tab.is-pressed { transform: scale(.96); }
+.tab.is-focus { box-shadow: inset 0 0 0 2px var(--focus); }
+.tab-badge { position: absolute; top: 4px; left: calc(50% + 4px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--prominent); color: var(--on-prominent); font-size: 11px; line-height: 18px; font-weight: 600; text-align: center;
+  box-shadow: 0 0 0 2px var(--glass-solid); font-variant-numeric: tabular-nums lining-nums; }
+/* Landscape rail (MOBILE §4.5): 72px vertical glass rail */
+.tabbar.is-rail { flex-direction: column; width: 72px; height: auto; border-radius: 36px; gap: 4px; }
+.tabbar.is-rail .tab { flex: none; width: 64px; height: 56px; border-radius: 28px; }
+
+/* ---------- 7. LargeTitleNavBar (MOBILE §5.2) ---------- */
+.topbar { position: relative; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.topbar-lead, .topbar-trail { display: flex; align-items: center; gap: 8px; min-width: 44px; height: 44px; }
+.topbar-trail { justify-content: flex-end; }
+.topbar-center { position: absolute; left: 50%; top: 0; height: 44px; max-width: 200px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.bar-title { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); white-space: nowrap; }
+.bar-subtitle { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: var(--label-2); white-space: nowrap; }
+.bar-btn { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: transparent;
+  display: flex; align-items: center; justify-content: center; color: var(--label); }
+.bar-btn .ic { width: 20px; height: 20px; stroke-width: 2; }
+.bar-btn.on-glass { background: var(--fill-on-glass); }
+.bar-capsule { display: flex; height: 44px; border-radius: 22px; }
+.bar-capsule .bar-btn { background: transparent; }
+.bar-avatar { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; background: none; display: flex; align-items: center; justify-content: center; }
+.bar-strip { height: 103px; padding-top: 59px; }
+.bar-strip.glass { box-shadow: inset 0 -.5px 0 var(--separator); }
+.large-title { margin: 4px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; color: var(--label); white-space: nowrap; }
+.status-line { position: relative; display: flex; align-items: center; gap: 8px; max-width: 100%; height: 20px; margin: 2px 0 0; padding: 0; border: 0; background: none;
+  font-size: 15px; line-height: 20px; color: var(--label-2); white-space: nowrap; text-align: left; }
+.status-line::before { content: ""; position: absolute; left: -8px; right: -8px; top: -12px; bottom: -12px; }   /* 44px hit, 138-182 */
+.status-line > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-dot { flex: none; width: 8px; height: 8px; border-radius: 4px; background: var(--accent-dot); }
+.status-dot.is-open { background: var(--accent-dot); } .status-dot.is-paused { background: var(--tint); } .status-dot.is-idle { background: var(--label-3); }
+.after-title { margin-top: 12px; }                  /* status line ends 170, first content 182 */
+
+/* ---------- 8. SearchField (MOBILE §5.3) ---------- */
+.search-row { display: flex; align-items: center; gap: 12px; }
+.search { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 0 0 12px;
+  border-radius: 20px; background: var(--fill); color: var(--label-2); font-size: 17px; line-height: 22px; }
+.search > .ic { width: 17px; height: 17px; stroke-width: 2; color: var(--label-2); }
+.search-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--label-2); display: flex; align-items: center; }
+.search-text.is-typed { color: var(--label); }
+.search-caret { flex: none; display: inline-block; width: 2px; height: 22px; margin-left: 1px; border-radius: 1px; background: var(--tint); }
+.search-clear { flex: none; width: 44px; height: 44px; margin: -2px 0; display: flex; align-items: center; justify-content: center; border: 0; padding: 0; background: none; }
+.search-clear span { width: 17px; height: 17px; border-radius: 50%; background: var(--label-3); display: flex; align-items: center; justify-content: center; color: var(--cell); }
+.search-clear .ic { width: 11px; height: 11px; stroke-width: 3; }
+.search-cancel { flex: none; height: 44px; border: 0; padding: 0; background: none; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.search.is-pinned { height: 36px; border-radius: 18px; background: var(--fill-on-glass); }
+.search.is-pinned + .search-cancel, .bar-strip .search-cancel { color: var(--tint-strong); }
+
+/* ---------- 9. InsetGroupedList (MOBILE §5.4) ---------- */
+.list-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; margin: 0 0 8px; }
+.list-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); white-space: nowrap; }
+.list-link { position: relative; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.list-link::before { content: ""; position: absolute; left: -8px; right: -8px; top: -11px; bottom: -11px; } /* 44px target */
+.list-header.is-plain { padding: 0 16px; min-height: 18px; }
+.list-header.is-plain .list-title { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--label-2); }
+.card { margin: 0; padding: 0; list-style: none; background: var(--cell); border-radius: 24px; overflow: clip; }
+.card.is-elevated { background: var(--elevated-cell); }
+.list-footer { margin: 0; padding: 8px 16px 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.list + .list { margin-top: 32px; }                 /* headed sections; use .mt-24 between headerless groups */
+
+/* ---------- 10. ListRow variants (MOBILE §5.5) ---------- */
+.row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label);
+  --sep: 16px; text-decoration: none; }
+.row::after { content: ""; position: absolute; left: var(--sep); right: 0; bottom: 0; height: 1px; background: var(--separator);
+  transform: scaleY(.5); transform-origin: 0 100%; }
+.row:last-child::after, .row.no-sep::after { display: none; }
+.row.is-pressed { background: var(--fill-2); }
+.row.is-highlighted { background: var(--tint-soft); }
+.row.is-focus { box-shadow: inset 0 0 0 2px var(--focus); }
+/* one-line Body rows: 11 + 22 + 11 = 44 (MOBILE §5.5 table heights; 12px padding would give 46) */
+.row-main > .hstack { min-width: 0; }
+.row-main > .hstack > .row-title { min-width: 0; }
+.sep-16 { --sep: 16px; } .sep-56 { --sep: 56px; } .sep-57 { --sep: 57px; } .sep-60 { --sep: 60px; } .sep-64 { --sep: 64px; } .sep-96 { --sep: 96px; }
+.row-lead { flex: none; display: flex; align-items: center; }
+.row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.row-title { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title.is-body { font-weight: 400; }
+.row-sub { font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-sub.is-ter { color: var(--label-3); }
+.row-trail { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+.row-value { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.row-value.is-regular { font-weight: 400; }
+.row-detail { flex: none; font-size: 17px; line-height: 22px; color: var(--label-2); white-space: nowrap; }
+.row-chevron { flex: none; width: 14px; height: 14px; color: var(--label-3); stroke-width: 2.5; }
+.row-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.label-q { display: inline-flex; align-items: center; min-width: 0; }
+/* StockRow 64: crest 36 · ticker/name · sparkline 48x20 · value over ChangePill */
+.row-stock { min-height: 64px; padding-top: 8px; padding-bottom: 8px; --sep: 64px; }
+.row-stock .row-trail { gap: 0; min-width: 72px; }
+/* HoldingRow 64: crest 36 · ticker over shares · value over change text */
+.row-holding { min-height: 64px; --sep: 64px; }
+.row-holding .chg { font-size: 13px; line-height: 18px; font-weight: 600; }
+/* PositionRow 88: three lines */
+.row-position { min-height: 88px; align-items: flex-start; --sep: 64px; }
+.row-position .row-main { gap: 3px; }
+.row-position .row-line + .row-line { height: 18px; align-items: center; }   /* 22 + 3 + 18 + 3 + 18 + 24 = 88 */
+.row-position .row-lead { padding-top: 2px; }
+.row-position .chg { font-size: 13px; line-height: 18px; font-weight: 600; }
+/* CompanyMetricsRow 76: L1 crest 28 · ticker · name … price · pill; L2 five 20% cells */
+.row-metrics { min-height: 76px; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 10px; padding-bottom: 10px; --sep: 52px; }
+.row-metrics .metrics-l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.row-metrics .metrics-l1 .row-title, .row-metrics .metrics-l1 .row-value { flex: none; }
+.metrics-cells { display: grid; grid-template-columns: repeat(5, 1fr); margin-left: 36px; font-size: 13px; line-height: 18px; color: var(--label);
+  font-variant-numeric: tabular-nums lining-nums; }
+.metrics-cells > span { text-align: right; white-space: nowrap; }
+.metrics-head { position: relative; display: grid; grid-template-columns: 36px repeat(5, 1fr); align-items: center; min-height: 36px;
+  padding: 0 16px; background: var(--bg-grouped); box-shadow: inset 0 -.5px 0 var(--separator);
+  font-size: 11px; line-height: 13px; font-weight: 600; color: var(--label-2); }
+.metrics-head > span { text-align: right; }
+.metrics-head .qmark.s28 { justify-self: start; margin: -4px 0 -4px -8px; }
+/* KeyValueRow 44 */
+.row-kv { justify-content: space-between; }
+.kv-value { flex: none; font-size: 17px; line-height: 22px; color: var(--label); white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; text-align: right; }
+.kv-value.is-secondary { color: var(--label-2); }
+.kv-value.is-strong { font-weight: 600; }
+/* ExplainRow >=88: label + ? … value · everyday sentence · sector average. No colour judgement. */
+.row-explain { min-height: 88px; flex-direction: column; align-items: stretch; gap: 2px; }
+.explain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; }
+.explain-label { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.explain-value { flex: none; font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.explain-sentence { font-size: 15px; line-height: 20px; color: var(--label); margin: 2px 0 0; }
+.explain-avg { font-size: 13px; line-height: 18px; color: var(--label-3); margin: 2px 0 0; font-variant-numeric: tabular-nums lining-nums; }
+/* DisclosureRow 44 / 60 with subtitle */
+.row-disclosure.has-sub { min-height: 60px; padding-top: 10px; padding-bottom: 10px; }
+.row-disclosure .icon-tile { margin: -3.5px 0; }        /* 29px tile keeps the row at 44 */
+.icon-tile { flex: none; width: 29px; height: 29px; border-radius: 8px; background: var(--tint-soft); color: var(--tint);
+  display: flex; align-items: center; justify-content: center; }
+.icon-tile .ic { width: 18px; height: 18px; }
+/* ActivityRow 64 */
+.row-activity { min-height: 64px; --sep: 60px; }
+.icon-circle { flex: none; width: 32px; height: 32px; border-radius: 16px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.icon-circle .ic { width: 20px; height: 20px; }
+/* StandingRow 60 */
+.row-standing { min-height: 60px; gap: 8px; padding-top: 8px; padding-bottom: 8px; --sep: 96px; }   /* 8 + 44 (name over You pill + value; ChangePill over move) + 8 */
+.row-standing .crest { margin-right: 4px; }
+.row-standing .row-sub { display: flex; align-items: center; gap: 6px; }
+.row-standing.is-you { background: var(--tint-soft); }
+.rank { flex: none; width: 28px; font-size: 17px; line-height: 22px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+.move { flex: none; display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; font-size: 12px; line-height: 16px; color: var(--label-2); }
+.row-standing .row-trail { gap: 2px; }
+/* ToggleRow 44 · ActionRow 44 */
+.row-toggle { justify-content: space-between; min-height: 44px; padding-top: 6.5px; padding-bottom: 6.5px; }   /* 6.5 + 31 + 6.5 */
+.row-action { font-size: 17px; line-height: 22px; color: var(--tint); }
+.row-action.is-destructive { color: var(--destructive); }
+/* Large text (root >=23px): two-column rows stack */
+.row.is-stacked { flex-wrap: wrap; align-items: flex-start; }
+.row.is-stacked .row-main { flex-basis: calc(100% - 60px); }
+.row.is-stacked .row-trail { flex-basis: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 48px; }
+.row-explain.is-stacked .explain-head { flex-direction: column; align-items: flex-start; gap: 0; }
+.row-metrics.is-stacked .metrics-cells { grid-template-columns: 1fr 1fr; row-gap: 4px; column-gap: 12px; margin-left: 0; }
+.row-metrics.is-stacked .metrics-l1 { flex-wrap: wrap; }
+.row-metrics.is-stacked .metrics-cells > span { text-align: left; white-space: normal; }
+
+/* ---------- 11. SegmentedControl (MOBILE §5.6) ---------- */
+.seg { display: flex; height: 32px; padding: 2px; border-radius: 16px; background: var(--fill); }
+.seg.is-lg { height: 36px; border-radius: 18px; }
+.seg-item { position: relative; flex: 1 1 0; min-width: 56px; display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  border-radius: 14px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--label-2); white-space: nowrap; }
+.seg.is-lg .seg-item { border-radius: 16px; }
+.seg-item::after { content: ""; position: absolute; left: 0; right: 0; top: -8px; bottom: -8px; }   /* 28 → 44 hit */
+.seg.is-lg .seg-item::after { top: -6px; bottom: -6px; }                                                /* 32 → 44 hit */
+.seg-item.is-selected { background: var(--segment-thumb); color: var(--on-segment-thumb); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.seg-item.is-pressed { color: var(--label-2); opacity: .6; }
+.seg-item.is-disabled { color: var(--label-4); }
+.seg.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- 12. Buttons (MOBILE §5.7) ---------- */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0; border: 0;
+  border-radius: 999px; font-family: var(--font-ui); font-weight: 600; letter-spacing: normal; white-space: nowrap; text-decoration: none;
+  cursor: pointer; background: transparent; color: var(--label); }
+.btn-lg { height: 50px; padding: 0 20px; font-size: 17px; line-height: 22px; }
+.btn-md { height: 34px; min-width: 44px; padding: 0 14px; font-size: 15px; line-height: 20px; }
+.btn-sm { height: 28px; min-width: 44px; padding: 0 10px; font-size: 13px; line-height: 18px; }
+.btn-md::before, .btn-sm::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; margin-top: -22px; } /* 44px hit */
+.btn-block { display: flex; width: 100%; }
+.btn .ic { width: 20px; height: 20px; stroke-width: 2; }
+.btn-sm .ic { width: 17px; height: 17px; }
+.btn-prominent { background: var(--prominent); color: var(--on-prominent); }
+.btn-buy { background: var(--gain); color: var(--on-side); }
+.btn-sell { background: var(--loss); color: var(--on-side); }
+.btn-tinted { background: var(--tint-soft); color: var(--tint-strong); }
+.btn-tinted-sell { background: var(--loss-fill); color: var(--loss); }
+.btn-gray { background: var(--fill); color: var(--label); }
+.btn-gray.on-grouped { background: var(--cell); box-shadow: inset 0 0 0 .5px var(--separator); }
+.btn-plain { background: transparent; color: var(--tint); }
+.btn-destructive { background: transparent; color: var(--destructive); }
+.btn-destructive-tinted { background: var(--loss-fill); color: var(--loss); }
+.btn-glass { color: var(--label); }                  /* add .glass for the material */
+.btn-circle { width: 44px; height: 44px; padding: 0; border-radius: 22px; }
+.btn.is-pressed { transform: scale(.97); filter: var(--press-filter); }
+.btn.is-disabled, .btn.is-disabled.btn-plain { background: var(--fill); color: var(--label-3); filter: none; transform: none; } /* inactive control: WCAG 1.4.3 exempt; always pair with a visible reason */
+.btn.is-disabled.btn-plain, .btn.is-disabled.btn-destructive { background: transparent; }
+.btn.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn.is-loading { cursor: progress; }                 /* spinner + changed label; width stays locked */
+.spinner { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; }
+
+/* ---------- 13. Chips, pills and badges (MOBILE §5.20) ---------- */
+.chips { display: flex; gap: 8px; overflow: hidden; }
+.chip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 18px;
+  background: var(--fill); color: var(--label); font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }   /* 44px hit */
+.chip.on-grouped { background: var(--cell); box-shadow: inset 0 0 0 .5px var(--separator); }
+.chip .chg { font-size: 15px; }
+.pill-change { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 64px; height: 26px;
+  padding: 0 8px; border-radius: 13px; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums; }
+.pill-change.is-up { background: var(--gain-fill); color: var(--gain); }
+.pill-change.is-down { background: var(--loss-fill); color: var(--loss); }
+.pill-change.is-flat { background: var(--fill); color: var(--label-2); }
+.pill-tag, .pill-you { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px;
+  font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.pill-tag { background: var(--fill); color: var(--label-2); }
+.pill-tag .ic { width: 12px; height: 12px; stroke-width: 2; }
+.pill-you { background: var(--prominent); color: var(--on-prominent); }
+.badge-count { flex: none; display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--prominent);
+  color: var(--on-prominent); font-size: 11px; line-height: 18px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 14. InfoTip trigger and sheet (MOBILE §5.9) ---------- */
+/* 22px CircleQuestionMark in a 44x44 target. Vertical margins of −22px give it a 0-tall margin box, so it never makes its
+   line taller (StockHeader stays 141, PositionSummary cells 64, KeyValueRow 44); horizontal margins pull it 4px from the label. */
+.qmark { position: relative; flex: none; width: 44px; height: 44px; margin: -22px -11px -22px -7px; padding: 0; border: 0; background: none;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--label-2); }
+.qmark .ic { width: 22px; height: 22px; }
+.qmark.no-pull { margin: 0; }
+.qmark.s17 .ic { width: 17px; height: 17px; }
+.qmark.s17 { margin: -22px -13px -22px -9px; }
+.qmark.s28 { margin: -8px; }
+.qmark.s28 .ic { width: 20px; height: 20px; }
+.qmark.s28::after { content: ""; position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 14px; background: var(--fill); z-index: -1; }
+.qmark.s28 { z-index: 0; isolation: isolate; }
+.qmark.is-open::after { content: ""; position: absolute; left: 9px; top: 9px; width: 26px; height: 26px; border-radius: 13px; background: var(--tint-soft); z-index: -1; }
+.qmark.is-open { color: var(--tint-strong); isolation: isolate; }
+.infotip { padding: 4px 20px 24px; }
+.infotip-title { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; color: var(--label); }
+.infotip-term { margin: 2px 0 0; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.infotip-block { margin-top: 16px; }
+.infotip-h { margin: 0; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.infotip-p { margin: 2px 0 0; font-size: 17px; line-height: 22px; color: var(--label); }
+.infotip-inline { padding: 0; display: grid; gap: 6px; font-size: 15px; line-height: 20px; color: var(--label); }
+.row.has-expand { flex-direction: column; align-items: stretch; gap: 8px; }
+.kv-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; }
+.help-item { padding: 16px 0; box-shadow: inset 0 -.5px 0 var(--separator); }
+.help-item:last-child { box-shadow: none; }
+.help-item .infotip-inline { margin-top: 8px; }
+.help-item .list-link { display: inline-block; margin-top: 8px; }
+.infotip-inline p { margin: 0; }
+.infotip-inline b { font-weight: 600; }
+
+/* ---------- 15. Sheet (MOBILE §5.8): opaque, never glass ---------- */
+.scrim { position: absolute; inset: 0; z-index: 60; background: var(--scrim); }
+.scrim.is-info { background: var(--scrim-info); }
+.scrim.is-second { z-index: 75; }                     /* action sheet or alert shown over a sheet (MOBILE §4.6) */
+.sheet { position: absolute; z-index: 70; background: var(--elevated); box-shadow: var(--float-shadow); overflow: clip; color: var(--label); }
+.sheet.is-large { left: 0; right: 0; top: 69px; bottom: 0; border-radius: 24px 24px 0 0; }        /* safe-area 59 + 10 */
+.sheet.is-medium { left: 8px; right: 8px; bottom: 8px; height: 426px; border-radius: 32px; }       /* 50% of 852, inset 8 */
+.sheet.is-content { left: 8px; right: 8px; bottom: 8px; border-radius: 32px; }                     /* content height, up to large */
+.sheet.is-static { position: relative; left: auto; right: auto; top: auto; bottom: auto; }
+.sheet-grabber { position: absolute; left: 50%; top: 0; width: 64px; height: 44px; margin-left: -32px; border: 0; padding: 0; background: none; z-index: 1; }
+.sheet-grabber::before { content: ""; position: absolute; left: 14px; top: 6px; width: 36px; height: 5px; border-radius: 2.5px; background: var(--control-off); }
+.sheet-header { position: relative; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.sheet-header .sheet-title { position: absolute; left: 76px; right: 76px; top: 0; height: 56px; display: flex; align-items: center; justify-content: center; }
+.sheet-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--label); }
+.sheet-close { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.sheet-close .ic { width: 20px; height: 20px; stroke-width: 2; }
+.sheet-action { flex: none; height: 44px; border: 0; padding: 0 4px; background: none; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.sheet-action.is-done { font-weight: 600; }
+.sheet-body { padding: 0 16px; }
+.sheet-spacer { flex: none; width: 44px; height: 44px; }
+.sheet-footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 34px; background: var(--elevated); }
+
+/* ---------- 16. Menu (MOBILE §5.10): glass ---------- */
+.menu { min-width: 220px; padding: 6px 0; border-radius: 28px; overflow: clip; color: var(--label); }
+.menu-item { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; font-size: 17px; line-height: 22px; color: var(--label); white-space: nowrap; }
+.menu-item .ic { margin-left: auto; width: 20px; height: 20px; }
+.menu-check { flex: none; width: 17px; display: flex; }
+.menu-check .ic { margin-left: 0; width: 17px; height: 17px; stroke-width: 2.25; }
+.menu-item.is-destructive { color: var(--destructive-strong); }
+.menu-sep { height: 8px; background: var(--fill-2); }
+
+/* ---------- 17. ActionSheet and Alert (MOBILE §5.11): opaque ---------- */
+.action-sheet { display: flex; flex-direction: column; gap: 8px; }
+.as-group { background: var(--elevated); border-radius: 28px; overflow: clip; box-shadow: var(--float-shadow); }
+.as-header { padding: 14px 20px 12px; text-align: center; box-shadow: inset 0 -.5px 0 var(--separator); }
+.as-title { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-message { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.as-action { display: flex; align-items: center; justify-content: center; height: 56px; font-size: 17px; line-height: 22px; color: var(--tint);
+  box-shadow: inset 0 -.5px 0 var(--separator); }
+.as-action:last-child { box-shadow: none; }
+.as-action.is-destructive { color: var(--destructive); }
+.as-cancel { display: flex; align-items: center; justify-content: center; height: 56px; border-radius: 28px; background: var(--elevated);
+  font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); box-shadow: var(--float-shadow); }
+.alert { width: 300px; padding: 20px; border-radius: 28px; background: var(--glass-solid); box-shadow: var(--float-shadow); color: var(--label); }
+.alert-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; }
+.alert-msg { margin: 4px 0 0; font-size: 15px; line-height: 20px; color: var(--label); }
+.alert-field { margin-top: 12px; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--fill); display: flex; align-items: center;
+  font-size: 17px; line-height: 22px; color: var(--label-2); box-shadow: inset 0 0 0 1px var(--control-off); }
+.alert-buttons { display: flex; gap: 8px; margin-top: 16px; }
+.alert-buttons .btn { flex: 1 1 0; height: 44px; padding: 0 12px; font-size: 17px; }
+.alert-buttons.is-stacked { flex-direction: column; }
+
+/* ---------- 18. Toast and Banner (MOBILE §5.12) ---------- */
+.toast { display: flex; align-items: center; gap: 10px; min-height: 52px; max-width: 361px; padding: 4px 4px 4px 16px; border-radius: 26px; color: var(--label); }
+.toast > .ic { width: 22px; height: 22px; color: var(--label); }
+.toast-text { flex: 1 1 auto; min-width: 0; font-size: 16px; line-height: 21px; color: var(--label); }
+.toast-action { flex: none; height: 44px; border: 0; padding: 0 6px; background: none; font-size: 16px; line-height: 21px; font-weight: 600; color: var(--tint-strong); white-space: nowrap; }
+.toast-close { flex: none; width: 44px; height: 44px; border: 0; padding: 0; background: none; color: var(--label-2); display: flex; align-items: center; justify-content: center; }
+.toast-close .ic { width: 17px; height: 17px; stroke-width: 2.25; }
+.banner { display: flex; gap: 12px; padding: 16px; border-radius: 24px; background: var(--cell); color: var(--label); }
+.banner > .ic { width: 22px; height: 22px; color: var(--label); }
+.banner-main { flex: 1 1 auto; min-width: 0; }
+.banner-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.banner-title .flavor { font-weight: 400; color: var(--label-2); }
+.banner-body { margin: 2px 0 0; font-size: 15px; line-height: 20px; color: var(--label); }
+.banner .btn { margin-top: 10px; }
+.banner.is-paused { background: var(--tint-soft); }
+.banner.is-ended { background: #111412; box-shadow: inset 0 0 0 1px #34403A; }  /* add class="dark" on the same element */
+.banner.is-ended .banner-title { color: #DDBE72; }
+.banner.is-ended .banner-title .flavor { color: #DDBE72; }
+
+/* ---------- 19. Chart card, sparkline, allocation, range (MOBILE §5.13) ---------- */
+.chart-card { background: var(--cell); border-radius: 24px; padding: 16px; color: var(--label); }
+.chart-summary { margin: 0; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.chart-plot { position: relative; margin-top: 8px; height: 180px; }
+.chart-plot.h220 { height: 220px; } .chart-plot.h160 { height: 160px; }
+.chart-plot > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart-y { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; line-height: 16px; color: var(--label-3);
+  font-variant-numeric: tabular-nums lining-nums; background: var(--cell); padding-left: 4px; }
+.chart-ref-label { position: absolute; left: 0; transform: translateY(-100%); padding-bottom: 2px; font-size: 12px; line-height: 16px; color: var(--label-2); background: var(--cell); padding-right: 4px; }
+.chart-x { display: flex; justify-content: space-between; height: 16px; margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--label-3);
+  font-variant-numeric: tabular-nums lining-nums; }
+.chart-card .seg { margin-top: 8px; }
+.plot-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.plot-line.is-up { stroke: var(--gain); } .plot-line.is-down { stroke: var(--loss); } .plot-line.is-flat { stroke: var(--label-3); }
+.plot-ref { fill: none; stroke: var(--chart-baseline); stroke-width: 1; stroke-dasharray: 4 4; }
+.plot-compare { fill: none; stroke: var(--chart-baseline); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.stop-gain { stop-color: var(--gain); } .stop-loss { stop-color: var(--loss); }
+.scrub-rule { stroke: var(--label); stroke-opacity: .4; stroke-width: 1; }
+.scrub-dot { stroke: var(--cell); stroke-width: 2; }
+.scrub-dot.is-up { fill: var(--gain); } .scrub-dot.is-down { fill: var(--loss); }
+.spark { flex: none; display: block; width: 48px; height: 20px; overflow: visible; }
+.spark .plot-line { stroke-width: 1.5; }
+.spark .spark-open { fill: none; stroke: var(--label-3); stroke-width: 1; stroke-dasharray: 2 2; }
+.alloc { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: clip; background: var(--cell); }
+.alloc-seg { height: 12px; }
+.alloc-seg.is-cash { background: var(--fill); }
+.alloc-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 12px; font-size: 13px; line-height: 18px; }
+.alloc-key { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.alloc-key .num { margin-left: auto; color: var(--label-2); }
+.alloc-swatch { flex: none; width: 10px; height: 10px; border-radius: 5px; }
+.alloc-swatch.is-cash { background: var(--fill); box-shadow: inset 0 0 0 .5px var(--control-off); }
+.range { position: relative; height: 8px; }
+.range-track { position: absolute; left: 0; right: 0; top: 2px; height: 4px; border-radius: 2px; background: var(--fill); }
+.range-marker { position: absolute; top: 0; width: 8px; height: 8px; margin-left: -4px; border-radius: 4px; background: var(--label); }
+.range-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--label-2); font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 20. StockHeader (MOBILE §5.14) ---------- */
+.stock-header { display: flex; flex-direction: column; color: var(--label); }
+.sh-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sh-name { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; }
+.sh-sub { margin: 0; font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; }
+.sh-price { margin: 12px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.sh-change { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap; }
+.sh-change .sh-when { font-weight: 400; color: var(--label-2); }
+.sh-asof { display: flex; align-items: center; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--label-3); white-space: nowrap; }
+
+/* ---------- 21. PositionSummary (MOBILE §5.15) ---------- */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.pos-cell { position: relative; min-height: 64px; padding: 11px 16px; display: flex; flex-direction: column; justify-content: center;
+  box-shadow: inset 0 -.5px 0 var(--separator); }
+.pos-cell:nth-child(odd) { box-shadow: inset -.5px -.5px 0 var(--separator); }
+.pos-label { display: flex; align-items: center; font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; }
+.pos-value { font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; }
+.pos-value > span { white-space: nowrap; }
+.pos-footer { display: flex; align-items: center; min-height: 44px; padding: 0 16px; font-size: 13px; line-height: 18px; color: var(--label-2); }
+
+/* ---------- 22. Trade ticket: quote, amount, keypad, summary (MOBILE §5.16, §7.10) ---------- */
+.ticket-quote { display: flex; align-items: center; gap: 12px; height: 40px; }
+.quote-side { display: flex; flex-direction: column; min-width: 0; }
+.quote-side.is-end { margin-left: auto; align-items: flex-end; }
+.amount-row { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+.amount { font-size: 48px; line-height: 56px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; color: var(--label); }
+.amount-helper { margin: 0; height: 20px; text-align: center; font-size: 15px; line-height: 20px; color: var(--label-2); white-space: nowrap; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.key { position: relative; height: 48px; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; line-height: 34px; font-weight: 400; color: var(--label); isolation: isolate; font-variant-numeric: tabular-nums lining-nums; }
+.key .ic { width: 24px; height: 24px; }
+.key.is-pressed::before { content: ""; position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px;
+  background: var(--fill); z-index: -1; }
+.summary-box { padding: 12px 16px; border-radius: 16px; background: var(--elevated-cell); }
+.summary-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 26px; font-size: 17px; line-height: 22px; }
+.problem-box { display: flex; gap: 12px; padding: 12px 16px; border-radius: 16px; background: var(--elevated-cell); }
+.problem-box > .ic { width: 20px; height: 20px; color: var(--label); margin-top: 1px; }
+
+/* ---------- 23. Stepper (MOBILE §5.24) ---------- */
+.stepper { display: inline-flex; width: 100px; height: 36px; border-radius: 18px; background: var(--fill); }
+.stepper-half { position: relative; flex: 1 1 0; display: flex; align-items: center; justify-content: center; border: 0; padding: 0; background: none; color: var(--label); }
+.stepper-half::after { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }   /* 44px tall hit */
+.stepper-half + .stepper-half::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px; background: var(--separator); transform: scaleX(.5); }
+.stepper-half .ic { width: 17px; height: 17px; stroke-width: 2; }
+.stepper-half.is-disabled { color: var(--label-4); }
+.step-circle { flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.step-circle .ic { width: 20px; height: 20px; stroke-width: 2; }
+
+/* ---------- 24. SwipeActions (MOBILE §5.17) ---------- */
+.swipe { position: relative; overflow: clip; }
+.swipe-content { position: relative; z-index: 1; background: var(--cell); transform: translateX(-152px); }
+.swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+.swipe-action { width: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12px; line-height: 16px; font-weight: 600; color: var(--on-side); }
+.swipe-action .ic { width: 20px; height: 20px; stroke-width: 2; }
+.swipe-action.is-sell { background: var(--loss); } .swipe-action.is-buy { background: var(--gain); }
+
+/* ---------- 25. EmptyState (MOBILE §5.18) and Skeleton (§5.19) ---------- */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 24px; color: var(--label); }
+.empty-icon { width: 44px; height: 44px; color: var(--label-3); }
+.empty-title { margin: 12px 0 0; font-size: 20px; line-height: 25px; font-weight: 600; }
+.empty-body { margin: 4px 0 0; max-width: 280px; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.empty .btn { margin-top: 16px; }
+.empty-flavor { margin: 12px 0 0; font-size: 13px; line-height: 18px; color: var(--label-3); }
+.empty.is-hull { background: #111412; border-radius: 24px; }                       /* add class="dark" on the same element */
+.empty.is-hull .empty-title { color: #DDBE72; }
+.empty.is-hull .empty-icon { color: #B8954A; }
+.skel { display: block; background: var(--fill-2); border-radius: 6px; }
+.skel.is-shimmer { background: linear-gradient(90deg, var(--fill-2) 0%, var(--fill) 50%, var(--fill-2) 100%); }
+.skel-line { height: 12px; border-radius: 6px; }
+.skel-title { height: 22px; border-radius: 8px; }
+.skel-circle { border-radius: 50%; }
+.skel-block { border-radius: 16px; }
+
+/* ---------- 26. Crest monogram (MOBILE §5.21) ---------- */
+.crest { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--crew-hull);
+  color: #F8F6F0; font-family: var(--font-ui); font-weight: 600; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
+.crest.c28 { width: 28px; height: 28px; font-size: 10px; box-shadow: inset 0 0 0 1.5px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c32 { width: 32px; height: 32px; font-size: 11.5px; box-shadow: inset 0 0 0 1.5px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c36 { width: 36px; height: 36px; font-size: 13px; box-shadow: inset 0 0 0 1.62px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c44 { width: 44px; height: 44px; font-size: 15.8px; box-shadow: inset 0 0 0 1.98px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c52 { width: 52px; height: 52px; font-size: 18.7px; box-shadow: inset 0 0 0 2.34px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c64 { width: 64px; height: 64px; font-size: 23px; box-shadow: inset 0 0 0 2.88px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.sec-shipping { background: var(--sector-shipping); } .sec-banking { background: var(--sector-banking); } .sec-maps { background: var(--sector-maps); }
+.sec-arms { background: var(--sector-arms); } .sec-relics { background: var(--sector-relics); } .sec-hospitality { background: var(--sector-hospitality); }
+.sec-provisions { background: var(--sector-provisions); } .sec-livestock { background: var(--sector-livestock); } .sec-marque { background: var(--sector-marque); }
+.crew-hull { background: var(--crew-hull); }
+
+/* ---------- 27. Medallion / Podium (MOBILE §5.22) ---------- */
+.medal { position: relative; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,.25), 0 2px 8px rgba(0,0,0,.35); }
+.medal.m96 { width: 96px; height: 96px; } .medal.m80 { width: 80px; height: 80px; }
+.medal.is-gold { background: radial-gradient(circle at 35% 30%, #DDBE72, #B8954A); }
+.medal.is-silver { background: radial-gradient(circle at 35% 30%, #D5DBD7, #8E9893); }
+.medal.is-bronze { background: radial-gradient(circle at 35% 30%, #C9925E, #80583A); }
+.medal-rank { margin: 8px 0 0; font-size: 20px; line-height: 25px; font-weight: 600; text-align: center; color: var(--label); font-variant-numeric: tabular-nums lining-nums; }
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
+.podium-col { display: flex; flex-direction: column; align-items: center; width: 112px; }
+.podium-step { width: 100%; margin-top: 8px; background: #1A1F1C; box-shadow: inset 0 1px 0 #B8954A; border-radius: 8px 8px 0 0; }
+.podium-step.h96 { height: 96px; } .podium-step.h72 { height: 72px; } .podium-step.h56 { height: 56px; }
+.podium-name { margin: 8px 0 0; font-size: 15px; line-height: 20px; text-align: center; color: #E4E8E2; }
+.podium-value { margin: 0; font-size: 13px; line-height: 18px; text-align: center; color: #9FB0A8; font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 28. WaxSeal (MOBILE §5.23): ornament only, aria-hidden ---------- */
+.seal { display: block; flex: none; }
+.seal.s64 { width: 64px; height: 64px; } .seal.s120 { width: 120px; height: 120px; }
+.seal-rim { fill: none; stroke-width: 1; }
+.seal.is-crimson .seal-disc { fill: var(--seal-crimson); } .seal.is-crimson .seal-ring { fill: none; stroke: #6E1814; stroke-width: 2.5; }
+.seal.is-crimson .seal-rose { fill: rgba(255,255,255,.18); } .seal.is-crimson .seal-rim { stroke: var(--seal-brass); }
+.seal.is-brass .seal-disc { fill: var(--seal-brass); } .seal.is-brass .seal-ring { fill: none; stroke: #80683A; stroke-width: 2.5; }
+.seal.is-brass .seal-rose { fill: rgba(17,20,18,.22); } .seal.is-brass .seal-rim { stroke: var(--seal-highlight); }
+
+/* ---------- 29. Toggle (MOBILE §5.25) ---------- */
+.switch { position: relative; flex: none; display: inline-block; width: 51px; height: 31px; border-radius: 15.5px; background: var(--tint); }
+.switch::before { content: ""; position: absolute; left: -4px; right: -4px; top: -6.5px; bottom: -6.5px; }   /* 59×44 hit */
+.switch::after { content: ""; position: absolute; top: 2px; left: 22px; width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+.switch.is-on { background: var(--tint); }
+.switch.is-off { background: var(--fill); }
+.switch.is-off::after { left: 2px; }
+.switch.is-fallback.is-off { box-shadow: inset 0 0 0 1.5px var(--control-off); }
+
+/* ---------- 30. Glass (MOBILE §2.4): floating chrome only, solid fallback first.
+   Kept last so the material wins over component backgrounds (bar buttons, buttons). ---------- */
+.glass { background: var(--glass-solid); box-shadow: var(--glass-edge), var(--float-shadow); }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); }
+}
+.glass.is-solid, .solid-bars .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.contrast-more .glass, .glass.is-contrast { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px var(--control-off); }
+
+/* ---------- 31. Component-sheet documentation layout (Mobile system canvas page only) ---------- */
+.ds { width: 1200px; padding: 40px; background: #D9D4C6; color: #161816; font-family: var(--font-ui); font-size: 15px; line-height: 20px;
+  font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+.ds-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 0 0 24px; }
+.ds-kicker { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: #454A45; }
+.ds-title { margin: 2px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; color: #161816; }
+.ds-desc { margin: 4px 0 0; max-width: 700px; font-size: 15px; line-height: 20px; color: #454A45; }
+.ds-meta { margin: 0; font-size: 13px; line-height: 18px; color: #454A45; text-align: right; white-space: nowrap; }
+.ds-cols { display: grid; grid-template-columns: 560px 560px; }
+.ds-col { min-width: 0; padding: 24px 24px 32px; background: var(--bg-grouped); color: var(--label); }
+.ds-col.is-left { border-radius: 24px 0 0 24px; box-shadow: inset 0 0 0 1px #BFB8A6; }
+.ds-col.is-right { border-radius: 0 24px 24px 0; }
+.ds-colhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; box-shadow: inset 0 -1px 0 var(--separator); }
+.ds-coltitle { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; color: var(--label); }
+.ds-colnote { margin: 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.ds-sec { margin-top: 28px; }
+.ds-h { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.ds-ref { margin: 2px 0 12px; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.ds-label { margin: 0; font-size: 12px; line-height: 16px; color: var(--label-2); }
+.ds-label b { font-weight: 600; color: var(--label); }
+.ds-item { display: flex; gap: 12px; align-items: flex-start; }
+.ds-item + .ds-item { margin-top: 12px; }
+.ds-aside { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
+.ds-above { min-width: 0; }
+
+/* ---------- 32. Spacing utilities (last, so they win over component margins and gaps) ---------- */
+.gap-2 { gap: 2px; } .gap-4 { gap: 4px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.mt-2 { margin-top: 2px; } .mt-4 { margin-top: 4px; } .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; } .mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; } .mt-32 { margin-top: 32px; }
+
+  </style>
+</helmet>
+<div class="ds bx" style="width: 1200px; height: 4595px; background: #D9D4C6;">
+<header class="ds-head">
+  <div><p class="ds-kicker">Mobile system · MOBILE.md §5.4, §5.5, §5.17, §5.20, §5.21, §5.24, §5.25</p><h1 class="ds-title">Lists and small parts</h1><p class="ds-desc">Inset grouped lists, every list row variant with its large-text stacked form, swipe actions, pills, crests, steppers and toggles. Each "?" opens the plain-language InfoTip; explain rows always pair the everyday sentence with the sector average.</p></div>
+  <p class="ds-meta">Kit: canvas/_kit/mobile-kit.css<br>Snippets: canvas/_kit/KIT.md</p>
+</header><div class="ds-cols">
+<div class="ds-col is-left light">
+<div class="ds-colhead"><h2 class="ds-coltitle">Light</h2><p class="ds-colnote">Paper and ledger · class="light" (default :root)</p></div><section class="ds-sec"><h3 class="ds-h">InsetGroupedList</h3><p class="ds-ref">MOBILE §5.4 · card = cell, radius 24 · 0.5px separators inset to the text, none after the last row</p>
+<div class="vstack gap-16">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Positions">
+  <div class="list-header"><h2 class="list-title">Positions</h2><a class="list-link" href="#">See all 7</a></div>
+  <ul class="card" role="list">
+    <li class="row row-holding"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main"><span class="row-title">KRKN</span><span class="row-sub">3,000 shares</span></div><div class="row-trail"><span class="row-value">Ð252,360.00</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð31,860.00 (+14.45%)</span></div></li>
+    <li class="row row-holding"><span class="crest c36 sec-banking" aria-hidden="true">PR</span><div class="row-main"><span class="row-title">PRYL</span><span class="row-sub">800 shares</span></div><div class="row-trail"><span class="row-value">Ð169,920.00</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð22,720.00 (+15.43%)</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Prominent header</b> · Headline + "See all 7" (tint, 44px target), 8px above the card<br><b>HoldingRow · 64</b> · crest 36 · shares · value over change</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Display">
+  <div class="list-header is-plain"><h2 class="list-title">Display</h2></div>
+  <ul class="card" role="list">
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-off" role="switch" aria-checked="false" aria-label="Solid bars"></span></li>
+  </ul>
+  <p class="list-footer">Turns off see-through bars. Use it if text on the bars is hard to read.</p>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Plain header</b> · Footnote label-2 at x + 16<br><b>Footer</b> · Footnote label-2<br><b>ToggleRow · 44</b> · Body + switch (59×44 hit)</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">ListRow variants</h3><p class="ds-ref">MOBILE §5.5 · one-line rows exactly 44 (padding 11 16) · pressed fill-2 · focus 2px inset ring</p>
+<div class="vstack gap-16">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Biggest moves">
+  <ul class="card" role="list">
+    <li class="row row-stock"><span class="crest c36 sec-arms" aria-hidden="true">CN</span><div class="row-main"><span class="row-title">CNBR</span><span class="row-sub">Cannonbright Foundries</span></div><svg class="spark" viewBox="0 0 48 20" aria-hidden="true"><path class="spark-open" d="M0 18.0H48"></path><path class="plot-line is-up" d="M0.0 18.0L5.3 15.9L10.7 17.5L16.0 13.2L21.3 11.1L26.7 12.7L32.0 8.4L37.3 5.2L42.7 6.8L48.0 2.0"></path></svg><div class="row-trail"><span class="row-value">Ð102.66</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span></div></li>
+    <li class="row row-stock"><span class="crest c36 sec-relics" aria-hidden="true">CR</span><div class="row-main"><span class="row-title">CRSD</span><span class="row-sub">Cursed Doubloon Relics</span></div><svg class="spark" viewBox="0 0 48 20" aria-hidden="true"><path class="spark-open" d="M0 2.6H48"></path><path class="plot-line is-down" d="M0.0 2.6L5.3 3.8L10.7 2.0L16.0 6.1L21.3 8.5L26.7 6.7L32.0 10.9L37.3 13.9L42.7 12.7L48.0 18.0"></path></svg><div class="row-trail"><span class="row-value">Ð31.07</span><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StockRow · 64</b> · crest 36 · ticker over name · session sparkline 48×20, dashed open line · value over ChangePill</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Positions">
+  <ul class="card" role="list">
+    <li class="row row-position"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main">
+      <div class="row-line"><span class="row-title">KRKN</span><span class="row-value">Ð252,360.00</span></div>
+      <div class="row-line"><span class="row-sub">Kraken Shipping Lines</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð31,860.00 (+14.45%)</span></div>
+      <div class="row-line"><span class="row-sub">3,000 shares · paid Ð73.50</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð5,700.00</span></div>
+    </div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>PositionRow · 88</b> · value · total gain · shares and price paid · session change</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><div class="metrics-head"><button class="qmark s28" type="button" aria-label="What these columns mean" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button><span>Company size</span><span>Sales growth</span><span>Profit margin</span><span>Price vs. profit</span><span>Debt vs. equity</span></div><ul class="card mt-8" role="list"><li class="row row-metrics"><div class="metrics-l1"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="row-title">KRKN</span><span class="row-sub spacer">Kraken Shipping Lines</span><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><div class="metrics-cells"><span>Ð20.36B</span><span>7.2%</span><span>14.0%</span><span>17.8</span><span>0.62</span></div></li><li class="row row-metrics"><div class="metrics-l1"><span class="crest c28 sec-arms" aria-hidden="true">CN</span><span class="row-title">CNBR</span><span class="row-sub spacer">Cannonbright Foundries</span><span class="row-value">Ð102.66</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span></div><div class="metrics-cells"><span>—</span><span>—</span><span>—</span><span>—</span><span>—</span></div></li></ul></div><div class="ds-aside"><p class="ds-label"><b>Column header · 36</b> · Caption 2 600 on an opaque ground · one 28px "?" (44px hit) opens "What these columns mean"<br><b>CompanyMetricsRow · 76</b> · five right-aligned cells under the ticker</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Order">
+  <ul class="card" role="list">
+    <li class="row row-kv"><span class="label-q"><span>Fill price</span><button class="qmark" type="button" aria-label="What is Buy or sell now (market order)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="kv-value">Ð84.12</span></li>
+    <li class="row row-kv"><span class="label-q"><span>Fee (0.10%)</span><button class="qmark" type="button" aria-label="What is Trading fee (commission)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="kv-value">Ð42.06</span></li>
+    <li class="row row-kv"><span class="label-q"><span>Order number</span></span><span class="kv-value is-secondary"><span class="mono">BX-7Q2F9K</span></span></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>KeyValueRow · 44</b> · label + "?" (22px glyph, 44px target) … value (Body, tabular)</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Key stats">
+  <div class="list-header"><h2 class="list-title">Key stats</h2><a class="list-link" href="#">See all stats</a></div>
+  <ul class="card" role="list">
+    <li class="row row-explain"><div class="explain-head"><span class="label-q"><span class="explain-label">Price vs. profit</span><button class="qmark" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">17.8</span></div><p class="explain-sentence">You pay Ð17.80 for every Ð1 of yearly profit.</p><p class="explain-avg">Sector average: 22.1</p></li>
+    <li class="row row-explain"><div class="explain-head"><span class="label-q"><span class="explain-label">Profit margin</span><button class="qmark" type="button" aria-label="What is Profit margin (net margin)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">14.0%</span></div><p class="explain-sentence">It keeps Ð14 of profit from every Ð100 of sales.</p><p class="explain-avg">Sector average: 10.0%</p></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ExplainRow · 88+</b> · label + "?" … value · everyday sentence · sector average (label-3) · never a verdict or colour</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Learn">
+  <ul class="card" role="list">
+    <li class="row row-disclosure sep-57"><span class="icon-tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9z"></path></svg></span><div class="row-main"><span class="row-title is-body">How to play</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure sep-57"><span class="icon-tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m16.24 7.76-1.8 5.41a2 2 0 0 1-1.27 1.27l-5.41 1.8 1.8-5.41a2 2 0 0 1 1.27-1.27z"></path></svg></span><div class="row-main"><span class="row-title is-body">Read a company in 5 questions</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure"><div class="row-main"><span class="row-title is-body">Price vs. profit</span></div><span class="row-detail">P/E ratio</span><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure has-sub"><div class="row-main"><span class="row-title is-body">Crown lifts tariffs across the Spanish Main</span><span class="row-sub">Whole market · 12:48</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>DisclosureRow · 44 / 60</b> · 29px tint tile · detail in label-2 · subtitle variant · chevron only when it navigates</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Recent activity">
+  <ul class="card" role="list">
+    <li class="row row-activity"><span class="icon-circle"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg></span><div class="row-main"><span class="row-title is-body">Bought 500 KRKN</span><span class="row-sub is-ter">Tick 1,284 · 14:02:30</span></div><div class="row-trail"><span class="row-value is-regular">−Ð42,102.06</span><span class="row-sub">Filled</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-activity"><span class="icon-circle"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span><div class="row-main"><span class="row-title is-body">Buy 300 CNBR</span><span class="row-sub is-ter">Tick 1,282 · 14:01:30</span></div><div class="row-trail"><span class="row-value is-regular">—</span><span class="row-sub">Not placed</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ActivityRow · 64</b> · 32px fill circle, glyph in label · "Not placed" never uses loss red</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Standings">
+  <ul class="card" role="list">
+    <li class="row row-standing"><span class="rank">2</span><span class="crest c32 crew-hull" aria-hidden="true">TC</span><div class="row-main"><span class="row-title is-body">Tortuga Capital</span><span class="row-sub num">Ð1,097,700.00</span></div><div class="row-trail"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+9.77%</span><span class="move" aria-label="up 1 place"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>1</span></div></li>
+    <li class="row row-standing is-you"><span class="rank">3</span><span class="crest c32 crew-hull" aria-hidden="true">SW</span><div class="row-main"><span class="row-title is-body">Saltwind Traders</span><span class="row-sub num"><span class="pill-you">You</span>Ð1,084,219.55</span></div><div class="row-trail"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+8.42%</span><span class="move" aria-label="down 1 place"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>1</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StandingRow · 60</b> · rank 28 · crest 32 · crew over You pill + value (padding 8, so the 22px pill line still fits 60) · ChangePill over rank move in label-2 · your row tint-soft</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Account actions">
+  <ul class="card" role="list">
+    <li class="row row-action">Clear recent searches</li>
+    <li class="row row-action is-destructive">Sign out</li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ActionRow · 44</b> · tint or destructive Body</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Large text (root 23px)</h3><p class="ds-ref">MOBILE §3.5, §5.5 · heights are minimums; numbers never truncate</p>
+<div class="type-xxxl vstack gap-12">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-stock is-stacked"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main"><span class="row-title">KRKN</span><span class="row-sub">Kraken Shipping Lines</span></div><div class="row-trail"><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StockRow stacked</b> · value and pill move under the title; sparkline drops</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-explain is-stacked"><div class="explain-head"><span class="label-q"><span class="explain-label">Price vs. profit</span><button class="qmark" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">17.8</span></div><p class="explain-sentence">You pay Ð17.80 for every Ð1 of yearly profit.</p><p class="explain-avg">Sector average: 22.1</p></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ExplainRow stacked</b> · value moves under the label</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-metrics is-stacked"><div class="metrics-l1"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="row-title">KRKN</span><span class="row-sub spacer">Kraken Shipping Lines</span><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><div class="metrics-cells"><span>Company size <b class="num">Ð20.36B</b></span><span>Sales growth <b class="num">7.2%</b></span><span>Profit margin <b class="num">14.0%</b></span><span>Price vs. profit <b class="num">17.8</b></span><span>Debt vs. equity <b class="num">0.62</b></span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>CompanyMetricsRow stacked</b> · "label value" pairs, two per line</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">SwipeActions</h3><p class="ds-ref">MOBILE §5.17 · Positions only · opens the Trade sheet, never trades · same actions on the company page and long-press menu</p>
+<div class="ds-item"><div style="width: 361px; flex: none;"><ul class="card" role="list"><li class="swipe"><div class="swipe-actions"><span class="swipe-action is-sell"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path></svg>Sell</span><span class="swipe-action is-buy"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>Buy</span></div><div class="swipe-content"><div class="row row-position no-sep"><span class="crest c36 sec-relics" aria-hidden="true">CR</span><div class="row-main">
+      <div class="row-line"><span class="row-title">CRSD</span><span class="row-value">Ð31,070.00</span></div>
+      <div class="row-line"><span class="row-sub">Cursed Doubloon Relics</span><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−Ð6,930.00 (−18.24%)</span></div>
+      <div class="row-line"><span class="row-sub">1,000 shares · paid Ð38.00</span><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−Ð1,110.00</span></div>
+    </div></div></div></li></ul></div><div class="ds-aside"><p class="ds-label"><b>Open</b> · Sell (loss) and Buy (gain), 76px each · icon 20 over Caption 1 600</p></div></div>
+</section><section class="ds-sec"><h3 class="ds-h">Badge, pill, chip and "?"</h3><p class="ds-ref">MOBILE §5.20, §5.9</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-8" style="flex-wrap: wrap;"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span><span class="pill-change is-flat">0.00%</span><span class="ds-label">ChangePill · min 64×26 · Footnote 600</span></div>
+    <div class="hstack gap-8 mt-12" style="flex-wrap: wrap;"><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>Earnings</span><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.33A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.97"></path><path d="m13 12-3 5h4l-3 5"></path></svg>Storm</span><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>Whole market</span><span class="pill-tag">You own this</span></div>
+    <p class="ds-label mt-4">TagPill · 22px · Caption 1 600 label-2 on fill · optional 12px icon · never on a tint-soft row</p>
+    <div class="hstack gap-12 mt-12" style="flex-wrap: wrap;"><span class="pill-you">You</span><span class="badge-count">1</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-open" aria-hidden="true"></span>Market open</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-paused" aria-hidden="true"></span>Trading paused</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-idle" aria-hidden="true"></span>Game ended</span></div>
+    <p class="ds-label mt-4">YouPill and CountBadge use prominent, never red · StatusDot 8px always beside its status text</p>
+    <div class="chips mt-12"><span class="chip">10</span><span class="chip">50</span><span class="chip">100</span><span class="chip">Max</span></div>
+    <p class="ds-label mt-4">Chip · 36px gray capsule (44px hit) inside cards and sheets</p>
+  </div>
+  <div class="chips mt-12"><span class="chip on-grouped">Parrot &amp; Livestock <span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+3.05%</span></span><span class="chip on-grouped">Cursed Relics <span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></span></div>
+  <p class="ds-label mt-4">Chip on the grouped page · cell fill + 0.5px separator edge keeps coloured change text above 4.5</p>
+  <div class="card mt-12" style="padding: 12px 16px;">
+    <div class="hstack gap-16" style="flex-wrap: wrap;">
+      <span class="label-q t-body">Account value<button class="qmark" type="button" aria-label="What is Account value (total account value)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span class="label-q t-body">Tick<button class="qmark is-open" type="button" aria-label="What is Price update (market tick)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span class="label-q t-footnote" style="color: var(--label-2);">Price vs. profit<button class="qmark s17" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span style="display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--accent); border-radius: 8px; color: var(--label-2);"><svg class="ic s22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></span>
+    </div>
+    <p class="ds-label mt-4">InfoTip "?" · 22px glyph in label-2 right after the label · 44×44 target (outlined) · open: tint-soft circle · 17px glyph in statement tables · aria-label "What is {label} ({term})?"</p>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Crest monogram</h3><p class="ds-ref">MOBILE §5.21 · sizes 28 / 32 / 36 / 44 / 64 and sector fills · aria-hidden, name always adjacent</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-16" style="align-items: flex-end;"><div class="vstack gap-4" style="align-items: center;"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">28</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">32</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">36</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c44 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">44</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c64 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">64</span></div><p class="ds-label" style="flex: 1;">System 600 at 0.36 × diameter · gold ring max(1.5px, 0.045 × d)</p></div>
+    <div class="mt-12" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 4px;"><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-shipping" aria-hidden="true">KR</span><span class="ds-label">Shipping</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-banking" aria-hidden="true">PR</span><span class="ds-label">Banking</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-maps" aria-hidden="true">AS</span><span class="ds-label">Maps</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-arms" aria-hidden="true">MR</span><span class="ds-label">Naval Arms</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-relics" aria-hidden="true">CR</span><span class="ds-label">Relics</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-hospitality" aria-hidden="true">TR</span><span class="ds-label">Hospitality</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-provisions" aria-hidden="true">CJ</span><span class="ds-label">Provisions</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-livestock" aria-hidden="true">PR</span><span class="ds-label">Livestock</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-marque" aria-hidden="true">LM</span><span class="ds-label">Marque</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 crew-hull" aria-hidden="true">SW</span><span class="ds-label">Crew hull</span></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Stepper</h3><p class="ds-ref">MOBILE §5.24, §5.16</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-16"><div class="stepper" role="group" aria-label="Fine adjust"><button class="stepper-half is-disabled" type="button" aria-label="Decrease" aria-disabled="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg></button><button class="stepper-half" type="button" aria-label="Increase"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div><p class="ds-label" style="flex: 1;"><b>Joined · 100×36</b> · settings and host · the half at its limit uses label-4</p></div>
+    <div class="amount-row mt-12"><button class="step-circle" type="button" aria-label="Decrease shares"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg></button><span class="amount">500</span><button class="step-circle" type="button" aria-label="Increase shares"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div>
+    <p class="amount-helper">≈ Ð42,102.06 with fee</p>
+    <p class="ds-label mt-4"><b>Split · ticket</b> · 44px fill circles either side of the amount · ±1 share or ±Ð100 · no press-and-hold repeat</p>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Toggle</h3><p class="ds-ref">MOBILE §5.25 · native switch in list rows; styled fallback where it is missing</p>
+<div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Toggles">
+  <ul class="card" role="list">
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-on" role="switch" aria-checked="true" aria-label="Solid bars"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-off" role="switch" aria-checked="false" aria-label="Solid bars"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Keep crews and passwords</span><span class="switch is-off is-fallback" role="switch" aria-checked="false" aria-label="Keep crews and passwords"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Keep crews and passwords</span><span class="switch is-on is-fallback" role="switch" aria-checked="true" aria-label="Keep crews and passwords"></span></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Native</b> (rows 1-2) · on tint, off fill<br><b>Fallback</b> (rows 3-4) · 51×31 track, 27px thumb · off adds a 1.5px control-off edge (3:1)</p></div></div>
+</section>
+</div>
+<div class="ds-col is-right dark">
+<div class="ds-colhead"><h2 class="ds-coltitle">Dark</h2><p class="ds-colnote">Abyss and hull · class="dark" on the root</p></div><section class="ds-sec"><h3 class="ds-h">InsetGroupedList</h3><p class="ds-ref">MOBILE §5.4 · card = cell, radius 24 · 0.5px separators inset to the text, none after the last row</p>
+<div class="vstack gap-16">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Positions">
+  <div class="list-header"><h2 class="list-title">Positions</h2><a class="list-link" href="#">See all 7</a></div>
+  <ul class="card" role="list">
+    <li class="row row-holding"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main"><span class="row-title">KRKN</span><span class="row-sub">3,000 shares</span></div><div class="row-trail"><span class="row-value">Ð252,360.00</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð31,860.00 (+14.45%)</span></div></li>
+    <li class="row row-holding"><span class="crest c36 sec-banking" aria-hidden="true">PR</span><div class="row-main"><span class="row-title">PRYL</span><span class="row-sub">800 shares</span></div><div class="row-trail"><span class="row-value">Ð169,920.00</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð22,720.00 (+15.43%)</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Prominent header</b> · Headline + "See all 7" (tint, 44px target), 8px above the card<br><b>HoldingRow · 64</b> · crest 36 · shares · value over change</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Display">
+  <div class="list-header is-plain"><h2 class="list-title">Display</h2></div>
+  <ul class="card" role="list">
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-off" role="switch" aria-checked="false" aria-label="Solid bars"></span></li>
+  </ul>
+  <p class="list-footer">Turns off see-through bars. Use it if text on the bars is hard to read.</p>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Plain header</b> · Footnote label-2 at x + 16<br><b>Footer</b> · Footnote label-2<br><b>ToggleRow · 44</b> · Body + switch (59×44 hit)</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">ListRow variants</h3><p class="ds-ref">MOBILE §5.5 · one-line rows exactly 44 (padding 11 16) · pressed fill-2 · focus 2px inset ring</p>
+<div class="vstack gap-16">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Biggest moves">
+  <ul class="card" role="list">
+    <li class="row row-stock"><span class="crest c36 sec-arms" aria-hidden="true">CN</span><div class="row-main"><span class="row-title">CNBR</span><span class="row-sub">Cannonbright Foundries</span></div><svg class="spark" viewBox="0 0 48 20" aria-hidden="true"><path class="spark-open" d="M0 18.0H48"></path><path class="plot-line is-up" d="M0.0 18.0L5.3 15.9L10.7 17.5L16.0 13.2L21.3 11.1L26.7 12.7L32.0 8.4L37.3 5.2L42.7 6.8L48.0 2.0"></path></svg><div class="row-trail"><span class="row-value">Ð102.66</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span></div></li>
+    <li class="row row-stock"><span class="crest c36 sec-relics" aria-hidden="true">CR</span><div class="row-main"><span class="row-title">CRSD</span><span class="row-sub">Cursed Doubloon Relics</span></div><svg class="spark" viewBox="0 0 48 20" aria-hidden="true"><path class="spark-open" d="M0 2.6H48"></path><path class="plot-line is-down" d="M0.0 2.6L5.3 3.8L10.7 2.0L16.0 6.1L21.3 8.5L26.7 6.7L32.0 10.9L37.3 13.9L42.7 12.7L48.0 18.0"></path></svg><div class="row-trail"><span class="row-value">Ð31.07</span><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StockRow · 64</b> · crest 36 · ticker over name · session sparkline 48×20, dashed open line · value over ChangePill</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Positions">
+  <ul class="card" role="list">
+    <li class="row row-position"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main">
+      <div class="row-line"><span class="row-title">KRKN</span><span class="row-value">Ð252,360.00</span></div>
+      <div class="row-line"><span class="row-sub">Kraken Shipping Lines</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð31,860.00 (+14.45%)</span></div>
+      <div class="row-line"><span class="row-sub">3,000 shares · paid Ð73.50</span><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð5,700.00</span></div>
+    </div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>PositionRow · 88</b> · value · total gain · shares and price paid · session change</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><div class="metrics-head"><button class="qmark s28" type="button" aria-label="What these columns mean" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button><span>Company size</span><span>Sales growth</span><span>Profit margin</span><span>Price vs. profit</span><span>Debt vs. equity</span></div><ul class="card mt-8" role="list"><li class="row row-metrics"><div class="metrics-l1"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="row-title">KRKN</span><span class="row-sub spacer">Kraken Shipping Lines</span><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><div class="metrics-cells"><span>Ð20.36B</span><span>7.2%</span><span>14.0%</span><span>17.8</span><span>0.62</span></div></li><li class="row row-metrics"><div class="metrics-l1"><span class="crest c28 sec-arms" aria-hidden="true">CN</span><span class="row-title">CNBR</span><span class="row-sub spacer">Cannonbright Foundries</span><span class="row-value">Ð102.66</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span></div><div class="metrics-cells"><span>—</span><span>—</span><span>—</span><span>—</span><span>—</span></div></li></ul></div><div class="ds-aside"><p class="ds-label"><b>Column header · 36</b> · Caption 2 600 on an opaque ground · one 28px "?" (44px hit) opens "What these columns mean"<br><b>CompanyMetricsRow · 76</b> · five right-aligned cells under the ticker</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Order">
+  <ul class="card" role="list">
+    <li class="row row-kv"><span class="label-q"><span>Fill price</span><button class="qmark" type="button" aria-label="What is Buy or sell now (market order)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="kv-value">Ð84.12</span></li>
+    <li class="row row-kv"><span class="label-q"><span>Fee (0.10%)</span><button class="qmark" type="button" aria-label="What is Trading fee (commission)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="kv-value">Ð42.06</span></li>
+    <li class="row row-kv"><span class="label-q"><span>Order number</span></span><span class="kv-value is-secondary"><span class="mono">BX-7Q2F9K</span></span></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>KeyValueRow · 44</b> · label + "?" (22px glyph, 44px target) … value (Body, tabular)</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Key stats">
+  <div class="list-header"><h2 class="list-title">Key stats</h2><a class="list-link" href="#">See all stats</a></div>
+  <ul class="card" role="list">
+    <li class="row row-explain"><div class="explain-head"><span class="label-q"><span class="explain-label">Price vs. profit</span><button class="qmark" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">17.8</span></div><p class="explain-sentence">You pay Ð17.80 for every Ð1 of yearly profit.</p><p class="explain-avg">Sector average: 22.1</p></li>
+    <li class="row row-explain"><div class="explain-head"><span class="label-q"><span class="explain-label">Profit margin</span><button class="qmark" type="button" aria-label="What is Profit margin (net margin)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">14.0%</span></div><p class="explain-sentence">It keeps Ð14 of profit from every Ð100 of sales.</p><p class="explain-avg">Sector average: 10.0%</p></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ExplainRow · 88+</b> · label + "?" … value · everyday sentence · sector average (label-3) · never a verdict or colour</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Learn">
+  <ul class="card" role="list">
+    <li class="row row-disclosure sep-57"><span class="icon-tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3l14 9-14 9z"></path></svg></span><div class="row-main"><span class="row-title is-body">How to play</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure sep-57"><span class="icon-tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m16.24 7.76-1.8 5.41a2 2 0 0 1-1.27 1.27l-5.41 1.8 1.8-5.41a2 2 0 0 1 1.27-1.27z"></path></svg></span><div class="row-main"><span class="row-title is-body">Read a company in 5 questions</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure"><div class="row-main"><span class="row-title is-body">Price vs. profit</span></div><span class="row-detail">P/E ratio</span><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-disclosure has-sub"><div class="row-main"><span class="row-title is-body">Crown lifts tariffs across the Spanish Main</span><span class="row-sub">Whole market · 12:48</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>DisclosureRow · 44 / 60</b> · 29px tint tile · detail in label-2 · subtitle variant · chevron only when it navigates</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Recent activity">
+  <ul class="card" role="list">
+    <li class="row row-activity"><span class="icon-circle"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg></span><div class="row-main"><span class="row-title is-body">Bought 500 KRKN</span><span class="row-sub is-ter">Tick 1,284 · 14:02:30</span></div><div class="row-trail"><span class="row-value is-regular">−Ð42,102.06</span><span class="row-sub">Filled</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+    <li class="row row-activity"><span class="icon-circle"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></span><div class="row-main"><span class="row-title is-body">Buy 300 CNBR</span><span class="row-sub is-ter">Tick 1,282 · 14:01:30</span></div><div class="row-trail"><span class="row-value is-regular">—</span><span class="row-sub">Not placed</span></div><svg class="ic row-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ActivityRow · 64</b> · 32px fill circle, glyph in label · "Not placed" never uses loss red</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Standings">
+  <ul class="card" role="list">
+    <li class="row row-standing"><span class="rank">2</span><span class="crest c32 crew-hull" aria-hidden="true">TC</span><div class="row-main"><span class="row-title is-body">Tortuga Capital</span><span class="row-sub num">Ð1,097,700.00</span></div><div class="row-trail"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+9.77%</span><span class="move" aria-label="up 1 place"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>1</span></div></li>
+    <li class="row row-standing is-you"><span class="rank">3</span><span class="crest c32 crew-hull" aria-hidden="true">SW</span><div class="row-main"><span class="row-title is-body">Saltwind Traders</span><span class="row-sub num"><span class="pill-you">You</span>Ð1,084,219.55</span></div><div class="row-trail"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+8.42%</span><span class="move" aria-label="down 1 place"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>1</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StandingRow · 60</b> · rank 28 · crest 32 · crew over You pill + value (padding 8, so the 22px pill line still fits 60) · ChangePill over rank move in label-2 · your row tint-soft</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Account actions">
+  <ul class="card" role="list">
+    <li class="row row-action">Clear recent searches</li>
+    <li class="row row-action is-destructive">Sign out</li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ActionRow · 44</b> · tint or destructive Body</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Large text (root 23px)</h3><p class="ds-ref">MOBILE §3.5, §5.5 · heights are minimums; numbers never truncate</p>
+<div class="type-xxxl vstack gap-12">
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-stock is-stacked"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><div class="row-main"><span class="row-title">KRKN</span><span class="row-sub">Kraken Shipping Lines</span></div><div class="row-trail"><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>StockRow stacked</b> · value and pill move under the title; sparkline drops</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-explain is-stacked"><div class="explain-head"><span class="label-q"><span class="explain-label">Price vs. profit</span><button class="qmark" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">17.8</span></div><p class="explain-sentence">You pay Ð17.80 for every Ð1 of yearly profit.</p><p class="explain-avg">Sector average: 22.1</p></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>ExplainRow stacked</b> · value moves under the label</p></div></div>
+    <div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Large text">
+  <ul class="card" role="list">
+    <li class="row row-metrics is-stacked"><div class="metrics-l1"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="row-title">KRKN</span><span class="row-sub spacer">Kraken Shipping Lines</span><span class="row-value">Ð84.12</span><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><div class="metrics-cells"><span>Company size <b class="num">Ð20.36B</b></span><span>Sales growth <b class="num">7.2%</b></span><span>Profit margin <b class="num">14.0%</b></span><span>Price vs. profit <b class="num">17.8</b></span><span>Debt vs. equity <b class="num">0.62</b></span></div></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>CompanyMetricsRow stacked</b> · "label value" pairs, two per line</p></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">SwipeActions</h3><p class="ds-ref">MOBILE §5.17 · Positions only · opens the Trade sheet, never trades · same actions on the company page and long-press menu</p>
+<div class="ds-item"><div style="width: 361px; flex: none;"><ul class="card" role="list"><li class="swipe"><div class="swipe-actions"><span class="swipe-action is-sell"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path></svg>Sell</span><span class="swipe-action is-buy"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>Buy</span></div><div class="swipe-content"><div class="row row-position no-sep"><span class="crest c36 sec-relics" aria-hidden="true">CR</span><div class="row-main">
+      <div class="row-line"><span class="row-title">CRSD</span><span class="row-value">Ð31,070.00</span></div>
+      <div class="row-line"><span class="row-sub">Cursed Doubloon Relics</span><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−Ð6,930.00 (−18.24%)</span></div>
+      <div class="row-line"><span class="row-sub">1,000 shares · paid Ð38.00</span><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−Ð1,110.00</span></div>
+    </div></div></div></li></ul></div><div class="ds-aside"><p class="ds-label"><b>Open</b> · Sell (loss) and Buy (gain), 76px each · icon 20 over Caption 1 600</p></div></div>
+</section><section class="ds-sec"><h3 class="ds-h">Badge, pill, chip and "?"</h3><p class="ds-ref">MOBILE §5.20, §5.9</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-8" style="flex-wrap: wrap;"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+6.12%</span><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span><span class="pill-change is-flat">0.00%</span><span class="ds-label">ChangePill · min 64×26 · Footnote 600</span></div>
+    <div class="hstack gap-8 mt-12" style="flex-wrap: wrap;"><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>Earnings</span><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.33A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.97"></path><path d="m13 12-3 5h4l-3 5"></path></svg>Storm</span><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg>Whole market</span><span class="pill-tag">You own this</span></div>
+    <p class="ds-label mt-4">TagPill · 22px · Caption 1 600 label-2 on fill · optional 12px icon · never on a tint-soft row</p>
+    <div class="hstack gap-12 mt-12" style="flex-wrap: wrap;"><span class="pill-you">You</span><span class="badge-count">1</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-open" aria-hidden="true"></span>Market open</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-paused" aria-hidden="true"></span>Trading paused</span><span class="hstack gap-8 t-subhead"><span class="status-dot is-idle" aria-hidden="true"></span>Game ended</span></div>
+    <p class="ds-label mt-4">YouPill and CountBadge use prominent, never red · StatusDot 8px always beside its status text</p>
+    <div class="chips mt-12"><span class="chip">10</span><span class="chip">50</span><span class="chip">100</span><span class="chip">Max</span></div>
+    <p class="ds-label mt-4">Chip · 36px gray capsule (44px hit) inside cards and sheets</p>
+  </div>
+  <div class="chips mt-12"><span class="chip on-grouped">Parrot &amp; Livestock <span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+3.05%</span></span><span class="chip on-grouped">Cursed Relics <span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></span></div>
+  <p class="ds-label mt-4">Chip on the grouped page · cell fill + 0.5px separator edge keeps coloured change text above 4.5</p>
+  <div class="card mt-12" style="padding: 12px 16px;">
+    <div class="hstack gap-16" style="flex-wrap: wrap;">
+      <span class="label-q t-body">Account value<button class="qmark" type="button" aria-label="What is Account value (total account value)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span class="label-q t-body">Tick<button class="qmark is-open" type="button" aria-label="What is Price update (market tick)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span class="label-q t-footnote" style="color: var(--label-2);">Price vs. profit<button class="qmark s17" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span>
+      <span style="display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--accent); border-radius: 8px; color: var(--label-2);"><svg class="ic s22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></span>
+    </div>
+    <p class="ds-label mt-4">InfoTip "?" · 22px glyph in label-2 right after the label · 44×44 target (outlined) · open: tint-soft circle · 17px glyph in statement tables · aria-label "What is {label} ({term})?"</p>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Crest monogram</h3><p class="ds-ref">MOBILE §5.21 · sizes 28 / 32 / 36 / 44 / 64 and sector fills · aria-hidden, name always adjacent</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-16" style="align-items: flex-end;"><div class="vstack gap-4" style="align-items: center;"><span class="crest c28 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">28</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">32</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c36 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">36</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c44 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">44</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c64 sec-shipping" aria-hidden="true">KR</span><span class="ds-label num">64</span></div><p class="ds-label" style="flex: 1;">System 600 at 0.36 × diameter · gold ring max(1.5px, 0.045 × d)</p></div>
+    <div class="mt-12" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 4px;"><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-shipping" aria-hidden="true">KR</span><span class="ds-label">Shipping</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-banking" aria-hidden="true">PR</span><span class="ds-label">Banking</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-maps" aria-hidden="true">AS</span><span class="ds-label">Maps</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-arms" aria-hidden="true">MR</span><span class="ds-label">Naval Arms</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-relics" aria-hidden="true">CR</span><span class="ds-label">Relics</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-hospitality" aria-hidden="true">TR</span><span class="ds-label">Hospitality</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-provisions" aria-hidden="true">CJ</span><span class="ds-label">Provisions</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-livestock" aria-hidden="true">PR</span><span class="ds-label">Livestock</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 sec-marque" aria-hidden="true">LM</span><span class="ds-label">Marque</span></div><div class="vstack gap-4" style="align-items: center;"><span class="crest c32 crew-hull" aria-hidden="true">SW</span><span class="ds-label">Crew hull</span></div></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Stepper</h3><p class="ds-ref">MOBILE §5.24, §5.16</p>
+<div class="card" style="padding: 14px 16px;">
+    <div class="hstack gap-16"><div class="stepper" role="group" aria-label="Fine adjust"><button class="stepper-half is-disabled" type="button" aria-label="Decrease" aria-disabled="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg></button><button class="stepper-half" type="button" aria-label="Increase"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div><p class="ds-label" style="flex: 1;"><b>Joined · 100×36</b> · settings and host · the half at its limit uses label-4</p></div>
+    <div class="amount-row mt-12"><button class="step-circle" type="button" aria-label="Decrease shares"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path></svg></button><span class="amount">500</span><button class="step-circle" type="button" aria-label="Increase shares"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button></div>
+    <p class="amount-helper">≈ Ð42,102.06 with fee</p>
+    <p class="ds-label mt-4"><b>Split · ticket</b> · 44px fill circles either side of the amount · ±1 share or ±Ð100 · no press-and-hold repeat</p>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Toggle</h3><p class="ds-ref">MOBILE §5.25 · native switch in list rows; styled fallback where it is missing</p>
+<div class="ds-item"><div style="width: 361px; flex: none;"><section class="list" aria-label="Toggles">
+  <ul class="card" role="list">
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-on" role="switch" aria-checked="true" aria-label="Solid bars"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Solid bars</span><span class="switch is-off" role="switch" aria-checked="false" aria-label="Solid bars"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Keep crews and passwords</span><span class="switch is-off is-fallback" role="switch" aria-checked="false" aria-label="Keep crews and passwords"></span></li>
+    <li class="row row-toggle"><span class="row-title is-body">Keep crews and passwords</span><span class="switch is-on is-fallback" role="switch" aria-checked="true" aria-label="Keep crews and passwords"></span></li>
+  </ul>
+</section></div><div class="ds-aside"><p class="ds-label"><b>Native</b> (rows 1-2) · on tint, off fill<br><b>Fallback</b> (rows 3-4) · 51×31 track, 27px thumb · off adds a 1.5px control-off edge (3:1)</p></div></div>
+</section>
+</div>
+</div>
+</div>
+</x-dc>
+
+</body>
+</html>

@@ -1,28 +1,350 @@
 {
-  "pages": [
-    { "id": "screens", "name": "Screens" },
-    { "id": "directions", "name": "Directions" }
-  ],
-  "artboards": [
-    { "file": "Login.dc.html", "title": "Login", "x": 0, "y": 0, "w": 1440, "h": 900, "page": "screens" },
-    { "file": "Main.dc.html", "title": "Summary", "x": 1560, "y": 0, "w": 1440, "h": 1168, "page": "screens" },
-    { "file": "MobileSummary.dc.html", "title": "Mobile · Summary", "x": 3120, "y": 0, "w": 390, "h": 844, "page": "screens" },
-    { "file": "MobileTrade.dc.html", "title": "Mobile · Trade ticket", "x": 3590, "y": 0, "w": 390, "h": 844, "page": "screens" },
-    { "file": "Trade.dc.html", "title": "Trade · quote + order ticket", "x": 0, "y": 1400, "w": 1440, "h": 1440, "page": "screens" },
-    { "file": "OrderFlow.dc.html", "title": "Order flow", "x": 1560, "y": 1400, "w": 1280, "h": 780, "page": "screens" },
-    { "file": "Markets.dc.html", "title": "Markets", "x": 2960, "y": 1400, "w": 1440, "h": 1716, "page": "screens" },
-    { "file": "ResearchDirectory.dc.html", "title": "Research · screener", "x": 0, "y": 3360, "w": 1440, "h": 1200, "page": "screens" },
-    { "file": "ResearchReport.dc.html", "title": "Research · company financials", "x": 1560, "y": 3360, "w": 1440, "h": 1820, "page": "screens" },
-    { "file": "Standings.dc.html", "title": "Standings", "x": 3120, "y": 3360, "w": 1440, "h": 1150, "page": "screens" },
-    { "file": "FinalReckoning.dc.html", "title": "Final results + market reveal", "x": 0, "y": 5420, "w": 1440, "h": 2268, "page": "screens" },
-    { "file": "HostConsole.dc.html", "title": "Host console", "x": 1560, "y": 5420, "w": 1440, "h": 1942, "page": "screens" },
-    { "file": "DirectionA.dc.html", "title": "A · Captain's Quarters", "x": 0, "y": 0, "w": 760, "h": 600, "page": "directions" },
-    { "file": "DirectionB.dc.html", "title": "B · Black Pearl (chosen)", "x": 840, "y": 0, "w": 760, "h": 600, "page": "directions" },
-    { "file": "DirectionC.dc.html", "title": "C · Treasure Map", "x": 1680, "y": 0, "w": 760, "h": 600, "page": "directions" },
-    { "file": "DirectionD.dc.html", "title": "D · Tortuga Harbor", "x": 2520, "y": 0, "w": 760, "h": 600, "page": "directions" }
-  ],
-  "annotations": [
-    { "id": "round-1", "page": "screens", "x": 0, "y": -200, "w": 900, "text": "Round 1 screens in the chosen direction (B). In progress now: a beginner-friendly pass adding plain-English explanations with sector averages on every number, a Learn guide, a first-login walkthrough, a Dispatches page, and corrected sample numbers. The sample crew will be renamed to Saltwind Traders." }
-  ],
-  "launch": { "view": "canvas", "page": "screens" }
+ "pages": [
+  {
+   "id": "iphone",
+   "name": "iPhone"
+  },
+  {
+   "id": "mobile-system",
+   "name": "Mobile system"
+  },
+  {
+   "id": "desktop",
+   "name": "Desktop (earlier round)"
+  },
+  {
+   "id": "directions",
+   "name": "Directions"
+  }
+ ],
+ "artboards": [
+  {
+   "file": "iPhoneSignIn.dc.html",
+   "title": "Sign in",
+   "x": 0,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneSignInError.dc.html",
+   "title": "Sign in \u00b7 wrong password",
+   "x": 473,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneSignInTradingOff.dc.html",
+   "title": "Sign in \u00b7 trading off",
+   "x": 946,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhonePortfolio.dc.html",
+   "title": "Portfolio \u00b7 first visit (full scroll)",
+   "x": 1419,
+   "y": 0,
+   "w": 393,
+   "h": 1860,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhonePortfolioDark.dc.html",
+   "title": "Portfolio \u00b7 dark",
+   "x": 1892,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneInfoSheet.dc.html",
+   "title": "\"?\" explanation sheet",
+   "x": 2365,
+   "y": 0,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneMarkets.dc.html",
+   "title": "Markets (full scroll)",
+   "x": 0,
+   "y": 2100,
+   "w": 393,
+   "h": 2069,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneMarketsScrolled.dc.html",
+   "title": "Markets \u00b7 scrolled",
+   "x": 473,
+   "y": 2100,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneCompany.dc.html",
+   "title": "Company page \u00b7 KRKN (full scroll)",
+   "x": 946,
+   "y": 2100,
+   "w": 393,
+   "h": 3070,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneLearn.dc.html",
+   "title": "Learn (full scroll)",
+   "x": 1419,
+   "y": 2100,
+   "w": 393,
+   "h": 1640,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneTradeEntry.dc.html",
+   "title": "Trade \u00b7 entry",
+   "x": 0,
+   "y": 5410,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneTradePreview.dc.html",
+   "title": "Trade \u00b7 preview",
+   "x": 473,
+   "y": 5410,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneTradeFilled.dc.html",
+   "title": "Trade \u00b7 filled",
+   "x": 946,
+   "y": 5410,
+   "w": 393,
+   "h": 852,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneNews.dc.html",
+   "title": "News (full scroll)",
+   "x": 1419,
+   "y": 5410,
+   "w": 393,
+   "h": 1644,
+   "page": "iphone"
+  },
+  {
+   "file": "iPhoneStandings.dc.html",
+   "title": "Standings",
+   "x": 1892,
+   "y": 5410,
+   "w": 393,
+   "h": 982,
+   "page": "iphone"
+  },
+  {
+   "file": "MobileTokens.dc.html",
+   "title": "Tokens",
+   "x": 0,
+   "y": 0,
+   "w": 1200,
+   "h": 3984,
+   "page": "mobile-system"
+  },
+  {
+   "file": "MobileBars.dc.html",
+   "title": "Bars and controls",
+   "x": 1320,
+   "y": 0,
+   "w": 1200,
+   "h": 3860,
+   "page": "mobile-system"
+  },
+  {
+   "file": "MobileLists.dc.html",
+   "title": "Lists and small parts",
+   "x": 2640,
+   "y": 0,
+   "w": 1200,
+   "h": 4595,
+   "page": "mobile-system"
+  },
+  {
+   "file": "Login.dc.html",
+   "title": "Login",
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "page": "desktop"
+  },
+  {
+   "file": "Main.dc.html",
+   "title": "Summary",
+   "x": 1560,
+   "y": 0,
+   "w": 1440,
+   "h": 1168,
+   "page": "desktop"
+  },
+  {
+   "file": "MobileSummary.dc.html",
+   "title": "Mobile \u00b7 Summary",
+   "x": 3120,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "page": "desktop"
+  },
+  {
+   "file": "MobileTrade.dc.html",
+   "title": "Mobile \u00b7 Trade ticket",
+   "x": 3590,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "page": "desktop"
+  },
+  {
+   "file": "Trade.dc.html",
+   "title": "Trade \u00b7 quote + order ticket",
+   "x": 0,
+   "y": 1400,
+   "w": 1440,
+   "h": 1440,
+   "page": "desktop"
+  },
+  {
+   "file": "OrderFlow.dc.html",
+   "title": "Order flow",
+   "x": 1560,
+   "y": 1400,
+   "w": 1280,
+   "h": 780,
+   "page": "desktop"
+  },
+  {
+   "file": "Markets.dc.html",
+   "title": "Markets",
+   "x": 2960,
+   "y": 1400,
+   "w": 1440,
+   "h": 1716,
+   "page": "desktop"
+  },
+  {
+   "file": "ResearchDirectory.dc.html",
+   "title": "Research \u00b7 screener",
+   "x": 0,
+   "y": 3360,
+   "w": 1440,
+   "h": 1200,
+   "page": "desktop"
+  },
+  {
+   "file": "ResearchReport.dc.html",
+   "title": "Research \u00b7 company financials",
+   "x": 1560,
+   "y": 3360,
+   "w": 1440,
+   "h": 1820,
+   "page": "desktop"
+  },
+  {
+   "file": "Standings.dc.html",
+   "title": "Standings",
+   "x": 3120,
+   "y": 3360,
+   "w": 1440,
+   "h": 1150,
+   "page": "desktop"
+  },
+  {
+   "file": "FinalReckoning.dc.html",
+   "title": "Final results + market reveal",
+   "x": 0,
+   "y": 5420,
+   "w": 1440,
+   "h": 2268,
+   "page": "desktop"
+  },
+  {
+   "file": "HostConsole.dc.html",
+   "title": "Host console",
+   "x": 1560,
+   "y": 5420,
+   "w": 1440,
+   "h": 1942,
+   "page": "desktop"
+  },
+  {
+   "file": "DirectionA.dc.html",
+   "title": "A \u00b7 Captain's Quarters",
+   "x": 0,
+   "y": 0,
+   "w": 760,
+   "h": 600,
+   "page": "directions"
+  },
+  {
+   "file": "DirectionB.dc.html",
+   "title": "B \u00b7 Black Pearl (chosen)",
+   "x": 840,
+   "y": 0,
+   "w": 760,
+   "h": 600,
+   "page": "directions"
+  },
+  {
+   "file": "DirectionC.dc.html",
+   "title": "C \u00b7 Treasure Map",
+   "x": 1680,
+   "y": 0,
+   "w": 760,
+   "h": 600,
+   "page": "directions"
+  },
+  {
+   "file": "DirectionD.dc.html",
+   "title": "D \u00b7 Tortuga Harbor",
+   "x": 2520,
+   "y": 0,
+   "w": 760,
+   "h": 600,
+   "page": "directions"
+  }
+ ],
+ "annotations": [
+  {
+   "id": "round-2",
+   "page": "iphone",
+   "x": 0,
+   "y": -220,
+   "w": 1400,
+   "text": "Round 2: mobile-first, Apple-style iPhone screens in the Black Pearl look, with beginner explanations on every number. Light and dark follow the phone's setting. Tall frames show the whole scroll; the dashed line marks the bottom of the screen (tab bar stays fixed). More screens (onboarding, positions, activity, financials, trade problems, results reveal, host, iPad) are being drawn now."
+  },
+  {
+   "id": "desktop-note",
+   "page": "desktop",
+   "x": 0,
+   "y": -200,
+   "w": 900,
+   "text": "Earlier desktop round, kept for reference. The phone layout is now the priority; large screens will reuse the iPhone components in a split view."
+  }
+ ],
+ "launch": {
+  "view": "canvas",
+  "page": "iphone"
+ }
 }

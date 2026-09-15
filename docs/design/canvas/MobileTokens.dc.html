@@ -1,0 +1,998 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&amp;display=swap">
+  <style>
+/* ==========================================================================
+   Buccaneer Exchange · mobile kit for canvas artboards (.dc.html)
+   Source of truth: docs/design/MOBILE.md §2.6 tokens, §3 type, §4 layout, §5 components.
+   Canonical markup for every class: docs/design/canvas/_kit/KIT.md.
+   Paste this whole file into the artboard <helmet><style>. Static artboards only:
+   light tokens live on :root (and .light), dark tokens on .dark / .hull. There is no
+   prefers-color-scheme query here, so a light artboard never flips in a dark viewer.
+   All sizes are px at the default "Large" Dynamic Type size on the 393x852 frame.
+   ========================================================================== */
+
+/* ---------- 1. Tokens (MOBILE §2.6) ---------- */
+:root, .light {
+  color-scheme: light;
+  --bg-grouped:#E6E3D9; --bg:#F8F6F0; --bg-2:#EFECE3; --cell:#F8F6F0; --elevated:#EFECE3; --elevated-cell:#F8F6F0;
+  --label:#161816; --label-2:#454A45; --label-3:#5F645C; --label-4:rgba(22,24,22,.22);
+  --separator:#D9D4C6; --control-off:#857F70; --fill:rgba(69,64,48,.10); --fill-2:rgba(69,64,48,.06); --fill-on-glass:rgba(69,64,48,.10);
+  --tint:#735B2A; --tint-strong:#5A4720; --tint-soft:rgba(184,149,74,.18); --platter:rgba(184,149,74,.22);
+  --prominent:#1A1F1C; --on-prominent:#DDBE72; --accent:#2F6F68; --accent-dot:#5FA39A; --focus:#2F6F68;
+  --gain:#1B7150; --loss:#A63A2B; --gain-fill:#DFEEE6; --loss-fill:#F3E0DB; --on-side:#F8F6F0;
+  --destructive:#A63A2B; --destructive-strong:#862B1F;
+  --segment-thumb:#1A1F1C; --on-segment-thumb:#DDBE72; --chart-baseline:#80683A;
+  --seal-crimson:#8E1F1A; --seal-brass:#B8954A; --seal-highlight:#DDBE72;
+  --glass:rgba(248,246,240,.85); --glass-solid:#F8F6F0; --glass-edge:inset 0 0 0 .5px rgba(255,255,255,.55),0 0 0 .5px rgba(22,24,22,.10);
+  --float-shadow:0 8px 24px rgba(22,24,22,.12); --scrim:rgba(0,0,0,.35); --scrim-info:rgba(0,0,0,.20);
+  --press-filter:brightness(.92);
+  color: var(--label);
+}
+/* DARK LIST — identical to MOBILE §2.6 (.dark, .hull) */
+.dark, .hull {
+  color-scheme: dark;
+  --bg-grouped:#0B0D0C; --bg:#0B0D0C; --bg-2:#1A1F1C; --cell:#1A1F1C; --elevated:#1A1F1C; --elevated-cell:#232A26;
+  --label:#E4E8E2; --label-2:#9FB0A8; --label-3:#8A9A93; --label-4:rgba(228,232,226,.20);
+  --separator:#34403A; --control-off:#6E7C75; --fill:rgba(159,176,168,.16); --fill-2:rgba(159,176,168,.10); --fill-on-glass:rgba(0,0,0,.25);
+  --tint:#DDBE72; --tint-strong:#DDBE72; --tint-soft:rgba(221,190,114,.16); --platter:rgba(221,190,114,.16);
+  --prominent:#DDBE72; --on-prominent:#111412; --accent:#5FA39A; --focus:#5FA39A;
+  --gain:#7FD3B0; --loss:#EE9A89; --gain-fill:#173B2D; --loss-fill:#43231E; --on-side:#0B0D0C;
+  --destructive:#EE9A89; --destructive-strong:#EE9A89;
+  --segment-thumb:#9FB0A8; --on-segment-thumb:#0B0D0C; --chart-baseline:#B8954A;
+  --glass:rgba(17,20,18,.85); --glass-solid:#111412; --glass-edge:inset 0 0 0 .5px rgba(228,232,226,.10),0 0 0 .5px rgba(0,0,0,.60);
+  --float-shadow:0 8px 24px rgba(0,0,0,.45); --scrim:rgba(0,0,0,.55); --scrim-info:rgba(0,0,0,.35);
+  --press-filter:brightness(1.12);
+  color: var(--label);
+}
+.hull { /* Sign in + ceremonies: dark tokens plus the hull glow */
+  background: radial-gradient(120% 60% at 85% 0%, rgba(95,163,154,.18), transparent 60%), #111412; }
+/* Increased contrast (MOBILE §2.3) as a static class: add .contrast-more next to .light / .dark */
+.contrast-more { --label-2:#33372F; --label-3:#454A45; --tint:#5A4720; --tint-strong:#5A4720; --accent:#1F5751; --focus:#1F5751;
+  --gain:#0F5A3E; --loss:#862B1F; --destructive:#862B1F; --separator:#BFB8A6; --control-off:#6B6558; }
+.dark.contrast-more, .hull.contrast-more { --label-2:#C4D0CA; --label-3:#A9B7B0; --tint:#EDD493; --tint-strong:#EDD493; --accent:#8CCBC1; --focus:#8CCBC1;
+  --gain:#A3E6C8; --loss:#F7B8AA; --destructive:#F7B8AA; --destructive-strong:#F7B8AA; --separator:#4A5A52; --control-off:#8A9A93; }
+
+/* Scale tokens (MOBILE §3.2, §4.2, §8.1) */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, Menlo, Consolas, "Roboto Mono", monospace;
+  --font-brand: "Cinzel Decorative", Georgia, "Times New Roman", serif;
+  --margin: 16px;
+  --r-card: 24px; --r-inner: 16px; --r-tile: 8px; --r-sheet-medium: 32px; --r-sheet-large: 24px; --r-alert: 28px;
+  --ease-spring: linear(0, 0.06, 0.186, 0.329, 0.466, 0.584, 0.682, 0.76, 0.821, 0.868, 0.903, 0.929, 0.949, 0.963, 0.973, 0.981, 1);
+  --ease-snappy: linear(0, 0.062, 0.198, 0.356, 0.509, 0.642, 0.75, 0.833, 0.895, 0.938, 0.967, 0.985, 0.996, 1.003, 1.005, 1.006, 1);
+  --ease-bouncy: linear(0, 0.059, 0.197, 0.366, 0.535, 0.685, 0.808, 0.902, 0.968, 1.01, 1.034, 1.044, 1.046, 1.041, 1.034, 1.027, 1.019, 1.012, 1.007, 1.003, 1);
+  --ease-fallback: cubic-bezier(.2, .8, .2, 1);
+  --dur-press: 100ms; --dur-fade: 150ms; --dur-flash: 300ms;
+  --sector-shipping:#2F6F68; --sector-banking:#6F5A2E; --sector-maps:#4C5B40; --sector-arms:#7A3328; --sector-relics:#3F3F52;
+  --sector-hospitality:#5B4A63; --sector-provisions:#7A5A2E; --sector-livestock:#4E6B3A; --sector-marque:#3E5566; --crew-hull:#232A26;
+}
+
+/* ---------- 2. Base and utilities ---------- */
+* { box-sizing: border-box; }
+body { margin: 0; background: #E6E3D9; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+a { color: var(--tint); text-decoration: none; }
+a:hover { color: var(--tint-strong); text-decoration: underline; }
+button { font-family: inherit; }
+.bx { font-family: var(--font-ui); font-size: 17px; line-height: 22px; letter-spacing: normal; color: var(--label);
+  font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+.num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-weight: 500; }
+.nowrap { white-space: nowrap; }
+.trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.brand { font-family: var(--font-brand); font-weight: 700; white-space: nowrap; letter-spacing: normal; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.bg-grouped { background: var(--bg-grouped); } .bg-plain { background: var(--bg); } .bg-2 { background: var(--bg-2); }
+.bg-cell { background: var(--cell); } .bg-elevated { background: var(--elevated); } .bg-elevated-cell { background: var(--elevated-cell); }
+.hstack { display: flex; align-items: center; } .vstack { display: flex; flex-direction: column; }
+.spacer { flex: 1 1 auto; min-width: 0; } .w-full { width: 100%; }
+/* gap-* and mt-* live in section 32 at the end of this file, so they win over component margins (.btn, .card, …) */
+
+/* ---------- 3. Type (MOBILE §3.3, default Large size) ---------- */
+.t-large-title { font-size: 34px; line-height: 41px; font-weight: 400; }
+.t-title1      { font-size: 28px; line-height: 34px; font-weight: 400; }
+.t-title2      { font-size: 22px; line-height: 28px; font-weight: 400; }
+.t-title3      { font-size: 20px; line-height: 25px; font-weight: 400; }
+.t-headline    { font-size: 17px; line-height: 22px; font-weight: 600; }
+.t-body        { font-size: 17px; line-height: 22px; font-weight: 400; }
+.t-callout     { font-size: 16px; line-height: 21px; font-weight: 400; }
+.t-subhead     { font-size: 15px; line-height: 20px; font-weight: 400; }
+.t-footnote    { font-size: 13px; line-height: 18px; font-weight: 400; }
+.t-caption1    { font-size: 12px; line-height: 16px; font-weight: 400; }
+.t-caption2    { font-size: 11px; line-height: 13px; font-weight: 400; }
+.t-amount      { font-size: 48px; line-height: 56px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; }
+.t-large-title.t-em, .t-title1.t-em, .t-title2.t-em { font-weight: 700; }
+.t-title3.t-em, .t-body.t-em, .t-callout.t-em, .t-subhead.t-em, .t-footnote.t-em, .t-caption1.t-em, .t-caption2.t-em { font-weight: 600; }
+.t-medium { font-weight: 500; }
+/* xxxLarge text (root 23px): only for large-text specimens; rows add .is-stacked */
+.type-xxxl .t-headline, .type-xxxl .t-body, .type-xxxl .row-title, .type-xxxl .row-value, .type-xxxl .explain-value { font-size: 23px; line-height: 29px; }
+.type-xxxl .t-subhead, .type-xxxl .explain-label, .type-xxxl .explain-sentence { font-size: 21px; line-height: 27px; }
+.type-xxxl .t-footnote, .type-xxxl .row-sub, .type-xxxl .explain-avg, .type-xxxl .metrics-cells { font-size: 19px; line-height: 24px; }
+.type-xxxl .t-caption1 { font-size: 18px; line-height: 23px; }
+.type-xxxl .t-title2 { font-size: 28px; line-height: 34px; }
+.type-xxxl .pill-change { height: auto; min-height: 30px; font-size: 19px; line-height: 24px; border-radius: 15px; }
+
+/* Colour roles as text */
+.c-label { color: var(--label); } .c-label-2 { color: var(--label-2); } .c-label-3 { color: var(--label-3); }
+.c-tint { color: var(--tint); } .c-tint-strong { color: var(--tint-strong); } .c-accent { color: var(--accent); }
+.c-gain { color: var(--gain); } .c-loss { color: var(--loss); } .c-destructive { color: var(--destructive); }
+.c-destructive-strong { color: var(--destructive-strong); } .c-gold { color: #DDBE72; }
+
+/* ---------- 4. Icons, triangles, signed changes (MOBILE §3.4, §5 intro) ---------- */
+/* Inline SVG, lucide-shaped originals, 24 grid: <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">…</svg> */
+.ic { width: 24px; height: 24px; flex: none; display: block; fill: none; stroke: currentColor; stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round; }
+.ic.s12 { width: 12px; height: 12px; } .ic.s14 { width: 14px; height: 14px; } .ic.s17 { width: 17px; height: 17px; }
+.ic.s18 { width: 18px; height: 18px; } .ic.s20 { width: 20px; height: 20px; } .ic.s22 { width: 22px; height: 22px; }
+.ic.s28 { width: 28px; height: 28px; } .ic.s36 { width: 36px; height: 36px; } .ic.s44 { width: 44px; height: 44px; }
+.ic.w2 { stroke-width: 2; } .ic.w225 { stroke-width: 2.25; } .ic.w25 { stroke-width: 2.5; }
+.ic-fill { fill: currentColor; stroke: none; }
+/* Triangle: 8px beside 11-15px text, 10px beside 17px+ (never announced) */
+.tri { width: 8px; height: 8px; flex: none; display: block; fill: currentColor; }
+.tri.s10 { width: 10px; height: 10px; }
+.chg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.chg.is-up { color: var(--gain); } .chg.is-down { color: var(--loss); } .chg.is-flat { color: var(--label-3); }
+.chg.is-neutral { color: var(--label-2); } /* rank moves and glass subtitles: never gain/loss colour */
+
+/* ---------- 5. Frame skeleton (MOBILE §4.3, §11.1; no drawn status bar or home indicator) ---------- */
+.phone { position: relative; width: 393px; overflow: hidden; background: var(--bg-grouped); color: var(--label);
+  font-family: var(--font-ui); font-size: 17px; line-height: 22px; font-variant-numeric: tabular-nums lining-nums; }
+.phone.is-plain { background: var(--bg); }
+.phone.hull { background: radial-gradient(120% 60% at 85% 0%, rgba(95,163,154,.18), transparent 60%), #111412; }
+.phone.is-se { width: 375px; }
+.safe-top { height: 59px; }                          /* 0-59: plain safe-area background */
+.screen { padding: 103px 16px 100px; }               /* content column: under the 44px bar row, 16px margins, clears the tab bar */
+.screen.has-float { padding-bottom: 166px; }         /* + floating Buy/Sell */
+.at-topbar { position: absolute; left: 0; right: 0; top: 59px; z-index: 20; }     /* bar row 59-103 */
+.at-bar-strip { position: absolute; left: 0; right: 0; top: 0; z-index: 20; }     /* collapsed glass strip 0-103 */
+.at-float { position: absolute; left: 16px; right: 16px; top: 698px; z-index: 30; } /* floating Buy/Sell 698-748 */
+.at-tabbar { position: absolute; left: 16px; top: 768px; z-index: 40; }            /* tab bar 768-830 */
+.at-toast { position: absolute; left: 16px; right: 16px; top: 111px; z-index: 50; } /* 59 + 44 + 8 */
+.edge-fade { position: absolute; left: 0; right: 0; top: 678px; height: 20px; z-index: 29;
+  background: linear-gradient(180deg, rgba(0,0,0,0), var(--bg-grouped)); }
+.fold { position: absolute; left: 0; right: 0; top: 852px; height: 0; border-top: 1px dashed #5FA39A; z-index: 90; }
+.fold-label { position: absolute; right: 8px; top: -11px; height: 20px; padding: 0 8px; border-radius: 10px; background: #111412;
+  color: #E4E8E2; font-size: 12px; line-height: 20px; white-space: nowrap; font-family: var(--font-ui); }
+/* iPhone SE 375×667 (MOBILE §4.1: safe area 20 / 0; tab bar bottom max(8, 0 − 12) = 8; §7.10 SE compression) */
+.is-se .safe-top { height: 20px; }
+.is-se .screen { padding: 64px 16px 86px; }            /* 20 + 44 · 62 + 8 + 16 */
+.is-se .screen.has-float { padding-bottom: 152px; }
+.is-se .at-topbar { top: 20px; }                       /* bar row 20-64 */
+.is-se .bar-strip { height: 64px; padding-top: 20px; } /* collapsed strip 0-64 */
+.is-se .at-toast { top: 72px; }                        /* 20 + 44 + 8 */
+.is-se .at-tabbar { top: 597px; }                      /* tab bar 597-659 */
+.is-se .tabbar:not(.is-rail) { width: 343px; }         /* 375 − 32; items 67 wide */
+.is-se .at-float { top: 527px; }                       /* floating Buy/Sell 527-577 */
+.is-se .edge-fade { top: 507px; }
+.is-se .fold { top: 667px; }
+.is-se .sheet.is-large { top: 30px; }                  /* 20 + 10 */
+.is-se .sheet.is-medium { height: 333px; }             /* 50% of 667 */
+.is-se .sheet-footer { padding-bottom: 12px; }         /* no home-indicator inset on SE */
+.is-se .key { height: 44px; }
+.is-se .ticket-quote { height: 36px; }
+
+/* ---------- 6. TabBar (MOBILE §5.1) ---------- */
+.tabbar { display: flex; width: 361px; height: 62px; padding: 4px; border-radius: 31px; }
+.tab { position: relative; flex: 1 1 0; min-width: 0; height: 54px; border-radius: 27px; display: flex; flex-direction: column;
+  align-items: center; padding-top: 8px; color: var(--label-2); text-decoration: none; }
+.tab .ic { width: 24px; height: 24px; }
+.tab-label { margin-top: 2px; max-width: 100%; font-size: 11px; line-height: 13px; font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.tab.is-selected { background: var(--platter); color: var(--tint-strong); }
+.tab.is-selected .ic { stroke-width: 2.25; }
+.tab.is-selected .tab-label { font-weight: 600; }
+.tab.is-pressed::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--platter); opacity: .5; }
+.tab.is-pressed { transform: scale(.96); }
+.tab.is-focus { box-shadow: inset 0 0 0 2px var(--focus); }
+.tab-badge { position: absolute; top: 4px; left: calc(50% + 4px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--prominent); color: var(--on-prominent); font-size: 11px; line-height: 18px; font-weight: 600; text-align: center;
+  box-shadow: 0 0 0 2px var(--glass-solid); font-variant-numeric: tabular-nums lining-nums; }
+/* Landscape rail (MOBILE §4.5): 72px vertical glass rail */
+.tabbar.is-rail { flex-direction: column; width: 72px; height: auto; border-radius: 36px; gap: 4px; }
+.tabbar.is-rail .tab { flex: none; width: 64px; height: 56px; border-radius: 28px; }
+
+/* ---------- 7. LargeTitleNavBar (MOBILE §5.2) ---------- */
+.topbar { position: relative; height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.topbar-lead, .topbar-trail { display: flex; align-items: center; gap: 8px; min-width: 44px; height: 44px; }
+.topbar-trail { justify-content: flex-end; }
+.topbar-center { position: absolute; left: 50%; top: 0; height: 44px; max-width: 200px; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.bar-title { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); white-space: nowrap; }
+.bar-subtitle { display: flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: var(--label-2); white-space: nowrap; }
+.bar-btn { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: transparent;
+  display: flex; align-items: center; justify-content: center; color: var(--label); }
+.bar-btn .ic { width: 20px; height: 20px; stroke-width: 2; }
+.bar-btn.on-glass { background: var(--fill-on-glass); }
+.bar-capsule { display: flex; height: 44px; border-radius: 22px; }
+.bar-capsule .bar-btn { background: transparent; }
+.bar-avatar { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; background: none; display: flex; align-items: center; justify-content: center; }
+.bar-strip { height: 103px; padding-top: 59px; }
+.bar-strip.glass { box-shadow: inset 0 -.5px 0 var(--separator); }
+.large-title { margin: 4px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; color: var(--label); white-space: nowrap; }
+.status-line { position: relative; display: flex; align-items: center; gap: 8px; max-width: 100%; height: 20px; margin: 2px 0 0; padding: 0; border: 0; background: none;
+  font-size: 15px; line-height: 20px; color: var(--label-2); white-space: nowrap; text-align: left; }
+.status-line::before { content: ""; position: absolute; left: -8px; right: -8px; top: -12px; bottom: -12px; }   /* 44px hit, 138-182 */
+.status-line > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.status-dot { flex: none; width: 8px; height: 8px; border-radius: 4px; background: var(--accent-dot); }
+.status-dot.is-open { background: var(--accent-dot); } .status-dot.is-paused { background: var(--tint); } .status-dot.is-idle { background: var(--label-3); }
+.after-title { margin-top: 12px; }                  /* status line ends 170, first content 182 */
+
+/* ---------- 8. SearchField (MOBILE §5.3) ---------- */
+.search-row { display: flex; align-items: center; gap: 12px; }
+.search { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 0 0 12px;
+  border-radius: 20px; background: var(--fill); color: var(--label-2); font-size: 17px; line-height: 22px; }
+.search > .ic { width: 17px; height: 17px; stroke-width: 2; color: var(--label-2); }
+.search-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--label-2); display: flex; align-items: center; }
+.search-text.is-typed { color: var(--label); }
+.search-caret { flex: none; display: inline-block; width: 2px; height: 22px; margin-left: 1px; border-radius: 1px; background: var(--tint); }
+.search-clear { flex: none; width: 44px; height: 44px; margin: -2px 0; display: flex; align-items: center; justify-content: center; border: 0; padding: 0; background: none; }
+.search-clear span { width: 17px; height: 17px; border-radius: 50%; background: var(--label-3); display: flex; align-items: center; justify-content: center; color: var(--cell); }
+.search-clear .ic { width: 11px; height: 11px; stroke-width: 3; }
+.search-cancel { flex: none; height: 44px; border: 0; padding: 0; background: none; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.search.is-pinned { height: 36px; border-radius: 18px; background: var(--fill-on-glass); }
+.search.is-pinned + .search-cancel, .bar-strip .search-cancel { color: var(--tint-strong); }
+
+/* ---------- 9. InsetGroupedList (MOBILE §5.4) ---------- */
+.list-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; margin: 0 0 8px; }
+.list-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); white-space: nowrap; }
+.list-link { position: relative; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.list-link::before { content: ""; position: absolute; left: -8px; right: -8px; top: -11px; bottom: -11px; } /* 44px target */
+.list-header.is-plain { padding: 0 16px; min-height: 18px; }
+.list-header.is-plain .list-title { font-size: 13px; line-height: 18px; font-weight: 400; color: var(--label-2); }
+.card { margin: 0; padding: 0; list-style: none; background: var(--cell); border-radius: 24px; overflow: clip; }
+.card.is-elevated { background: var(--elevated-cell); }
+.list-footer { margin: 0; padding: 8px 16px 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.list + .list { margin-top: 32px; }                 /* headed sections; use .mt-24 between headerless groups */
+
+/* ---------- 10. ListRow variants (MOBILE §5.5) ---------- */
+.row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 11px 16px; color: var(--label);
+  --sep: 16px; text-decoration: none; }
+.row::after { content: ""; position: absolute; left: var(--sep); right: 0; bottom: 0; height: 1px; background: var(--separator);
+  transform: scaleY(.5); transform-origin: 0 100%; }
+.row:last-child::after, .row.no-sep::after { display: none; }
+.row.is-pressed { background: var(--fill-2); }
+.row.is-highlighted { background: var(--tint-soft); }
+.row.is-focus { box-shadow: inset 0 0 0 2px var(--focus); }
+/* one-line Body rows: 11 + 22 + 11 = 44 (MOBILE §5.5 table heights; 12px padding would give 46) */
+.row-main > .hstack { min-width: 0; }
+.row-main > .hstack > .row-title { min-width: 0; }
+.sep-16 { --sep: 16px; } .sep-56 { --sep: 56px; } .sep-57 { --sep: 57px; } .sep-60 { --sep: 60px; } .sep-64 { --sep: 64px; } .sep-96 { --sep: 96px; }
+.row-lead { flex: none; display: flex; align-items: center; }
+.row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.row-title { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title.is-body { font-weight: 400; }
+.row-sub { font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-sub.is-ter { color: var(--label-3); }
+.row-trail { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+.row-value { font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.row-value.is-regular { font-weight: 400; }
+.row-detail { flex: none; font-size: 17px; line-height: 22px; color: var(--label-2); white-space: nowrap; }
+.row-chevron { flex: none; width: 14px; height: 14px; color: var(--label-3); stroke-width: 2.5; }
+.row-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.label-q { display: inline-flex; align-items: center; min-width: 0; }
+/* StockRow 64: crest 36 · ticker/name · sparkline 48x20 · value over ChangePill */
+.row-stock { min-height: 64px; padding-top: 8px; padding-bottom: 8px; --sep: 64px; }
+.row-stock .row-trail { gap: 0; min-width: 72px; }
+/* HoldingRow 64: crest 36 · ticker over shares · value over change text */
+.row-holding { min-height: 64px; --sep: 64px; }
+.row-holding .chg { font-size: 13px; line-height: 18px; font-weight: 600; }
+/* PositionRow 88: three lines */
+.row-position { min-height: 88px; align-items: flex-start; --sep: 64px; }
+.row-position .row-main { gap: 3px; }
+.row-position .row-line + .row-line { height: 18px; align-items: center; }   /* 22 + 3 + 18 + 3 + 18 + 24 = 88 */
+.row-position .row-lead { padding-top: 2px; }
+.row-position .chg { font-size: 13px; line-height: 18px; font-weight: 600; }
+/* CompanyMetricsRow 76: L1 crest 28 · ticker · name … price · pill; L2 five 20% cells */
+.row-metrics { min-height: 76px; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 10px; padding-bottom: 10px; --sep: 52px; }
+.row-metrics .metrics-l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.row-metrics .metrics-l1 .row-title, .row-metrics .metrics-l1 .row-value { flex: none; }
+.metrics-cells { display: grid; grid-template-columns: repeat(5, 1fr); margin-left: 36px; font-size: 13px; line-height: 18px; color: var(--label);
+  font-variant-numeric: tabular-nums lining-nums; }
+.metrics-cells > span { text-align: right; white-space: nowrap; }
+.metrics-head { position: relative; display: grid; grid-template-columns: 36px repeat(5, 1fr); align-items: center; min-height: 36px;
+  padding: 0 16px; background: var(--bg-grouped); box-shadow: inset 0 -.5px 0 var(--separator);
+  font-size: 11px; line-height: 13px; font-weight: 600; color: var(--label-2); }
+.metrics-head > span { text-align: right; }
+.metrics-head .qmark.s28 { justify-self: start; margin: -4px 0 -4px -8px; }
+/* KeyValueRow 44 */
+.row-kv { justify-content: space-between; }
+.kv-value { flex: none; font-size: 17px; line-height: 22px; color: var(--label); white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; text-align: right; }
+.kv-value.is-secondary { color: var(--label-2); }
+.kv-value.is-strong { font-weight: 600; }
+/* ExplainRow >=88: label + ? … value · everyday sentence · sector average. No colour judgement. */
+.row-explain { min-height: 88px; flex-direction: column; align-items: stretch; gap: 2px; }
+.explain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; }
+.explain-label { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.explain-value { flex: none; font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.explain-sentence { font-size: 15px; line-height: 20px; color: var(--label); margin: 2px 0 0; }
+.explain-avg { font-size: 13px; line-height: 18px; color: var(--label-3); margin: 2px 0 0; font-variant-numeric: tabular-nums lining-nums; }
+/* DisclosureRow 44 / 60 with subtitle */
+.row-disclosure.has-sub { min-height: 60px; padding-top: 10px; padding-bottom: 10px; }
+.row-disclosure .icon-tile { margin: -3.5px 0; }        /* 29px tile keeps the row at 44 */
+.icon-tile { flex: none; width: 29px; height: 29px; border-radius: 8px; background: var(--tint-soft); color: var(--tint);
+  display: flex; align-items: center; justify-content: center; }
+.icon-tile .ic { width: 18px; height: 18px; }
+/* ActivityRow 64 */
+.row-activity { min-height: 64px; --sep: 60px; }
+.icon-circle { flex: none; width: 32px; height: 32px; border-radius: 16px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.icon-circle .ic { width: 20px; height: 20px; }
+/* StandingRow 60 */
+.row-standing { min-height: 60px; gap: 8px; padding-top: 8px; padding-bottom: 8px; --sep: 96px; }   /* 8 + 44 (name over You pill + value; ChangePill over move) + 8 */
+.row-standing .crest { margin-right: 4px; }
+.row-standing .row-sub { display: flex; align-items: center; gap: 6px; }
+.row-standing.is-you { background: var(--tint-soft); }
+.rank { flex: none; width: 28px; font-size: 17px; line-height: 22px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+.move { flex: none; display: inline-flex; align-items: center; justify-content: flex-end; gap: 2px; font-size: 12px; line-height: 16px; color: var(--label-2); }
+.row-standing .row-trail { gap: 2px; }
+/* ToggleRow 44 · ActionRow 44 */
+.row-toggle { justify-content: space-between; min-height: 44px; padding-top: 6.5px; padding-bottom: 6.5px; }   /* 6.5 + 31 + 6.5 */
+.row-action { font-size: 17px; line-height: 22px; color: var(--tint); }
+.row-action.is-destructive { color: var(--destructive); }
+/* Large text (root >=23px): two-column rows stack */
+.row.is-stacked { flex-wrap: wrap; align-items: flex-start; }
+.row.is-stacked .row-main { flex-basis: calc(100% - 60px); }
+.row.is-stacked .row-trail { flex-basis: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 48px; }
+.row-explain.is-stacked .explain-head { flex-direction: column; align-items: flex-start; gap: 0; }
+.row-metrics.is-stacked .metrics-cells { grid-template-columns: 1fr 1fr; row-gap: 4px; column-gap: 12px; margin-left: 0; }
+.row-metrics.is-stacked .metrics-l1 { flex-wrap: wrap; }
+.row-metrics.is-stacked .metrics-cells > span { text-align: left; white-space: normal; }
+
+/* ---------- 11. SegmentedControl (MOBILE §5.6) ---------- */
+.seg { display: flex; height: 32px; padding: 2px; border-radius: 16px; background: var(--fill); }
+.seg.is-lg { height: 36px; border-radius: 18px; }
+.seg-item { position: relative; flex: 1 1 0; min-width: 56px; display: flex; align-items: center; justify-content: center; padding: 0 8px;
+  border-radius: 14px; font-size: 13px; line-height: 18px; font-weight: 500; color: var(--label-2); white-space: nowrap; }
+.seg.is-lg .seg-item { border-radius: 16px; }
+.seg-item::after { content: ""; position: absolute; left: 0; right: 0; top: -8px; bottom: -8px; }   /* 28 → 44 hit */
+.seg.is-lg .seg-item::after { top: -6px; bottom: -6px; }                                                /* 32 → 44 hit */
+.seg-item.is-selected { background: var(--segment-thumb); color: var(--on-segment-thumb); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.seg-item.is-pressed { color: var(--label-2); opacity: .6; }
+.seg-item.is-disabled { color: var(--label-4); }
+.seg.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- 12. Buttons (MOBILE §5.7) ---------- */
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin: 0; border: 0;
+  border-radius: 999px; font-family: var(--font-ui); font-weight: 600; letter-spacing: normal; white-space: nowrap; text-decoration: none;
+  cursor: pointer; background: transparent; color: var(--label); }
+.btn-lg { height: 50px; padding: 0 20px; font-size: 17px; line-height: 22px; }
+.btn-md { height: 34px; min-width: 44px; padding: 0 14px; font-size: 15px; line-height: 20px; }
+.btn-sm { height: 28px; min-width: 44px; padding: 0 10px; font-size: 13px; line-height: 18px; }
+.btn-md::before, .btn-sm::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; margin-top: -22px; } /* 44px hit */
+.btn-block { display: flex; width: 100%; }
+.btn .ic { width: 20px; height: 20px; stroke-width: 2; }
+.btn-sm .ic { width: 17px; height: 17px; }
+.btn-prominent { background: var(--prominent); color: var(--on-prominent); }
+.btn-buy { background: var(--gain); color: var(--on-side); }
+.btn-sell { background: var(--loss); color: var(--on-side); }
+.btn-tinted { background: var(--tint-soft); color: var(--tint-strong); }
+.btn-tinted-sell { background: var(--loss-fill); color: var(--loss); }
+.btn-gray { background: var(--fill); color: var(--label); }
+.btn-gray.on-grouped { background: var(--cell); box-shadow: inset 0 0 0 .5px var(--separator); }
+.btn-plain { background: transparent; color: var(--tint); }
+.btn-destructive { background: transparent; color: var(--destructive); }
+.btn-destructive-tinted { background: var(--loss-fill); color: var(--loss); }
+.btn-glass { color: var(--label); }                  /* add .glass for the material */
+.btn-circle { width: 44px; height: 44px; padding: 0; border-radius: 22px; }
+.btn.is-pressed { transform: scale(.97); filter: var(--press-filter); }
+.btn.is-disabled, .btn.is-disabled.btn-plain { background: var(--fill); color: var(--label-3); filter: none; transform: none; } /* inactive control: WCAG 1.4.3 exempt; always pair with a visible reason */
+.btn.is-disabled.btn-plain, .btn.is-disabled.btn-destructive { background: transparent; }
+.btn.is-focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn.is-loading { cursor: progress; }                 /* spinner + changed label; width stays locked */
+.spinner { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.25; stroke-linecap: round; }
+
+/* ---------- 13. Chips, pills and badges (MOBILE §5.20) ---------- */
+.chips { display: flex; gap: 8px; overflow: hidden; }
+.chip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 18px;
+  background: var(--fill); color: var(--label); font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums; }
+.chip::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }   /* 44px hit */
+.chip.on-grouped { background: var(--cell); box-shadow: inset 0 0 0 .5px var(--separator); }
+.chip .chg { font-size: 15px; }
+.pill-change { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 64px; height: 26px;
+  padding: 0 8px; border-radius: 13px; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums; }
+.pill-change.is-up { background: var(--gain-fill); color: var(--gain); }
+.pill-change.is-down { background: var(--loss-fill); color: var(--loss); }
+.pill-change.is-flat { background: var(--fill); color: var(--label-2); }
+.pill-tag, .pill-you { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px;
+  font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap; }
+.pill-tag { background: var(--fill); color: var(--label-2); }
+.pill-tag .ic { width: 12px; height: 12px; stroke-width: 2; }
+.pill-you { background: var(--prominent); color: var(--on-prominent); }
+.badge-count { flex: none; display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--prominent);
+  color: var(--on-prominent); font-size: 11px; line-height: 18px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 14. InfoTip trigger and sheet (MOBILE §5.9) ---------- */
+/* 22px CircleQuestionMark in a 44x44 target. Vertical margins of −22px give it a 0-tall margin box, so it never makes its
+   line taller (StockHeader stays 141, PositionSummary cells 64, KeyValueRow 44); horizontal margins pull it 4px from the label. */
+.qmark { position: relative; flex: none; width: 44px; height: 44px; margin: -22px -11px -22px -7px; padding: 0; border: 0; background: none;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--label-2); }
+.qmark .ic { width: 22px; height: 22px; }
+.qmark.no-pull { margin: 0; }
+.qmark.s17 .ic { width: 17px; height: 17px; }
+.qmark.s17 { margin: -22px -13px -22px -9px; }
+.qmark.s28 { margin: -8px; }
+.qmark.s28 .ic { width: 20px; height: 20px; }
+.qmark.s28::after { content: ""; position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 14px; background: var(--fill); z-index: -1; }
+.qmark.s28 { z-index: 0; isolation: isolate; }
+.qmark.is-open::after { content: ""; position: absolute; left: 9px; top: 9px; width: 26px; height: 26px; border-radius: 13px; background: var(--tint-soft); z-index: -1; }
+.qmark.is-open { color: var(--tint-strong); isolation: isolate; }
+.infotip { padding: 4px 20px 24px; }
+.infotip-title { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; color: var(--label); }
+.infotip-term { margin: 2px 0 0; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.infotip-block { margin-top: 16px; }
+.infotip-h { margin: 0; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--label); }
+.infotip-p { margin: 2px 0 0; font-size: 17px; line-height: 22px; color: var(--label); }
+.infotip-inline { padding: 0; display: grid; gap: 6px; font-size: 15px; line-height: 20px; color: var(--label); }
+.row.has-expand { flex-direction: column; align-items: stretch; gap: 8px; }
+.kv-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 22px; }
+.help-item { padding: 16px 0; box-shadow: inset 0 -.5px 0 var(--separator); }
+.help-item:last-child { box-shadow: none; }
+.help-item .infotip-inline { margin-top: 8px; }
+.help-item .list-link { display: inline-block; margin-top: 8px; }
+.infotip-inline p { margin: 0; }
+.infotip-inline b { font-weight: 600; }
+
+/* ---------- 15. Sheet (MOBILE §5.8): opaque, never glass ---------- */
+.scrim { position: absolute; inset: 0; z-index: 60; background: var(--scrim); }
+.scrim.is-info { background: var(--scrim-info); }
+.scrim.is-second { z-index: 75; }                     /* action sheet or alert shown over a sheet (MOBILE §4.6) */
+.sheet { position: absolute; z-index: 70; background: var(--elevated); box-shadow: var(--float-shadow); overflow: clip; color: var(--label); }
+.sheet.is-large { left: 0; right: 0; top: 69px; bottom: 0; border-radius: 24px 24px 0 0; }        /* safe-area 59 + 10 */
+.sheet.is-medium { left: 8px; right: 8px; bottom: 8px; height: 426px; border-radius: 32px; }       /* 50% of 852, inset 8 */
+.sheet.is-content { left: 8px; right: 8px; bottom: 8px; border-radius: 32px; }                     /* content height, up to large */
+.sheet.is-static { position: relative; left: auto; right: auto; top: auto; bottom: auto; }
+.sheet-grabber { position: absolute; left: 50%; top: 0; width: 64px; height: 44px; margin-left: -32px; border: 0; padding: 0; background: none; z-index: 1; }
+.sheet-grabber::before { content: ""; position: absolute; left: 14px; top: 6px; width: 36px; height: 5px; border-radius: 2.5px; background: var(--control-off); }
+.sheet-header { position: relative; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.sheet-header .sheet-title { position: absolute; left: 76px; right: 76px; top: 0; height: 56px; display: flex; align-items: center; justify-content: center; }
+.sheet-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--label); }
+.sheet-close { position: relative; flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.sheet-close .ic { width: 20px; height: 20px; stroke-width: 2; }
+.sheet-action { flex: none; height: 44px; border: 0; padding: 0 4px; background: none; font-size: 17px; line-height: 22px; color: var(--tint); white-space: nowrap; }
+.sheet-action.is-done { font-weight: 600; }
+.sheet-body { padding: 0 16px; }
+.sheet-spacer { flex: none; width: 44px; height: 44px; }
+.sheet-footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 34px; background: var(--elevated); }
+
+/* ---------- 16. Menu (MOBILE §5.10): glass ---------- */
+.menu { min-width: 220px; padding: 6px 0; border-radius: 28px; overflow: clip; color: var(--label); }
+.menu-item { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; font-size: 17px; line-height: 22px; color: var(--label); white-space: nowrap; }
+.menu-item .ic { margin-left: auto; width: 20px; height: 20px; }
+.menu-check { flex: none; width: 17px; display: flex; }
+.menu-check .ic { margin-left: 0; width: 17px; height: 17px; stroke-width: 2.25; }
+.menu-item.is-destructive { color: var(--destructive-strong); }
+.menu-sep { height: 8px; background: var(--fill-2); }
+
+/* ---------- 17. ActionSheet and Alert (MOBILE §5.11): opaque ---------- */
+.action-sheet { display: flex; flex-direction: column; gap: 8px; }
+.as-group { background: var(--elevated); border-radius: 28px; overflow: clip; box-shadow: var(--float-shadow); }
+.as-header { padding: 14px 20px 12px; text-align: center; box-shadow: inset 0 -.5px 0 var(--separator); }
+.as-title { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.as-message { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.as-action { display: flex; align-items: center; justify-content: center; height: 56px; font-size: 17px; line-height: 22px; color: var(--tint);
+  box-shadow: inset 0 -.5px 0 var(--separator); }
+.as-action:last-child { box-shadow: none; }
+.as-action.is-destructive { color: var(--destructive); }
+.as-cancel { display: flex; align-items: center; justify-content: center; height: 56px; border-radius: 28px; background: var(--elevated);
+  font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); box-shadow: var(--float-shadow); }
+.alert { width: 300px; padding: 20px; border-radius: 28px; background: var(--glass-solid); box-shadow: var(--float-shadow); color: var(--label); }
+.alert-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; }
+.alert-msg { margin: 4px 0 0; font-size: 15px; line-height: 20px; color: var(--label); }
+.alert-field { margin-top: 12px; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--fill); display: flex; align-items: center;
+  font-size: 17px; line-height: 22px; color: var(--label-2); box-shadow: inset 0 0 0 1px var(--control-off); }
+.alert-buttons { display: flex; gap: 8px; margin-top: 16px; }
+.alert-buttons .btn { flex: 1 1 0; height: 44px; padding: 0 12px; font-size: 17px; }
+.alert-buttons.is-stacked { flex-direction: column; }
+
+/* ---------- 18. Toast and Banner (MOBILE §5.12) ---------- */
+.toast { display: flex; align-items: center; gap: 10px; min-height: 52px; max-width: 361px; padding: 4px 4px 4px 16px; border-radius: 26px; color: var(--label); }
+.toast > .ic { width: 22px; height: 22px; color: var(--label); }
+.toast-text { flex: 1 1 auto; min-width: 0; font-size: 16px; line-height: 21px; color: var(--label); }
+.toast-action { flex: none; height: 44px; border: 0; padding: 0 6px; background: none; font-size: 16px; line-height: 21px; font-weight: 600; color: var(--tint-strong); white-space: nowrap; }
+.toast-close { flex: none; width: 44px; height: 44px; border: 0; padding: 0; background: none; color: var(--label-2); display: flex; align-items: center; justify-content: center; }
+.toast-close .ic { width: 17px; height: 17px; stroke-width: 2.25; }
+.banner { display: flex; gap: 12px; padding: 16px; border-radius: 24px; background: var(--cell); color: var(--label); }
+.banner > .ic { width: 22px; height: 22px; color: var(--label); }
+.banner-main { flex: 1 1 auto; min-width: 0; }
+.banner-title { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.banner-title .flavor { font-weight: 400; color: var(--label-2); }
+.banner-body { margin: 2px 0 0; font-size: 15px; line-height: 20px; color: var(--label); }
+.banner .btn { margin-top: 10px; }
+.banner.is-paused { background: var(--tint-soft); }
+.banner.is-ended { background: #111412; box-shadow: inset 0 0 0 1px #34403A; }  /* add class="dark" on the same element */
+.banner.is-ended .banner-title { color: #DDBE72; }
+.banner.is-ended .banner-title .flavor { color: #DDBE72; }
+
+/* ---------- 19. Chart card, sparkline, allocation, range (MOBILE §5.13) ---------- */
+.chart-card { background: var(--cell); border-radius: 24px; padding: 16px; color: var(--label); }
+.chart-summary { margin: 0; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.chart-plot { position: relative; margin-top: 8px; height: 180px; }
+.chart-plot.h220 { height: 220px; } .chart-plot.h160 { height: 160px; }
+.chart-plot > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart-y { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; line-height: 16px; color: var(--label-3);
+  font-variant-numeric: tabular-nums lining-nums; background: var(--cell); padding-left: 4px; }
+.chart-ref-label { position: absolute; left: 0; transform: translateY(-100%); padding-bottom: 2px; font-size: 12px; line-height: 16px; color: var(--label-2); background: var(--cell); padding-right: 4px; }
+.chart-x { display: flex; justify-content: space-between; height: 16px; margin-top: 4px; font-size: 12px; line-height: 16px; color: var(--label-3);
+  font-variant-numeric: tabular-nums lining-nums; }
+.chart-card .seg { margin-top: 8px; }
+.plot-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.plot-line.is-up { stroke: var(--gain); } .plot-line.is-down { stroke: var(--loss); } .plot-line.is-flat { stroke: var(--label-3); }
+.plot-ref { fill: none; stroke: var(--chart-baseline); stroke-width: 1; stroke-dasharray: 4 4; }
+.plot-compare { fill: none; stroke: var(--chart-baseline); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.stop-gain { stop-color: var(--gain); } .stop-loss { stop-color: var(--loss); }
+.scrub-rule { stroke: var(--label); stroke-opacity: .4; stroke-width: 1; }
+.scrub-dot { stroke: var(--cell); stroke-width: 2; }
+.scrub-dot.is-up { fill: var(--gain); } .scrub-dot.is-down { fill: var(--loss); }
+.spark { flex: none; display: block; width: 48px; height: 20px; overflow: visible; }
+.spark .plot-line { stroke-width: 1.5; }
+.spark .spark-open { fill: none; stroke: var(--label-3); stroke-width: 1; stroke-dasharray: 2 2; }
+.alloc { display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: clip; background: var(--cell); }
+.alloc-seg { height: 12px; }
+.alloc-seg.is-cash { background: var(--fill); }
+.alloc-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 12px; font-size: 13px; line-height: 18px; }
+.alloc-key { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.alloc-key .num { margin-left: auto; color: var(--label-2); }
+.alloc-swatch { flex: none; width: 10px; height: 10px; border-radius: 5px; }
+.alloc-swatch.is-cash { background: var(--fill); box-shadow: inset 0 0 0 .5px var(--control-off); }
+.range { position: relative; height: 8px; }
+.range-track { position: absolute; left: 0; right: 0; top: 2px; height: 4px; border-radius: 2px; background: var(--fill); }
+.range-marker { position: absolute; top: 0; width: 8px; height: 8px; margin-left: -4px; border-radius: 4px; background: var(--label); }
+.range-labels { display: flex; justify-content: space-between; margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--label-2); font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 20. StockHeader (MOBILE §5.14) ---------- */
+.stock-header { display: flex; flex-direction: column; color: var(--label); }
+.sh-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sh-name { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; }
+.sh-sub { margin: 0; font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; }
+.sh-price { margin: 12px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; }
+.sh-change { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap; }
+.sh-change .sh-when { font-weight: 400; color: var(--label-2); }
+.sh-asof { display: flex; align-items: center; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--label-3); white-space: nowrap; }
+
+/* ---------- 21. PositionSummary (MOBILE §5.15) ---------- */
+.pos-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.pos-cell { position: relative; min-height: 64px; padding: 11px 16px; display: flex; flex-direction: column; justify-content: center;
+  box-shadow: inset 0 -.5px 0 var(--separator); }
+.pos-cell:nth-child(odd) { box-shadow: inset -.5px -.5px 0 var(--separator); }
+.pos-label { display: flex; align-items: center; font-size: 13px; line-height: 18px; color: var(--label-2); white-space: nowrap; }
+.pos-value { font-size: 17px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums lining-nums; }
+.pos-value > span { white-space: nowrap; }
+.pos-footer { display: flex; align-items: center; min-height: 44px; padding: 0 16px; font-size: 13px; line-height: 18px; color: var(--label-2); }
+
+/* ---------- 22. Trade ticket: quote, amount, keypad, summary (MOBILE §5.16, §7.10) ---------- */
+.ticket-quote { display: flex; align-items: center; gap: 12px; height: 40px; }
+.quote-side { display: flex; flex-direction: column; min-width: 0; }
+.quote-side.is-end { margin-left: auto; align-items: flex-end; }
+.amount-row { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+.amount { font-size: 48px; line-height: 56px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums lining-nums; color: var(--label); }
+.amount-helper { margin: 0; height: 20px; text-align: center; font-size: 15px; line-height: 20px; color: var(--label-2); white-space: nowrap; }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.key { position: relative; height: 48px; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; line-height: 34px; font-weight: 400; color: var(--label); isolation: isolate; font-variant-numeric: tabular-nums lining-nums; }
+.key .ic { width: 24px; height: 24px; }
+.key.is-pressed::before { content: ""; position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 32px;
+  background: var(--fill); z-index: -1; }
+.summary-box { padding: 12px 16px; border-radius: 16px; background: var(--elevated-cell); }
+.summary-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 26px; font-size: 17px; line-height: 22px; }
+.problem-box { display: flex; gap: 12px; padding: 12px 16px; border-radius: 16px; background: var(--elevated-cell); }
+.problem-box > .ic { width: 20px; height: 20px; color: var(--label); margin-top: 1px; }
+
+/* ---------- 23. Stepper (MOBILE §5.24) ---------- */
+.stepper { display: inline-flex; width: 100px; height: 36px; border-radius: 18px; background: var(--fill); }
+.stepper-half { position: relative; flex: 1 1 0; display: flex; align-items: center; justify-content: center; border: 0; padding: 0; background: none; color: var(--label); }
+.stepper-half::after { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }   /* 44px tall hit */
+.stepper-half + .stepper-half::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 1px; background: var(--separator); transform: scaleX(.5); }
+.stepper-half .ic { width: 17px; height: 17px; stroke-width: 2; }
+.stepper-half.is-disabled { color: var(--label-4); }
+.step-circle { flex: none; width: 44px; height: 44px; border: 0; padding: 0; border-radius: 22px; background: var(--fill); color: var(--label);
+  display: flex; align-items: center; justify-content: center; }
+.step-circle .ic { width: 20px; height: 20px; stroke-width: 2; }
+
+/* ---------- 24. SwipeActions (MOBILE §5.17) ---------- */
+.swipe { position: relative; overflow: clip; }
+.swipe-content { position: relative; z-index: 1; background: var(--cell); transform: translateX(-152px); }
+.swipe-actions { position: absolute; right: 0; top: 0; bottom: 0; display: flex; }
+.swipe-action { width: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12px; line-height: 16px; font-weight: 600; color: var(--on-side); }
+.swipe-action .ic { width: 20px; height: 20px; stroke-width: 2; }
+.swipe-action.is-sell { background: var(--loss); } .swipe-action.is-buy { background: var(--gain); }
+
+/* ---------- 25. EmptyState (MOBILE §5.18) and Skeleton (§5.19) ---------- */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 28px 24px; color: var(--label); }
+.empty-icon { width: 44px; height: 44px; color: var(--label-3); }
+.empty-title { margin: 12px 0 0; font-size: 20px; line-height: 25px; font-weight: 600; }
+.empty-body { margin: 4px 0 0; max-width: 280px; font-size: 15px; line-height: 20px; color: var(--label-2); }
+.empty .btn { margin-top: 16px; }
+.empty-flavor { margin: 12px 0 0; font-size: 13px; line-height: 18px; color: var(--label-3); }
+.empty.is-hull { background: #111412; border-radius: 24px; }                       /* add class="dark" on the same element */
+.empty.is-hull .empty-title { color: #DDBE72; }
+.empty.is-hull .empty-icon { color: #B8954A; }
+.skel { display: block; background: var(--fill-2); border-radius: 6px; }
+.skel.is-shimmer { background: linear-gradient(90deg, var(--fill-2) 0%, var(--fill) 50%, var(--fill-2) 100%); }
+.skel-line { height: 12px; border-radius: 6px; }
+.skel-title { height: 22px; border-radius: 8px; }
+.skel-circle { border-radius: 50%; }
+.skel-block { border-radius: 16px; }
+
+/* ---------- 26. Crest monogram (MOBILE §5.21) ---------- */
+.crest { flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--crew-hull);
+  color: #F8F6F0; font-family: var(--font-ui); font-weight: 600; letter-spacing: .02em; line-height: 1; white-space: nowrap; }
+.crest.c28 { width: 28px; height: 28px; font-size: 10px; box-shadow: inset 0 0 0 1.5px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c32 { width: 32px; height: 32px; font-size: 11.5px; box-shadow: inset 0 0 0 1.5px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c36 { width: 36px; height: 36px; font-size: 13px; box-shadow: inset 0 0 0 1.62px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c44 { width: 44px; height: 44px; font-size: 15.8px; box-shadow: inset 0 0 0 1.98px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c52 { width: 52px; height: 52px; font-size: 18.7px; box-shadow: inset 0 0 0 2.34px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.crest.c64 { width: 64px; height: 64px; font-size: 23px; box-shadow: inset 0 0 0 2.88px rgba(221,190,114,.85), 0 1px 2px rgba(0,0,0,.2); }
+.sec-shipping { background: var(--sector-shipping); } .sec-banking { background: var(--sector-banking); } .sec-maps { background: var(--sector-maps); }
+.sec-arms { background: var(--sector-arms); } .sec-relics { background: var(--sector-relics); } .sec-hospitality { background: var(--sector-hospitality); }
+.sec-provisions { background: var(--sector-provisions); } .sec-livestock { background: var(--sector-livestock); } .sec-marque { background: var(--sector-marque); }
+.crew-hull { background: var(--crew-hull); }
+
+/* ---------- 27. Medallion / Podium (MOBILE §5.22) ---------- */
+.medal { position: relative; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  box-shadow: inset 0 0 0 3px rgba(0,0,0,.25), 0 2px 8px rgba(0,0,0,.35); }
+.medal.m96 { width: 96px; height: 96px; } .medal.m80 { width: 80px; height: 80px; }
+.medal.is-gold { background: radial-gradient(circle at 35% 30%, #DDBE72, #B8954A); }
+.medal.is-silver { background: radial-gradient(circle at 35% 30%, #D5DBD7, #8E9893); }
+.medal.is-bronze { background: radial-gradient(circle at 35% 30%, #C9925E, #80583A); }
+.medal-rank { margin: 8px 0 0; font-size: 20px; line-height: 25px; font-weight: 600; text-align: center; color: var(--label); font-variant-numeric: tabular-nums lining-nums; }
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; }
+.podium-col { display: flex; flex-direction: column; align-items: center; width: 112px; }
+.podium-step { width: 100%; margin-top: 8px; background: #1A1F1C; box-shadow: inset 0 1px 0 #B8954A; border-radius: 8px 8px 0 0; }
+.podium-step.h96 { height: 96px; } .podium-step.h72 { height: 72px; } .podium-step.h56 { height: 56px; }
+.podium-name { margin: 8px 0 0; font-size: 15px; line-height: 20px; text-align: center; color: #E4E8E2; }
+.podium-value { margin: 0; font-size: 13px; line-height: 18px; text-align: center; color: #9FB0A8; font-variant-numeric: tabular-nums lining-nums; }
+
+/* ---------- 28. WaxSeal (MOBILE §5.23): ornament only, aria-hidden ---------- */
+.seal { display: block; flex: none; }
+.seal.s64 { width: 64px; height: 64px; } .seal.s120 { width: 120px; height: 120px; }
+.seal-rim { fill: none; stroke-width: 1; }
+.seal.is-crimson .seal-disc { fill: var(--seal-crimson); } .seal.is-crimson .seal-ring { fill: none; stroke: #6E1814; stroke-width: 2.5; }
+.seal.is-crimson .seal-rose { fill: rgba(255,255,255,.18); } .seal.is-crimson .seal-rim { stroke: var(--seal-brass); }
+.seal.is-brass .seal-disc { fill: var(--seal-brass); } .seal.is-brass .seal-ring { fill: none; stroke: #80683A; stroke-width: 2.5; }
+.seal.is-brass .seal-rose { fill: rgba(17,20,18,.22); } .seal.is-brass .seal-rim { stroke: var(--seal-highlight); }
+
+/* ---------- 29. Toggle (MOBILE §5.25) ---------- */
+.switch { position: relative; flex: none; display: inline-block; width: 51px; height: 31px; border-radius: 15.5px; background: var(--tint); }
+.switch::before { content: ""; position: absolute; left: -4px; right: -4px; top: -6.5px; bottom: -6.5px; }   /* 59×44 hit */
+.switch::after { content: ""; position: absolute; top: 2px; left: 22px; width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2); }
+.switch.is-on { background: var(--tint); }
+.switch.is-off { background: var(--fill); }
+.switch.is-off::after { left: 2px; }
+.switch.is-fallback.is-off { box-shadow: inset 0 0 0 1.5px var(--control-off); }
+
+/* ---------- 30. Glass (MOBILE §2.4): floating chrome only, solid fallback first.
+   Kept last so the material wins over component backgrounds (bar buttons, buttons). ---------- */
+.glass { background: var(--glass-solid); box-shadow: var(--glass-edge), var(--float-shadow); }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%); }
+}
+.glass.is-solid, .solid-bars .glass { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.contrast-more .glass, .glass.is-contrast { background: var(--glass-solid); -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px var(--control-off); }
+
+/* ---------- 31. Component-sheet documentation layout (Mobile system canvas page only) ---------- */
+.ds { width: 1200px; padding: 40px; background: #D9D4C6; color: #161816; font-family: var(--font-ui); font-size: 15px; line-height: 20px;
+  font-variant-numeric: tabular-nums lining-nums; -webkit-font-smoothing: antialiased; }
+.ds-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 0 0 24px; }
+.ds-kicker { margin: 0; font-size: 13px; line-height: 18px; font-weight: 600; color: #454A45; }
+.ds-title { margin: 2px 0 0; font-size: 34px; line-height: 41px; font-weight: 700; color: #161816; }
+.ds-desc { margin: 4px 0 0; max-width: 700px; font-size: 15px; line-height: 20px; color: #454A45; }
+.ds-meta { margin: 0; font-size: 13px; line-height: 18px; color: #454A45; text-align: right; white-space: nowrap; }
+.ds-cols { display: grid; grid-template-columns: 560px 560px; }
+.ds-col { min-width: 0; padding: 24px 24px 32px; background: var(--bg-grouped); color: var(--label); }
+.ds-col.is-left { border-radius: 24px 0 0 24px; box-shadow: inset 0 0 0 1px #BFB8A6; }
+.ds-col.is-right { border-radius: 0 24px 24px 0; }
+.ds-colhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; box-shadow: inset 0 -1px 0 var(--separator); }
+.ds-coltitle { margin: 0; font-size: 22px; line-height: 28px; font-weight: 700; color: var(--label); }
+.ds-colnote { margin: 0; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.ds-sec { margin-top: 28px; }
+.ds-h { margin: 0; font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label); }
+.ds-ref { margin: 2px 0 12px; font-size: 13px; line-height: 18px; color: var(--label-2); }
+.ds-label { margin: 0; font-size: 12px; line-height: 16px; color: var(--label-2); }
+.ds-label b { font-weight: 600; color: var(--label); }
+.ds-item { display: flex; gap: 12px; align-items: flex-start; }
+.ds-item + .ds-item { margin-top: 12px; }
+.ds-aside { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
+.ds-above { min-width: 0; }
+
+/* ---------- 32. Spacing utilities (last, so they win over component margins and gaps) ---------- */
+.gap-2 { gap: 2px; } .gap-4 { gap: 4px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.mt-2 { margin-top: 2px; } .mt-4 { margin-top: 4px; } .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; } .mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; } .mt-32 { margin-top: 32px; }
+
+  </style>
+</helmet>
+<div class="ds bx" style="width: 1200px; height: 3984px; background: #D9D4C6;">
+<header class="ds-head">
+  <div><p class="ds-kicker">Mobile system · MOBILE.md §2, §3, §4, §8</p><h1 class="ds-title">Tokens</h1><p class="ds-desc">Colour roles with hex values and WCAG 2.2 contrast ratios computed by script with the MOBILE.md §2.5 method (glass composited over worst-case content), glass samples over hull and ledger content, the Dynamic Type ramp, spacing, radii and motion. The app follows the phone's light or dark setting.</p></div>
+  <p class="ds-meta">Kit: canvas/_kit/mobile-kit.css<br>Snippets: canvas/_kit/KIT.md</p>
+</header><div class="ds-cols">
+<div class="ds-col is-left light">
+<div class="ds-colhead"><h2 class="ds-coltitle">Light</h2><p class="ds-colnote">Paper and ledger · class="light" (default :root)</p></div><section class="ds-sec"><h3 class="ds-h">Surfaces</h3><p class="ds-ref">MOBILE §2.2 · opaque layers, back to front</p>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;"><div style="background: var(--bg-grouped); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg-grouped</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#E6E3D9</span> · Page behind cards</p></div><div style="background: var(--bg); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#F8F6F0</span> · Plain screens</p></div><div style="background: var(--bg-2); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg-2</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#EFECE3</span> · Secondary panels</p></div><div style="background: var(--cell); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--cell</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#F8F6F0</span> · Rows and cards</p></div><div style="background: var(--elevated); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--elevated</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#EFECE3</span> · Sheet background</p></div><div style="background: var(--elevated-cell); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--elevated-cell</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#F8F6F0</span> · Rows in sheets</p></div></div>
+</section><section class="ds-sec"><h3 class="ds-h">Text on opaque surfaces</h3><p class="ds-ref">WCAG 2.2 ratios, computed by script (MOBILE §2.5 method); every permitted pairing is 4.5 or more</p>
+<div style="display: grid; grid-template-columns: 164px repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--separator); border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);">
+    <div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">Role · hex</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">on cell</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">on grouped</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">in a sheet</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">more contrast</div>
+    <div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#161816</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">16.52</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">13.90</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">15.11</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span class="t-caption1" style="color: var(--label-2);">unchanged</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-2); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-2</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#454A45</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">8.38</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">7.05</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">7.67</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #33372F;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #33372F;">11.24</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-3); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-3</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#5F645C</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">5.61</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">4.72</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">5.13</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #454A45;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #454A45;">8.38</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--tint); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--tint</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#735B2A</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">5.96</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">5.02</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">5.46</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #5A4720;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #5A4720;">8.24</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--tint-strong); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--tint-strong</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#5A4720</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">8.24</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">6.94</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">7.54</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #5A4720;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #5A4720;">8.24</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--accent); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--accent</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#2F6F68</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">5.41</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">4.55</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">4.95</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #1F5751;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #1F5751;">7.65</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--gain); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--gain</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#1B7150</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">5.51</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">4.64</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">5.04</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #0F5A3E;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #0F5A3E;">7.61</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--loss); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--loss</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#A63A2B</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">5.96</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">5.01</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">5.45</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #862B1F;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #862B1F;">8.17</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--destructive); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--destructive</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#A63A2B</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">5.96</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">5.01</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">5.45</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #862B1F;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #862B1F;">8.17</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--destructive-strong); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--destructive-strong</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#862B1F</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">8.17</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">6.87</span></div>
+      <div style="background: var(--elevated); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">7.47</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span class="t-caption1" style="color: var(--label-2);">unchanged</span></div>
+    </div>
+    <div style="display: contents;"><div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-4);"></span><span><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-4</span><span class="t-caption1" style="display: block; color: var(--label-2);">rgba(22,24,22,.22)</span></span></div><div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px; grid-column: span 4;"><span style="font-size: 17px; font-weight: 600; color: var(--label-4);">Aa</span><span class="t-caption1" style="color: var(--label-2);">Disabled glyphs and disabled segments only (exempt from contrast). Never information.</span></div></div>
+  </div>
+  <p class="ds-label" style="margin-top: 8px;">"In a sheet" is the sheet background #EFECE3, the weakest opaque surface in this appearance. Increased contrast values are measured on cell.</p>
+</section><section class="ds-sec"><h3 class="ds-h">Fills, pills and buttons</h3><p class="ds-ref">Text on tinted fills, measured on the surface each one sits on</p>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">gain on gain-fill <b class="num">4.97</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on loss-fill <b class="num">5.06</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>Earnings</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label-2 on fill <b class="num">7.12</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-prominent btn-md" type="button"><span>Done</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-prominent on prominent <b class="num">9.30</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-buy btn-md" type="button"><span>Buy</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-side on gain <b class="num">5.51</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-sell btn-md" type="button"><span>Sell</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-side on loss <b class="num">5.96</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-tinted btn-md" type="button"><span>Open in Learn</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">tint-strong on tint-soft <b class="num">7.09</b> · on grouped <b class="num">6.10</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-gray btn-md" type="button"><span>Trade again</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label on fill <b class="num">14.03</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="badge-count">1</span><span class="pill-you">You</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">count badge, You pill <b class="num">9.30</b></p></div>
+    <div style="grid-column: span 2; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><div class="search w-full"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><span class="search-text">Search 25 companies</span></div></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label-2 placeholder on fill, over grouped <b class="num">6.04</b> · in a sheet row <b class="num">7.12</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-tinted-sell btn-md" type="button"><span>Sell</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on loss-fill <b class="num">5.06</b></p></div>
+    <div style="grid-column: span 2; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><div class="w-full"><div class="seg is-lg" role="radiogroup"><span class="seg-item is-selected" role="radio" aria-checked="true">Buy</span><span class="seg-item" role="radio" aria-checked="false">Sell</span></div></div></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-segment-thumb on thumb <b class="num">9.30</b> · thumb vs track (non-text) <b class="num">11.15</b> page · <b class="num">12.06</b> sheet · <b class="num">13.13</b> sheet row</p></div>
+    <div style="grid-column: span 1; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="chip on-grouped" style="padding: 0 10px;"><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on cell chip <b class="num">5.96</b></p></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Boundaries and placement rules</h3><p class="ds-ref">Non-text needs 3:1; decorative marks never carry meaning alone</p>
+<ul class="card" role="list">
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span style="display: block; width: 36px; height: 5px; border-radius: 2.5px; background: var(--control-off);"></span></div><div class="row-main"><span class="t-subhead t-em">--control-off #857F70</span><span class="row-sub" style="white-space: normal;">Grabber, switch-off edge (needs 3): cell <b class="num">3.69</b> · grouped <b class="num">3.11</b> · sheet <b class="num">3.38</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span class="btn btn-gray btn-sm is-focus">Fix</span></div><div class="row-main"><span class="t-subhead t-em">--focus #2F6F68</span><span class="row-sub" style="white-space: normal;">2px ring, 2px offset. vs cell <b class="num">5.41</b> · vs glass, worst case <b class="num">3.94</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><svg width="60" height="4" aria-hidden="true"><path class="plot-ref" d="M0 2H60"></path></svg></div><div class="row-main"><span class="t-subhead t-em">--chart-baseline #80683A</span><span class="row-sub" style="white-space: normal;">Dashed start or session-open line. vs cell <b class="num">4.91</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span style="display: block; width: 60px; height: 1px; background: var(--separator);"></span></div><div class="row-main"><span class="t-subhead t-em">--separator #D9D4C6</span><span class="row-sub" style="white-space: normal;">0.5px hairline, decorative only. vs cell <b class="num">1.37</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span class="status-dot is-open" aria-hidden="true"></span></div><div class="row-main"><span class="t-subhead t-em">--accent-dot #5FA39A</span><span class="row-sub" style="white-space: normal;">Decorative; status text always says it. vs cell <b class="num">2.70</b></span></div></li>
+  </ul><p class="ds-label" style="margin: 12px 0 6px;"><b>Placements the rules forbid</b> (fail 4.5 in at least one appearance; shown for reference)</p>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--label-3); background: var(--fill); padding: 0 6px; border-radius: 6px;">as of</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">label-3 on fill <b class="num">4.04</b></p></div>
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; font-weight: 600; color: var(--gain); background: var(--fill); padding: 0 6px; border-radius: 6px;">+2.31%</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">gain on fill <b class="num">3.98</b></p></div>
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; font-weight: 600; color: var(--tint); background: var(--tint-soft); padding: 0 6px; border-radius: 6px;">Learn</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">tint on tint-soft <b class="num">4.41</b></p></div>
+    <div style="background: #D5D4CF; border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--label-3);">as of</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">label-3 on glass <b class="num">4.08</b></p></div>
+    <div style="background: #D5D4CF; border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--accent);">Info</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">accent on glass <b class="num">3.94</b></p></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Glass</h3><p class="ds-ref">MOBILE §2.4 · floating chrome only (tab bar, collapsed bar, bar buttons, menus, toasts); sheets stay opaque</p>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;"><div><div style="position: relative; height: 116px; border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);"><div style="position: absolute; inset: 0; background: #111412; padding: 12px;"><p style="margin: 0; color: #DDBE72; font-size: 20px; line-height: 25px; font-weight: 700;">Ð1,084,219.55</p><p style="margin: 2px 0 0; color: #9FB0A8; font-size: 13px; line-height: 18px;">Hull content under the bar</p><div style="margin-top: 8px; height: 8px; width: 70%; border-radius: 4px; background: #5FA39A;"></div></div><div class="toast glass" style="position: absolute; left: 10px; right: 10px; bottom: 10px; min-height: 48px;"><span class="toast-text" style="font-size: 15px;">Update ready</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div></div><p class="ds-label" style="margin-top: 6px;">Over hull (glass #D5D4CF): label <b class="num">12.03</b> · label-2 <b class="num">6.10</b> · tint-strong <b class="num">6.00</b> · destructive-strong <b class="num">5.95</b></p></div><div><div style="position: relative; height: 116px; border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);"><div style="position: absolute; inset: 0; background: #F8F6F0; padding: 12px;"><p style="margin: 0; color: #161816; font-size: 20px; line-height: 25px; font-weight: 700;">KRKN Ð84.12</p><p style="margin: 2px 0 0; color: #454A45; font-size: 13px; line-height: 18px;">Ledger content under the bar</p><div style="margin-top: 8px; height: 8px; width: 70%; border-radius: 4px; background: #1B7150;"></div></div><div class="toast glass" style="position: absolute; left: 10px; right: 10px; bottom: 10px; min-height: 48px;"><span class="toast-text" style="font-size: 15px;">Update ready</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div></div><p class="ds-label" style="margin-top: 6px;">Over ledger (glass #F8F6F0): label <b class="num">16.52</b> · label-2 <b class="num">8.38</b> · tint-strong <b class="num">8.24</b> · destructive-strong <b class="num">8.17</b></p></div></div>
+  <div class="hstack gap-12 mt-12"><div class="toast glass is-solid" style="min-height: 48px; width: 200px;"><span class="toast-text" style="font-size: 15px;">Solid fallback</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div><p class="ds-label" style="flex: 1;"><b>--glass</b> rgba(248,246,240,.85) + blur(20px) saturate(160%). <b>--glass-solid</b> #F8F6F0 when blur is missing, Solid bars is on, or contrast is increased. Only label, label-2, tint-strong and destructive-strong as text on glass.</p></div>
+</section><section class="ds-sec"><h3 class="ds-h">Ornaments and crest fills</h3><p class="ds-ref">MOBILE §5.21-5.23 · BRIEF §2 sector fills</p>
+<div class="hstack gap-12">
+    <svg class="seal s64 is-crimson" viewBox="0 0 64 64" aria-hidden="true"><path class="seal-disc" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><path class="seal-rim" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><circle class="seal-ring" cx="32" cy="32" r="20"></circle><path class="seal-rose" d="M32.00 18.00L32.99 29.60L37.30 26.70L34.40 31.01L46.00 32.00L34.40 32.99L37.30 37.30L32.99 34.40L32.00 46.00L31.01 34.40L26.70 37.30L29.60 32.99L18.00 32.00L29.60 31.01L26.70 26.70L31.01 29.60Z"></path><circle class="seal-rose" cx="32" cy="32" r="1.8"></circle></svg><svg class="seal s64 is-brass" viewBox="0 0 64 64" aria-hidden="true"><path class="seal-disc" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><path class="seal-rim" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><circle class="seal-ring" cx="32" cy="32" r="20"></circle><path class="seal-rose" d="M32.00 18.00L32.99 29.60L37.30 26.70L34.40 31.01L46.00 32.00L34.40 32.99L37.30 37.30L32.99 34.40L32.00 46.00L31.01 34.40L26.70 37.30L29.60 32.99L18.00 32.00L29.60 31.01L26.70 26.70L31.01 29.60Z"></path><circle class="seal-rose" cx="32" cy="32" r="1.8"></circle></svg>
+    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+      <div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-crimson);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-crimson</b><br>#8E1F1A</p></div><div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-brass);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-brass</b><br>#B8954A</p></div><div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-highlight);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-highlight</b><br>#DDBE72</p></div>
+    </div>
+  </div>
+  <p class="ds-label" style="margin: 4px 0 10px;">Wax seal (crimson or brass) and medallions are ornament only: never data, always aria-hidden.</p>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 6px;">
+    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #2F6F68;" aria-hidden="true">KR</span><p class="ds-label" style="margin-top: 2px;">Shipping<br><span class="num">#2F6F68 <b>5.41</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #6F5A2E;" aria-hidden="true">PR</span><p class="ds-label" style="margin-top: 2px;">Banking<br><span class="num">#6F5A2E <b>6.11</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #4C5B40;" aria-hidden="true">AS</span><p class="ds-label" style="margin-top: 2px;">Maps<br><span class="num">#4C5B40 <b>6.75</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #7A3328;" aria-hidden="true">MR</span><p class="ds-label" style="margin-top: 2px;">Naval<br><span class="num">#7A3328 <b>8.33</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #3F3F52;" aria-hidden="true">CR</span><p class="ds-label" style="margin-top: 2px;">Relics<br><span class="num">#3F3F52 <b>9.51</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #5B4A63;" aria-hidden="true">TR</span><p class="ds-label" style="margin-top: 2px;">Hospitality<br><span class="num">#5B4A63 <b>7.46</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #7A5A2E;" aria-hidden="true">CJ</span><p class="ds-label" style="margin-top: 2px;">Provisions<br><span class="num">#7A5A2E <b>5.84</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #4E6B3A;" aria-hidden="true">PR</span><p class="ds-label" style="margin-top: 2px;">Livestock<br><span class="num">#4E6B3A <b>5.57</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #3E5566;" aria-hidden="true">LM</span><p class="ds-label" style="margin-top: 2px;">Marque<br><span class="num">#3E5566 <b>7.21</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #232A26;" aria-hidden="true">SW</span><p class="ds-label" style="margin-top: 2px;">Crew<br><span class="num">#232A26 <b>13.58</b></span></p></div>
+  </div>
+  <p class="ds-label" style="margin-top: 8px;">Crest fills are the same in both appearances; text #F8F6F0 with a gold ring rgba(221,190,114,.85). Letters = first two of the ticker (company) or host initials (crew).</p>
+</section><section class="ds-sec"><h3 class="ds-h">Type ramp</h3><p class="ds-ref">MOBILE §3.3 · default Large size; same in both appearances</p>
+<ul class="card" role="list">
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-large-title t-em" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Portfolio</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Large Title · 34/41 · 400 (700)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-title1 t-em" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Order filled</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Title 1 · 28/34 · 400 (700)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-title2 t-em" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Kraken Shipping Lines</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Title 2 · 22/28 · 400 (700)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-title3 t-em" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">No positions yet</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Title 3 · 20/25 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-headline" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Positions</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Headline · 17/22 · 600</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-body" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Cash available to trade</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Body · 17/22 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-callout" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Update ready</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Callout · 16/21 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-subhead" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Market open · 37:17:42 left</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Subhead · 15/20 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-footnote" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Sector average: 22.1</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Footnote · 13/18 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-caption1" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Starting cash</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Caption 1 · 12/16 · 400 (600)</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-caption2 t-medium" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">Portfolio</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Caption 2 · 11/13 · 400 (600) · tab labels 500</span></li>
+    <li class="row" style="min-height: 0; padding: 7px 16px; align-items: baseline;"><span class="t-amount" style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; ">500</span><span class="t-caption1 num" style="flex: none; color: var(--label-2); text-align: right;">Amount · 48/56 · 600 · ticket only</span></li>
+    <li class="row" style="padding: 10px 16px; align-items: center;"><span style="flex: 1; min-width: 0;"><span class="t-large-title t-em num" style="display: block;">Ð1,084,219.55</span><span class="t-subhead t-em" style="display: flex; gap: 4px; align-items: center;"><span class="chg is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+Ð8,510.00 (+0.79%)</span><span style="font-weight: 400; color: var(--label-2);">this session</span></span></span><span class="t-caption1" style="flex: none; color: var(--label-2); text-align: right; width: 150px;">Numbers: tabular + lining figures, true minus, sign + triangle + colour</span></li>
+    <li class="row" style="padding: 12px 16px; align-items: center;"><span class="dark" style="flex: 1 1 auto; min-width: 0; background: #111412; border-radius: 16px; padding: 12px 16px;"><span class="brand" style="display: block; font-size: 24px; line-height: 32px; color: #DDBE72;">Buccaneer Exchange</span><span class="brand" style="display: block; font-size: 22px; line-height: 30px; color: #B8954A;">Voyage complete</span></span><span class="t-caption1" style="flex: none; color: var(--label-2); text-align: right; width: 118px;">Cinzel Decorative 700 · wordmark and ceremony titles only, 22px or more, never numbers</span></li>
+  </ul>
+  <p class="ds-label" style="margin-top: 8px;">UI font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif · letter-spacing normal · minimum 11px · sizes scale with Dynamic Type (rows stack at root 23px or more).</p>
+</section><section class="ds-sec"><h3 class="ds-h">Z-order</h3><p class="ds-ref">MOBILE §4.6 · everything under a scrim is inert</p>
+<div class="card" style="padding: 12px 16px;"><p class="t-footnote" style="margin: 0; color: var(--label); font-variant-numeric: tabular-nums;">content 0 · sticky headers 10 · top bar 20 · floating Buy/Sell 30 · tab bar 40 · toast 50 · scrim 60 · sheet 70 · second scrim 75 · menu, action sheet, alert 80</p></div>
+</section>
+</div>
+<div class="ds-col is-right dark">
+<div class="ds-colhead"><h2 class="ds-coltitle">Dark</h2><p class="ds-colnote">Abyss and hull · class="dark" on the root</p></div><section class="ds-sec"><h3 class="ds-h">Surfaces</h3><p class="ds-ref">MOBILE §2.2 · opaque layers, back to front</p>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;"><div style="background: var(--bg-grouped); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg-grouped</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#0B0D0C</span> · Page behind cards</p></div><div style="background: var(--bg); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#0B0D0C</span> · Plain screens</p></div><div style="background: var(--bg-2); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--bg-2</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#1A1F1C</span> · Secondary panels</p></div><div style="background: var(--cell); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--cell</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#1A1F1C</span> · Rows and cards</p></div><div style="background: var(--elevated); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--elevated</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#1A1F1C</span> · Sheet background</p></div><div style="background: var(--elevated-cell); border-radius: 16px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--separator); min-height: 60px;"><p class="t-footnote t-em" style="margin: 0; color: var(--label);">--elevated-cell</p><p class="t-caption1" style="margin: 0; color: var(--label-2);"><span class="num">#232A26</span> · Rows in sheets</p></div></div>
+</section><section class="ds-sec"><h3 class="ds-h">Text on opaque surfaces</h3><p class="ds-ref">WCAG 2.2 ratios, computed by script (MOBILE §2.5 method); every permitted pairing is 4.5 or more</p>
+<div style="display: grid; grid-template-columns: 164px repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--separator); border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);">
+    <div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">Role · hex</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">on cell</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">on grouped</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">in a sheet</div><div style="background: var(--cell); padding: 8px 10px; font-size: 12px; line-height: 16px; font-weight: 600; color: var(--label-2);">more contrast</div>
+    <div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#E4E8E2</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">13.48</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">15.73</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label);">11.84</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span class="t-caption1" style="color: var(--label-2);">unchanged</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-2); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-2</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#9FB0A8</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">7.36</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">8.59</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-2);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-2);">6.47</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #C4D0CA;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #C4D0CA;">10.52</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-3); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-3</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#8A9A93</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">5.67</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">6.61</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--label-3);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--label-3);">4.98</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #A9B7B0;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #A9B7B0;">8.03</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--tint); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--tint</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#DDBE72</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">9.30</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">10.85</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint);">8.17</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #EDD493;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #EDD493;">11.49</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--tint-strong); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--tint-strong</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#DDBE72</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">9.30</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">10.85</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--tint-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--tint-strong);">8.17</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #EDD493;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #EDD493;">11.49</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--accent); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--accent</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#5FA39A</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">5.72</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">6.68</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--accent);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--accent);">5.03</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #8CCBC1;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #8CCBC1;">9.09</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--gain); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--gain</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#7FD3B0</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">9.43</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">11.00</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--gain);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--gain);">8.28</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #A3E6C8;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #A3E6C8;">11.71</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--loss); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--loss</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#EE9A89</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">7.65</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">8.93</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--loss);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--loss);">6.72</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #F7B8AA;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #F7B8AA;">9.86</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--destructive); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--destructive</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#EE9A89</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">7.65</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">8.93</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive);">6.72</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #F7B8AA;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #F7B8AA;">9.86</span></div>
+    </div><div style="display: contents;">
+      <div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--destructive-strong); box-shadow: inset 0 0 0 .5px var(--separator);"></span><span style="min-width: 0;"><span class="t-caption1 t-em" style="display: block; color: var(--label);">--destructive-strong</span><span class="t-caption1 num" style="display: block; color: var(--label-2);">#EE9A89</span></span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">7.65</span></div>
+      <div style="background: var(--bg-grouped); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">8.93</span></div>
+      <div style="background: var(--elevated-cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: var(--destructive-strong);">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: var(--destructive-strong);">6.72</span></div>
+      <div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px;"><span style="font-size: 17px; line-height: 22px; font-weight: 600; color: #F7B8AA;">Aa</span><span class="num" style="font-size: 13px; line-height: 18px; font-weight: 600; color: #F7B8AA;">9.86</span></div>
+    </div>
+    <div style="display: contents;"><div style="background: var(--cell); padding: 2px 10px; display: flex; align-items: center; gap: 8px; min-height: 40px;"><span style="flex: none; width: 12px; height: 12px; border-radius: 6px; background: var(--label-4);"></span><span><span class="t-caption1 t-em" style="display: block; color: var(--label);">--label-4</span><span class="t-caption1" style="display: block; color: var(--label-2);">rgba(228,232,226,.20)</span></span></div><div style="background: var(--cell); padding: 0 8px; display: flex; align-items: center; gap: 5px; min-height: 40px; grid-column: span 4;"><span style="font-size: 17px; font-weight: 600; color: var(--label-4);">Aa</span><span class="t-caption1" style="color: var(--label-2);">Disabled glyphs and disabled segments only (exempt from contrast). Never information.</span></div></div>
+  </div>
+  <p class="ds-label" style="margin-top: 8px;">"In a sheet" is a row inside a sheet #232A26, the weakest opaque surface in this appearance. Increased contrast values are measured on cell.</p>
+</section><section class="ds-sec"><h3 class="ds-h">Fills, pills and buttons</h3><p class="ds-ref">Text on tinted fills, measured on the surface each one sits on</p>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-change is-up"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M4 .5 8 7.5H0Z"></path></svg>+2.31%</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">gain on gain-fill <b class="num">6.97</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-change is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on loss-fill <b class="num">6.42</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="pill-tag"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="6"></circle><path d="M18.09 10.37A6 6 0 1 1 10.34 18"></path><path d="M7 6h1v4"></path><path d="m16.71 13.88.7.71-2.82 2.82"></path></svg>Earnings</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label-2 on fill <b class="num">5.46</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-prominent btn-md" type="button"><span>Done</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-prominent on prominent <b class="num">10.31</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-buy btn-md" type="button"><span>Buy</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-side on gain <b class="num">11.00</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-sell btn-md" type="button"><span>Sell</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-side on loss <b class="num">8.93</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-tinted btn-md" type="button"><span>Open in Learn</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">tint-strong on tint-soft <b class="num">6.59</b> · on grouped <b class="num">8.08</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-gray btn-md" type="button"><span>Trade again</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label on fill <b class="num">10.00</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="badge-count">1</span><span class="pill-you">You</span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">count badge, You pill <b class="num">10.31</b></p></div>
+    <div style="grid-column: span 2; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><div class="search w-full"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg><span class="search-text">Search 25 companies</span></div></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">label-2 placeholder on fill, over grouped <b class="num">6.66</b> · in a sheet row <b class="num">4.78</b></p></div>
+    <div style="grid-column: span 1; background: var(--cell); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><button class="btn btn-tinted-sell btn-md" type="button"><span>Sell</span></button></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on loss-fill <b class="num">6.42</b></p></div>
+    <div style="grid-column: span 2; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><div class="w-full"><div class="seg is-lg" role="radiogroup"><span class="seg-item is-selected" role="radio" aria-checked="true">Buy</span><span class="seg-item" role="radio" aria-checked="false">Sell</span></div></div></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">on-segment-thumb on thumb <b class="num">8.59</b> · thumb vs track (non-text) <b class="num">6.66</b> page · <b class="num">5.46</b> sheet · <b class="num">4.78</b> sheet row</p></div>
+    <div style="grid-column: span 1; background: var(--bg-grouped); border-radius: 16px; padding: 8px 10px; min-height: 64px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; box-shadow: inset 0 0 0 1px var(--separator);"><div class="hstack gap-8"><span class="chip on-grouped" style="padding: 0 10px;"><span class="chg is-down"><svg class="tri" viewBox="0 0 8 8" aria-hidden="true"><path d="M0 .5h8L4 7.5Z"></path></svg>−3.46%</span></span></div><p class="t-caption1" style="margin: 0; color: var(--label-2);">loss on cell chip <b class="num">7.65</b></p></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Boundaries and placement rules</h3><p class="ds-ref">Non-text needs 3:1; decorative marks never carry meaning alone</p>
+<ul class="card" role="list">
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span style="display: block; width: 36px; height: 5px; border-radius: 2.5px; background: var(--control-off);"></span></div><div class="row-main"><span class="t-subhead t-em">--control-off #6E7C75</span><span class="row-sub" style="white-space: normal;">Grabber, switch-off edge (needs 3): cell <b class="num">3.82</b> · grouped <b class="num">4.46</b> · sheet <b class="num">3.36</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span class="btn btn-gray btn-sm is-focus">Fix</span></div><div class="row-main"><span class="t-subhead t-em">--focus #5FA39A</span><span class="row-sub" style="white-space: normal;">2px ring, 2px offset. vs cell <b class="num">5.72</b> · vs glass, worst case <b class="num">4.18</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><svg width="60" height="4" aria-hidden="true"><path class="plot-ref" d="M0 2H60"></path></svg></div><div class="row-main"><span class="t-subhead t-em">--chart-baseline #B8954A</span><span class="row-sub" style="white-space: normal;">Dashed start or session-open line. vs cell <b class="num">5.92</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span style="display: block; width: 60px; height: 1px; background: var(--separator);"></span></div><div class="row-main"><span class="t-subhead t-em">--separator #34403A</span><span class="row-sub" style="white-space: normal;">0.5px hairline, decorative only. vs cell <b class="num">1.54</b></span></div></li>
+    <li class="row" style="min-height: 44px; padding-top: 8px; padding-bottom: 8px;"><div style="width: 72px; flex: none; display: flex; align-items: center; justify-content: center;"><span class="status-dot is-open" aria-hidden="true"></span></div><div class="row-main"><span class="t-subhead t-em">--accent-dot #5FA39A</span><span class="row-sub" style="white-space: normal;">Decorative; status text always says it. vs cell <b class="num">5.72</b></span></div></li>
+  </ul><p class="ds-label" style="margin: 12px 0 6px;"><b>Placements the rules forbid</b> (fail 4.5 in at least one appearance; shown for reference)</p>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--label-3); background: var(--fill); padding: 0 6px; border-radius: 6px;">as of</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">label-3 on row fill <b class="num">3.68</b></p></div>
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; font-weight: 600; color: var(--gain); background: var(--fill); padding: 0 6px; border-radius: 6px;">+2.31%</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">gain on fill <b class="num">8.53</b></p></div>
+    <div style="background: var(--bg-grouped); border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; font-weight: 600; color: var(--tint); background: var(--tint-soft); padding: 0 6px; border-radius: 6px;">Learn</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">tint on tint-soft <b class="num">8.08</b></p></div>
+    <div style="background: #343633; border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--label-3);">as of</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">label-3 on glass <b class="num">4.14</b></p></div>
+    <div style="background: #343633; border-radius: 12px; padding: 8px 10px; min-height: 64px; box-shadow: inset 0 0 0 1px var(--separator);"><div style="height: 22px; display: flex; align-items: center;"><span style="font-size: 15px; color: var(--accent);">Info</span></div><p class="t-caption1" style="margin: 4px 0 0; color: var(--label);">accent on glass <b class="num">4.18</b></p></div>
+  </div>
+</section><section class="ds-sec"><h3 class="ds-h">Glass</h3><p class="ds-ref">MOBILE §2.4 · floating chrome only (tab bar, collapsed bar, bar buttons, menus, toasts); sheets stay opaque</p>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;"><div><div style="position: relative; height: 116px; border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);"><div style="position: absolute; inset: 0; background: #111412; padding: 12px;"><p style="margin: 0; color: #DDBE72; font-size: 20px; line-height: 25px; font-weight: 700;">Ð1,084,219.55</p><p style="margin: 2px 0 0; color: #9FB0A8; font-size: 13px; line-height: 18px;">Hull content under the bar</p><div style="margin-top: 8px; height: 8px; width: 70%; border-radius: 4px; background: #5FA39A;"></div></div><div class="toast glass" style="position: absolute; left: 10px; right: 10px; bottom: 10px; min-height: 48px;"><span class="toast-text" style="font-size: 15px;">Update ready</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div></div><p class="ds-label" style="margin-top: 6px;">Over hull (glass #111412): label <b class="num">14.96</b> · label-2 <b class="num">8.17</b> · tint-strong <b class="num">10.31</b> · destructive-strong <b class="num">8.49</b></p></div><div><div style="position: relative; height: 116px; border-radius: 16px; overflow: clip; box-shadow: inset 0 0 0 1px var(--separator);"><div style="position: absolute; inset: 0; background: #F8F6F0; padding: 12px;"><p style="margin: 0; color: #161816; font-size: 20px; line-height: 25px; font-weight: 700;">KRKN Ð84.12</p><p style="margin: 2px 0 0; color: #454A45; font-size: 13px; line-height: 18px;">Ledger content under the bar</p><div style="margin-top: 8px; height: 8px; width: 70%; border-radius: 4px; background: #1B7150;"></div></div><div class="toast glass" style="position: absolute; left: 10px; right: 10px; bottom: 10px; min-height: 48px;"><span class="toast-text" style="font-size: 15px;">Update ready</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div></div><p class="ds-label" style="margin-top: 6px;">Over ledger (glass #343633): label <b class="num">9.84</b> · label-2 <b class="num">5.37</b> · tint-strong <b class="num">6.79</b> · destructive-strong <b class="num">5.59</b></p></div></div>
+  <div class="hstack gap-12 mt-12"><div class="toast glass is-solid" style="min-height: 48px; width: 200px;"><span class="toast-text" style="font-size: 15px;">Solid fallback</span><span class="toast-action" style="height: 40px; display: flex; align-items: center;">Reload</span></div><p class="ds-label" style="flex: 1;"><b>--glass</b> rgba(17,20,18,.85) + blur(20px) saturate(160%). <b>--glass-solid</b> #111412 when blur is missing, Solid bars is on, or contrast is increased. Only label, label-2, tint-strong and destructive-strong as text on glass.</p></div>
+</section><section class="ds-sec"><h3 class="ds-h">Ornaments and crest fills</h3><p class="ds-ref">MOBILE §5.21-5.23 · BRIEF §2 sector fills</p>
+<div class="hstack gap-12">
+    <svg class="seal s64 is-crimson" viewBox="0 0 64 64" aria-hidden="true"><path class="seal-disc" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><path class="seal-rim" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><circle class="seal-ring" cx="32" cy="32" r="20"></circle><path class="seal-rose" d="M32.00 18.00L32.99 29.60L37.30 26.70L34.40 31.01L46.00 32.00L34.40 32.99L37.30 37.30L32.99 34.40L32.00 46.00L31.01 34.40L26.70 37.30L29.60 32.99L18.00 32.00L29.60 31.01L26.70 26.70L31.01 29.60Z"></path><circle class="seal-rose" cx="32" cy="32" r="1.8"></circle></svg><svg class="seal s64 is-brass" viewBox="0 0 64 64" aria-hidden="true"><path class="seal-disc" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><path class="seal-rim" d="M32.00 4.44Q39.22 0.37 43.70 7.71Q52.72 6.01 53.69 14.70Q60.94 18.06 58.11 26.04Q65.00 32.00 58.69 38.09Q60.72 45.83 53.17 48.88Q52.43 57.61 44.01 56.94Q39.38 64.33 32.00 58.84Q24.80 63.55 20.07 56.78Q11.47 57.74 11.16 48.62Q2.20 46.35 5.36 38.08Q-0.28 32.00 5.07 25.85Q1.98 17.54 10.87 15.15Q12.02 6.95 20.09 7.28Q24.69 -0.02 32.00 4.44Z"></path><circle class="seal-ring" cx="32" cy="32" r="20"></circle><path class="seal-rose" d="M32.00 18.00L32.99 29.60L37.30 26.70L34.40 31.01L46.00 32.00L34.40 32.99L37.30 37.30L32.99 34.40L32.00 46.00L31.01 34.40L26.70 37.30L29.60 32.99L18.00 32.00L29.60 31.01L26.70 26.70L31.01 29.60Z"></path><circle class="seal-rose" cx="32" cy="32" r="1.8"></circle></svg>
+    <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+      <div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-crimson);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-crimson</b><br>#8E1F1A</p></div><div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-brass);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-brass</b><br>#B8954A</p></div><div><span style="display: block; height: 24px; border-radius: 6px; background: var(--seal-highlight);"></span><p class="ds-label" style="margin-top: 4px;"><b>--seal-highlight</b><br>#DDBE72</p></div>
+    </div>
+  </div>
+  <p class="ds-label" style="margin: 4px 0 10px;">Wax seal (crimson or brass) and medallions are ornament only: never data, always aria-hidden.</p>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 6px;">
+    <div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #2F6F68;" aria-hidden="true">KR</span><p class="ds-label" style="margin-top: 2px;">Shipping<br><span class="num">#2F6F68 <b>5.41</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #6F5A2E;" aria-hidden="true">PR</span><p class="ds-label" style="margin-top: 2px;">Banking<br><span class="num">#6F5A2E <b>6.11</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #4C5B40;" aria-hidden="true">AS</span><p class="ds-label" style="margin-top: 2px;">Maps<br><span class="num">#4C5B40 <b>6.75</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #7A3328;" aria-hidden="true">MR</span><p class="ds-label" style="margin-top: 2px;">Naval<br><span class="num">#7A3328 <b>8.33</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #3F3F52;" aria-hidden="true">CR</span><p class="ds-label" style="margin-top: 2px;">Relics<br><span class="num">#3F3F52 <b>9.51</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #5B4A63;" aria-hidden="true">TR</span><p class="ds-label" style="margin-top: 2px;">Hospitality<br><span class="num">#5B4A63 <b>7.46</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #7A5A2E;" aria-hidden="true">CJ</span><p class="ds-label" style="margin-top: 2px;">Provisions<br><span class="num">#7A5A2E <b>5.84</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #4E6B3A;" aria-hidden="true">PR</span><p class="ds-label" style="margin-top: 2px;">Livestock<br><span class="num">#4E6B3A <b>5.57</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #3E5566;" aria-hidden="true">LM</span><p class="ds-label" style="margin-top: 2px;">Marque<br><span class="num">#3E5566 <b>7.21</b></span></p></div><div style="display: flex; flex-direction: column; align-items: center; text-align: center;"><span class="crest c36" style="background: #232A26;" aria-hidden="true">SW</span><p class="ds-label" style="margin-top: 2px;">Crew<br><span class="num">#232A26 <b>13.58</b></span></p></div>
+  </div>
+  <p class="ds-label" style="margin-top: 8px;">Crest fills are the same in both appearances; text #F8F6F0 with a gold ring rgba(221,190,114,.85). Letters = first two of the ticker (company) or host initials (crew).</p>
+</section><section class="ds-sec"><h3 class="ds-h">Spacing and margins</h3><p class="ds-ref">MOBILE §4.2, §4.4 · same in both appearances</p>
+<div class="card" style="padding: 14px 16px;"><div class="hstack" style="align-items: flex-end; justify-content: space-between;"><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 2px; height: 2px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">2</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 4px; height: 4px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">4</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 8px; height: 8px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">8</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 12px; height: 12px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">12</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 16px; height: 16px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">16</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 20px; height: 20px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">20</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 24px; height: 24px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">24</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 32px; height: 32px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">32</span></div><div class="vstack gap-4" style="align-items: center;"><span style="display: block; width: 44px; height: 44px; border-radius: 2px; background: var(--tint);"></span><span class="t-caption1 num" style="color: var(--label-2);">44</span></div></div>
+    <p class="ds-label" style="margin-top: 8px;">Margins 16px under 420px wide, 20px at 420px and wider · 8px large title to content · 32px between headed sections (header sits 8px above its card) · 24px between headerless groups · 44×44 minimum target (28px floor for dense secondary controls with 12px clearance)</p></div>
+</section><section class="ds-sec"><h3 class="ds-h">Radii</h3><p class="ds-ref">MOBILE §4.2 · concentric: inner = outer − padding, minimum 8</p>
+<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;"><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 24px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-card</b> 24px<br>Cards, chart, banners</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 16px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-inner</b> 16px<br>Card in card, ticket box</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 8px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-tile</b> 8px<br>29px icon tiles</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 32px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-sheet-medium</b> 32px<br>Medium sheets</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 24px 24px 0 0; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-sheet-large</b> 24px<br>Large sheet top</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 28px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>--r-alert</b> 28px<br>Alerts, menus</p></div><div class="card" style="padding: 10px; border-radius: 16px;"><span style="display: block; height: 72px; border-radius: 36px; background: var(--fill); box-shadow: inset 0 0 0 1.5px var(--control-off);"></span><p class="ds-label" style="margin-top: 6px;"><b>capsule</b> h/2<br>Buttons, pills, tab bar</p></div></div>
+</section><section class="ds-sec"><h3 class="ds-h">Motion</h3><p class="ds-ref">MOBILE §8.1 · SwiftUI springs sampled into CSS linear()</p>
+<ul class="card" role="list">
+    <li class="row" style="min-height: 48px; padding: 6px 16px;"><svg width="64" height="36" viewBox="0 0 64 36" aria-hidden="true" style="flex: none; overflow: visible;"><path d="M0 3.1H64" fill="none" stroke="var(--separator)" stroke-width="1"></path><path d="M0.0 34.4L4.0 32.6L8.0 28.6L12.0 24.1L16.0 19.8L20.0 16.2L24.0 13.1L28.0 10.6L32.0 8.7L36.0 7.3L40.0 6.2L44.0 5.4L48.0 4.7L52.0 4.3L56.0 4.0L60.0 3.7L64.0 3.1" fill="none" stroke="var(--tint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="row-main"><span class="t-subhead t-em">--ease-spring · 500ms</span><span class="row-sub" style="white-space: normal;">Push and pop, sheet present and dismiss (reduced motion: 150ms fade)</span></div></li>
+    <li class="row" style="min-height: 48px; padding: 6px 16px;"><svg width="64" height="36" viewBox="0 0 64 36" aria-hidden="true" style="flex: none; overflow: visible;"><path d="M0 3.1H64" fill="none" stroke="var(--separator)" stroke-width="1"></path><path d="M0.0 34.4L4.0 32.5L8.0 28.2L12.0 23.3L16.0 18.5L20.0 14.3L24.0 11.0L28.0 8.4L32.0 6.4L36.0 5.1L40.0 4.2L44.0 3.6L48.0 3.3L52.0 3.0L56.0 3.0L60.0 2.9L64.0 3.1" fill="none" stroke="var(--tint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="row-main"><span class="t-subhead t-em">--ease-snappy · 400ms</span><span class="row-sub" style="white-space: normal;">Segmented thumb, tab platter, menus, toasts, wax-seal stamp (250ms)</span></div></li>
+    <li class="row" style="min-height: 48px; padding: 6px 16px;"><svg width="64" height="36" viewBox="0 0 64 36" aria-hidden="true" style="flex: none; overflow: visible;"><path d="M0 3.1H64" fill="none" stroke="var(--separator)" stroke-width="1"></path><path d="M0.0 34.4L3.2 32.6L6.4 28.3L9.6 23.0L12.8 17.7L16.0 13.0L19.2 9.1L22.4 6.2L25.6 4.1L28.8 2.8L32.0 2.1L35.2 1.8L38.4 1.7L41.6 1.8L44.8 2.1L48.0 2.3L51.2 2.5L54.4 2.8L57.6 2.9L60.8 3.0L64.0 3.1" fill="none" stroke="var(--tint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="row-main"><span class="t-subhead t-em">--ease-bouncy · 600ms</span><span class="row-sub" style="white-space: normal;">Ceremonies only: podium steps rise, 80ms stagger</span></div></li>
+    <li class="row" style="min-height: 48px; padding: 6px 16px;"><svg width="64" height="36" viewBox="0 0 64 36" aria-hidden="true" style="flex: none; overflow: visible;"><path d="M0 3.1H64" fill="none" stroke="var(--separator)" stroke-width="1"></path><path d="M0.0 34.4L4.0 30.0L8.0 25.9L12.0 22.2L16.0 19.0L20.0 16.1L24.0 13.5L28.0 11.3L32.0 9.4L36.0 7.8L40.0 6.4L44.0 5.3L48.0 4.5L52.0 3.9L56.0 3.4L60.0 3.2L64.0 3.1" fill="none" stroke="var(--tint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg><div class="row-main"><span class="t-subhead t-em">--ease-fallback</span><span class="row-sub" style="white-space: normal;">cubic-bezier(.2, .8, .2, 1) where linear() is unsupported</span></div></li>
+    <li class="row" style="padding: 10px 16px;"><div class="row-main"><span class="t-subhead t-em">Durations</span><span class="row-sub" style="white-space: normal;"><b class="num">--dur-press 100ms</b> button scale .97 · <b class="num">--dur-fade 150ms</b> title cross-fade, skeleton delay · <b class="num">--dur-flash 300ms</b> price tick flash. Tab switch is instant; blur never animates.</span></div></li>
+  </ul>
+</section>
+</div>
+</div>
+</div>
+</x-dc>
+
+</body>
+</html>
