@@ -1,17 +1,14 @@
 /**
- * App entry point. Imports the theme, then mounts <App/> inside the router and
- * auth provider so every route has access to navigation and the signed-in user.
+ * App entry point: theme (tokens first, then base styles), then <App/> (auth + data router).
+ * Solid bars is applied before first paint by the inline script in index.html.
  */
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
 
 import './theme/tokens.css';
-import './theme/pirate.css';
+import './theme/base.css';
 
 import App from './App';
-import { AuthProvider } from './lib/auth';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) {
@@ -20,10 +17,6 @@ if (!rootEl) {
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
+    <App />
   </React.StrictMode>,
 );

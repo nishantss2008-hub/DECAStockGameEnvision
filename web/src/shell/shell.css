@@ -1,0 +1,140 @@
+/* App shell (MOBILE §4.3, §4.5, §4.6). Phone: floating tab bar; short landscape: rail; ≥744×501: sidebar split view. */
+.bx-shell {
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--bg-grouped);
+  color: var(--label);
+}
+.bx-main { display: block; padding-bottom: var(--content-bottom, 100px); }
+.bx-column { width: 100%; margin-inline: auto; }
+.bx-page { padding: 12px var(--gutter-right, 16px) 0 var(--gutter-left, 16px); }
+.bx-navbar-trailing { display: inline-flex; align-items: center; gap: 8px; }
+.bx-fullscreen-center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 24px var(--gutter-right, 16px) 24px var(--gutter-left, 16px);
+  background: var(--bg-grouped);
+}
+
+/* Rail (short landscape): content clears the 72px rail and stays within 600px. */
+.bx-shell[data-layout='rail'] .bx-main {
+  padding-bottom: 24px;
+  padding-inline-start: calc(72px + env(safe-area-inset-left, 0px));
+}
+.bx-shell[data-layout='rail'] .bx-column { max-width: 600px; }
+.bx-shell[data-layout='rail'] .ios-navbar__bar { inset-inline-start: calc(72px + env(safe-area-inset-left, 0px)); }
+
+/* Split view: 280px solid sidebar; content column max 672px (host console wider). */
+.bx-shell[data-layout='split'] .bx-main { margin-inline-start: 280px; padding-bottom: 32px; }
+.bx-shell[data-layout='split'] .bx-column { max-width: 672px; }
+.bx-shell[data-layout='split'] .bx-column--wide { max-width: 1080px; }
+.bx-shell[data-layout='split'] .ios-navbar__bar { inset-inline-start: 280px; }
+
+.bx-sidebar {
+  position: fixed;
+  z-index: 40;
+  inset-block: 0;
+  inset-inline-start: 0;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  padding: calc(env(safe-area-inset-top, 0px) + 20px) 12px calc(env(safe-area-inset-bottom, 0px) + 16px) max(12px, env(safe-area-inset-left, 0px));
+  background: var(--bg-2);
+  box-shadow: inset -0.5px 0 0 var(--separator);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  view-transition-name: tabbar;
+}
+.bx-sidebar__brand { margin: 0 12px 16px; font-size: 1.1rem; color: var(--tint-strong); }
+.bx-sidebar__list { display: grid; gap: 2px; }
+.bx-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding-inline: 12px;
+  border-radius: 10px;
+  color: var(--label);
+  font-size: var(--t-body);
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.bx-sidebar__link:active { background: var(--fill); }
+.bx-sidebar__link[aria-current='page'] { background: var(--platter); color: var(--tint-strong); font-weight: 600; }
+.bx-sidebar__trade { margin: 16px 12px 0; }
+.bx-sidebar__crew {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  min-height: 56px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  text-align: start;
+  color: var(--label);
+}
+.bx-sidebar__crew:active { background: var(--fill); }
+.bx-sidebar__crew-text { display: grid; }
+.bx-sidebar__crew-text .t-footnote { color: var(--label-2); }
+
+/* Sheet bodies owned by the shell. */
+.bx-sheet-body { padding: 4px var(--gutter-right, 16px) 24px var(--gutter-left, 16px); }
+.bx-sheet-footer { display: grid; gap: 8px; }
+.bx-inline-tip { list-style: none; padding: 4px 16px 12px; background: var(--elevated-cell, var(--cell)); }
+.bx-inline-tip__extra { margin-top: 8px; color: var(--label-2); }
+
+.bx-status-sheet__left { margin-top: 4px; }
+.bx-status-sheet__session { margin-top: 4px; color: var(--label-2); }
+.bx-status-sheet__body { margin-top: 12px; }
+.bx-session-bar { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 10px; }
+.bx-session-bar > span { height: 6px; border-radius: 3px; background: var(--fill); }
+.bx-session-bar > span[data-state='done'] { background: var(--label-3); }
+.bx-session-bar > span[data-state='current'] { background: var(--accent-dot); }
+
+.bx-welcome { display: grid; justify-items: center; gap: 16px; padding: 24px var(--gutter-right, 16px) 16px var(--gutter-left, 16px); text-align: center; }
+.bx-welcome__rows { display: grid; gap: 16px; width: 100%; margin-top: 8px; text-align: start; }
+.bx-welcome__row { display: flex; gap: 16px; align-items: flex-start; }
+.bx-welcome__icon { flex: none; color: var(--tint); }
+
+.bx-account__crew { display: grid; justify-items: center; gap: 4px; padding: 8px 0 8px; text-align: center; }
+.bx-account__rank { color: var(--label-2); }
+.bx-account__explain { padding: 16px 4px; }
+.bx-account__footer { display: grid; justify-items: center; gap: 4px; padding: 24px 0 8px; color: var(--label-2); text-align: center; }
+.bx-account__wordmark { font-size: 1.3rem; color: var(--tint); }
+
+/* Walkthrough card (MOBILE §7.2). */
+.bx-walkthrough { display: grid; gap: 6px; padding: 16px; border-radius: var(--r-card, 12px); background: var(--cell); }
+.bx-walkthrough__title { margin-top: 6px; }
+.bx-walkthrough__counter { color: var(--label-2); }
+.bx-walkthrough__step { margin-top: 6px; }
+.bx-walkthrough__body { color: var(--label-2); }
+.bx-walkthrough__dots { display: flex; gap: 6px; margin-top: 4px; }
+.bx-walkthrough__dots > span { width: 8px; height: 8px; border-radius: 4px; background: var(--fill); }
+.bx-walkthrough__dots > span[data-current] { background: var(--tint); }
+.bx-walkthrough__actions,
+.bx-walkthrough__footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.bx-walkthrough__link { color: var(--tint-strong); }
+
+/* "Sails up" (MOBILE §6.3): full-screen hull moment above everything but sheets, no focus. */
+.bx-sails-up {
+  position: fixed;
+  z-index: 55;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  background: radial-gradient(120% 60% at 85% 0%, rgba(95, 163, 154, 0.18), transparent 60%), #111412;
+  color: #E4E8E2;
+  animation: bx-sails-fade 1.2s ease both;
+}
+.bx-sails-up__rose { animation: bx-sails-turn 1.2s var(--ease-fallback, ease-out) both; }
+.bx-sails-up__title { font-size: var(--t-title-1); line-height: var(--lh-title-1); font-weight: 700; }
+.bx-sails-up__flavor { font-family: var(--font-brand); color: #DDBE72; }
+@keyframes bx-sails-turn { from { transform: rotate(0deg); } to { transform: rotate(30deg); } }
+@keyframes bx-sails-fade { 0% { opacity: 0; } 15%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bx-sails-up { display: none; }
+}

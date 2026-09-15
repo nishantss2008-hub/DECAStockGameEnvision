@@ -8,9 +8,9 @@
  *   way, never through Firestore listeners.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { collection, query } from 'firebase/firestore';
-import type { Team } from '@deca/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { collection, limit, orderBy, query } from 'firebase/firestore';
+import type { Holding, Team, Trade } from '@deca/shared';
 import { db } from '../firebase';
 import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -90,4 +90,52 @@ export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollR
 
   const refresh = useCallback(() => fetchNow.current(), []);
   return { data, error, refresh };
+}
+
+/** Rows on the host trade tape (MOBILE §7.18). */
+export const ADMIN_TAPE_LIMIT = 100;
+
+export interface UseAdminTapeResult extends SnapshotStatus {
+  trades: Trade[];
+}
+
+/** Live `trades` from every crew, newest first (host rule); crews get an empty result and no listener. */
+export function useAdminTape(max = ADMIN_TAPE_LIMIT): UseAdminTapeResult {
+  const { role, loading: authLoading } = useAuth();
+  const spec = useMemo<QuerySpec<Trade> | null>(
+    () =>
+      role === 'admin'
+        ? {
+            key: `trades?orderBy=executedAt:desc&limit=${max}`,
+            build: () => query(collection(db, 'trades'), orderBy('executedAt', 'desc'), limit(max)),
+            map: (id, data) => ({ ...(data as Trade), id }),
+          }
+        : null,
+    [role, max],
+  );
+  const { items: trades, loading, fromCache, error } = useQuerySnapshot(spec);
+  return { trades, loading: Boolean(authLoading) || loading, fromCache, error };
+}
+
+export interface UseAdminHoldingsResult extends SnapshotStatus {
+  holdings: Holding[];
+}
+
+/** One crew's non-empty holdings (`teams/{id}/holdings`), host only. */
+export function useAdminHoldings(teamId: string | null): UseAdminHoldingsResult {
+  const { role } = useAuth();
+  const spec = useMemo<QuerySpec<Holding> | null>(
+    () =>
+      role === 'admin' && teamId
+        ? {
+            key: `teams/${teamId}/holdings`,
+            build: () => query(collection(db, 'teams', teamId, 'holdings')),
+            map: (id, data) => ({ ...(data as Holding), companyId: (data as Partial<Holding>).companyId ?? id }),
+            select: (items) => items.filter((h) => h.shares !== 0),
+          }
+        : null,
+    [role, teamId],
+  );
+  const { items: holdings, loading, fromCache, error } = useQuerySnapshot(spec);
+  return { holdings, loading, fromCache, error };
 }

@@ -1,0 +1,153 @@
+/* Learn tab (MOBILE §7.14): root, guide chapters and glossary term. Tokens only (MOBILE §2.6). */
+
+/* ─── Root ─── */
+.bx-learn { padding-bottom: 24px; }
+.bx-learn-search { margin: 0; }
+.bx-learn-chapters { margin-block-start: 24px; }
+.bx-learn-results { margin-block-start: 24px; }
+.bx-learn-empty { margin-block-start: 48px; }
+.bx-learn-glossary { margin-block-start: 32px; }
+.bx-learn-glossary__header { margin-block-end: 8px; }
+.bx-learn-glossary__header + .ios-list { margin-block-start: 8px; }
+.bx-learn-term-row .ios-row__subtitle { white-space: normal; }
+
+/* ─── Chapters ─── */
+.bx-learn-intro {
+  margin: 0;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  color: var(--label-2);
+}
+.bx-learn-note {
+  margin: 8px 0 0;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+}
+.bx-learn-intro + .bx-learn-block,
+.bx-learn-note + .bx-learn-block { margin-block-start: 24px; }
+.bx-learn-block + .bx-learn-block { margin-block-start: 32px; }
+.bx-learn-block__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 22px;
+  margin: 0 0 8px;
+}
+.bx-learn-block__title {
+  margin: 0;
+  min-inline-size: 0;
+  font-size: var(--t-headline);
+  line-height: var(--lh-headline);
+  font-weight: 600;
+  color: var(--label);
+}
+.bx-learn-block__header .ios-infotip-button { margin-inline-start: -8px; }
+.bx-learn-block__badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  background: var(--tint-soft);
+  color: var(--tint-strong);
+  font-size: var(--t-footnote);
+  font-weight: 600;
+}
+.bx-learn-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--cell);
+}
+.bx-learn-block__footer {
+  margin: 8px 0 0;
+  padding-inline: 16px;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  color: var(--label-2);
+}
+.bx-learn-sub { display: flex; flex-direction: column; gap: 4px; }
+.bx-learn-sub__heading {
+  margin: 0;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  font-weight: 600;
+  color: var(--label);
+}
+.bx-learn-text {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--label);
+}
+.bx-learn-where,
+.bx-learn-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding-inline-start: 22px;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  color: var(--label);
+}
+.bx-learn-where { font-size: var(--t-subhead); line-height: var(--lh-subhead); }
+
+/* Term chips: 44px capsules (MOBILE §4.4). Buttons open the InfoTip sheet; links open a term page. */
+.bx-learn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.bx-learn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.bx-learn-chip > svg { color: var(--label-2); flex: none; }
+.bx-learn-chip:active { filter: var(--press-filter); }
+.bx-learn-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ─── Glossary term ─── */
+.bx-learn-term-nav .ios-navbar__title {
+  font-size: var(--t-title-1);
+  line-height: var(--lh-title-1);
+}
+.bx-learn-term { padding-block-start: 0; }
+.bx-learn-term__term {
+  margin: 2px 0 0;
+  font-size: var(--t-subhead);
+  line-height: var(--lh-subhead);
+  color: var(--label-2);
+}
+.bx-learn-term__lines { padding-top: 16px; }
+.bx-learn-term__lines .ios-infotip-lines__heading { font-size: var(--t-subhead); }
+.bx-learn-see,
+.bx-learn-section { margin-block-start: 32px; }
+.bx-learn-related { margin-block-start: 32px; }
+.bx-learn-error { padding: 12px 16px; color: var(--label-2); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bx-learn-chip { transition: filter 120ms ease-out; }
+}

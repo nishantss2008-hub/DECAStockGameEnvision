@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<!-- Buccaneer Exchange: original compass rose on hull, "BX" monogram (MOBILE §9.3). -->
+<rect width="512" height="512" fill="#111412"/>
+<circle cx="256" cy="256" r="236" fill="none" stroke="#B8954A" stroke-width="6"/>
+<circle cx="256" cy="256" r="214" fill="none" stroke="#B8954A" stroke-width="3"/>
+<path d="M256.0,60.0L256.0,20.0M297.7,46.1L302.0,24.5M337.9,58.3L346.3,38.0M374.9,78.1L387.1,59.8M394.6,117.4L422.9,89.1M433.9,137.1L452.2,124.9M453.7,174.1L474.0,165.7M465.9,214.3L487.5,210.0M452.0,256.0L492.0,256.0M465.9,297.7L487.5,302.0M453.7,337.9L474.0,346.3M433.9,374.9L452.2,387.1M394.6,394.6L422.9,422.9M374.9,433.9L387.1,452.2M337.9,453.7L346.3,474.0M297.7,465.9L302.0,487.5M256.0,452.0L256.0,492.0M214.3,465.9L210.0,487.5M174.1,453.7L165.7,474.0M137.1,433.9L124.9,452.2M117.4,394.6L89.1,422.9M78.1,374.9L59.8,387.1M58.3,337.9L38.0,346.3M46.1,297.7L24.5,302.0M60.0,256.0L20.0,256.0M46.1,214.3L24.5,210.0M58.3,174.1L38.0,165.7M78.1,137.1L59.8,124.9M117.4,117.4L89.1,89.1M137.1,78.1L124.9,59.8M174.1,58.3L165.7,38.0M214.3,46.1L210.0,24.5" stroke="#B8954A" stroke-width="3" stroke-linecap="round"/>
+<path d="M256,256L362.1,149.9L256.0,222.0Z" fill="#DDBE72"/><path d="M256,256L362.1,149.9L290.0,256.0Z" fill="#8C6F33"/>
+<path d="M256,256L362.1,362.1L290.0,256.0Z" fill="#DDBE72"/><path d="M256,256L362.1,362.1L256.0,290.0Z" fill="#8C6F33"/>
+<path d="M256,256L149.9,362.1L256.0,290.0Z" fill="#DDBE72"/><path d="M256,256L149.9,362.1L222.0,256.0Z" fill="#8C6F33"/>
+<path d="M256,256L149.9,149.9L222.0,256.0Z" fill="#DDBE72"/><path d="M256,256L149.9,149.9L256.0,222.0Z" fill="#8C6F33"/>
+<path d="M256,256L256.0,50.0L223.5,223.5Z" fill="#EDD493"/><path d="M256,256L256.0,50.0L288.5,223.5Z" fill="#B8954A"/>
+<path d="M256,256L462.0,256.0L288.5,223.5Z" fill="#EDD493"/><path d="M256,256L462.0,256.0L288.5,288.5Z" fill="#B8954A"/>
+<path d="M256,256L256.0,462.0L288.5,288.5Z" fill="#EDD493"/><path d="M256,256L256.0,462.0L223.5,288.5Z" fill="#B8954A"/>
+<path d="M256,256L50.0,256.0L223.5,288.5Z" fill="#EDD493"/><path d="M256,256L50.0,256.0L223.5,223.5Z" fill="#B8954A"/>
+<circle cx="256" cy="256" r="74" fill="#111412" stroke="#DDBE72" stroke-width="5"/>
+<text x="256" y="279" text-anchor="middle" font-family="Cinzel Decorative, Georgia, Times New Roman, serif" font-weight="700" font-size="64" fill="#DDBE72" letter-spacing="2">BX</text>
+</svg>

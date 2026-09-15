@@ -30,5 +30,7 @@ export default defineConfig({
     url: `http://127.0.0.1:${port}/kit.html`,
     reuseExistingServer: true,
     timeout: 60_000,
+    // Emulator mode, whatever web/.env says: an app page loaded from this server can never reach a real project.
+    env: { VITE_USE_EMULATORS: '1', VITE_FIREBASE_PROJECT_ID: 'demo-deca' },
   },
 });

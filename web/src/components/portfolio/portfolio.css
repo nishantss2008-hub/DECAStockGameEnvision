@@ -1,0 +1,366 @@
+/* Portfolio stack (MOBILE §7.3–§7.5). Geometry follows the iPhonePortfolio artboards. */
+
+.pf-page {
+  display: flex;
+  flex-direction: column;
+  padding-block-end: 24px;
+}
+.pf-page > .bx-walkthrough {
+  margin-block-end: 24px;
+}
+.pf-page > * + :is(.pf-chart, .pf-tiles, .pf-positions, .pf-recent, .pf-strip, .pf-alloc, .pf-positions-list, .pf-order-header) {
+  margin-block-start: 16px;
+}
+.pf-page > .ios-list + .ios-list {
+  margin-block-start: 16px;
+}
+
+.pf-secondary {
+  color: var(--label-2);
+}
+.pf-tertiary {
+  color: var(--label-3);
+}
+
+/* ─── 2. Summary (on the page, no card) ─── */
+.pf-summary {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.pf-label {
+  display: flex;
+  align-items: center;
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.pf-value {
+  margin: 4px 0 0;
+  font-size: var(--t-large-title);
+  line-height: var(--lh-large-title);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+.pf-change,
+.pf-vs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 4px;
+  margin-block-start: 2px;
+  min-inline-size: 0;
+}
+.pf-change {
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+}
+.pf-change .signed-change__suffix {
+  font-size: var(--t-footnote);
+}
+.pf-vs {
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-3);
+}
+.pf-vs .signed-change__suffix {
+  color: inherit;
+  font-weight: inherit;
+}
+html[data-large-text] .pf-value {
+  white-space: normal;
+}
+
+/* ─── 4. Tiles ─── */
+.pf-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.pf-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-block-size: 88px;
+  padding: 12px 16px;
+  border-radius: 24px;
+  background: var(--cell);
+  color: var(--label);
+  min-inline-size: 0;
+}
+.pf-tile__label {
+  display: flex;
+  align-items: center;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+.pf-tile__tip {
+  z-index: 1;
+}
+.pf-tile__value {
+  margin: 1px 0 0;
+  font-size: var(--t-title-3);
+  line-height: var(--lh-title-3);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pf-tile__sub {
+  margin: 2px 0 0;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+.pf-tile__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  color: var(--tint);
+  text-decoration: none;
+}
+/* The whole Rank tile opens Standings; its "?" sits above the stretched link (MOBILE §4.4). */
+.pf-tile__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+}
+.pf-tile__link:focus-visible {
+  outline: none;
+}
+.pf-tile__link:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.pf-tile--link:active {
+  background: var(--fill-2);
+}
+
+/* ─── 5. Positions header, Show chip ─── */
+.pf-show {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-block-size: 36px;
+  margin: 0 0 8px;
+}
+.pf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--cell);
+  box-shadow: inset 0 0 0 0.5px var(--separator);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  cursor: pointer;
+}
+.pf-chip svg {
+  color: var(--label-2);
+}
+.pf-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.pf-chip + .ios-infotip-button {
+  margin-inline-start: 0;
+}
+.pf-card {
+  border-radius: 24px;
+  background: var(--cell);
+}
+.pf-card-item {
+  list-style: none;
+}
+
+.pf-trailing-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: end;
+}
+.pf-share {
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.pf-icon-circle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+}
+.pf-icon-circle[data-size='44'] {
+  inline-size: 44px;
+  block-size: 44px;
+}
+
+.pf-footer {
+  margin: 16px 0 0;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+  text-align: center;
+}
+
+.pf-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Positions (§7.4) ─── */
+.pf-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 24px;
+  background: var(--cell);
+}
+.pf-strip__cell {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.pf-strip__label {
+  display: flex;
+  align-items: center;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+.pf-strip__value {
+  font-size: var(--t-subhead);
+  line-height: 1.333;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+html[data-large-text] .pf-strip {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.pf-alloc {
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--cell);
+}
+.pf-alloc__header {
+  display: flex;
+  align-items: center;
+  margin: 0 0 12px;
+  font-size: var(--t-headline);
+  line-height: 1.294;
+  font-weight: 600;
+}
+
+.pf-swipe-item {
+  list-style: none;
+}
+.pf-swipe-item:not(:last-child) .pf-position-row {
+  box-shadow: inset 0 -0.5px var(--separator);
+}
+.pf-position-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-block-size: 88px;
+  padding: 12px 16px;
+  background: var(--cell);
+  color: var(--label);
+  text-decoration: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.pf-position-row:active {
+  background: var(--fill-2);
+}
+.pf-position-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.pf-position-row__crest {
+  margin-block-start: 2px;
+}
+.pf-position-row__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+.pf-position-row__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.pf-position-row__name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--label-2);
+}
+html[data-large-text] .pf-position-row__line {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+html[data-large-text] .pf-position-row__name {
+  white-space: normal;
+}
+
+/* ─── Order detail (§7.5) ─── */
+.pf-order-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  border-radius: 24px;
+  background: var(--cell);
+  text-align: center;
+}
+.pf-order-header h2 {
+  margin: 0;
+}
+.pf-order-note {
+  margin: 8px 16px 0;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  color: var(--label-2);
+}
+.pf-order-actions {
+  display: flex;
+  justify-content: center;
+  margin-block-start: 16px;
+}
+
+/* ─── Help sheet ─── */
+.pf-help {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-block-end: 24px;
+}
+.pf-help__title {
+  margin: 0 0 4px;
+}

@@ -123,6 +123,8 @@ function permittedPairs(appearance: Appearance): Pair[] {
     }
     // Search field, gray buttons, segmented track, stepper: --label or --label-2 only.
     for (const role of ['--label', '--label-2']) text(`${role} on --fill over ${surface}`, solid(role), over(rgba('--fill'), bg));
+    // A flat change pill inside your highlighted Standings row: --fill over --tint-soft, so only --label (ListRow.css).
+    text(`--label on --fill over --tint-soft over ${surface}`, solid('--label'), over(rgba('--fill'), over(rgba('--tint-soft'), bg)));
     boundary(`--control-off vs ${surface}`, solid('--control-off'), bg);
     boundary(`--focus ring vs ${surface}`, solid('--focus'), bg);
     boundary(`--segment-thumb vs --fill track over ${surface}`, solid('--segment-thumb'), over(rgba('--fill'), bg));

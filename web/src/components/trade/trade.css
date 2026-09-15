@@ -1,0 +1,107 @@
+/* Trade sheet (MOBILE §5.16, §7.10). Large sheet on --elevated; boxes on --elevated-cell with --r-inner. */
+.tk-body { display: grid; gap: 0; padding: 0 16px 16px; }
+.tk-body[data-stage='entry'] { padding-bottom: 8px; }
+.tk-secondary { color: var(--label-2); }
+.tk-accent { margin: 8px 4px 0; color: var(--accent, var(--tint)); }
+.tk-step { margin: -4px 0 8px; text-align: center; color: var(--label-2); }
+.tk-label-tip { display: inline-flex; align-items: center; gap: 2px; }
+.tk-banner { margin-bottom: 12px; }
+.tk-footer-stack { display: grid; gap: 4px; }
+
+/* Entry. */
+.tk-entry { display: grid; gap: 8px; }
+.tk-quote { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 40px; }
+.tk-quote__price { display: grid; gap: 0; min-width: 0; }
+.tk-quote__cash { display: grid; justify-items: end; gap: 0; text-align: end; }
+.tk-side { margin-top: 4px; }
+.tk-mode { width: 220px; max-width: 100%; justify-self: center; }
+.tk-amount { justify-self: stretch; margin-top: 8px; }
+.tk-amount .ios-keypad-amount { flex: 1 1 auto; min-width: 0; }
+.tk-chips-row { display: grid; gap: 8px; }
+.tk-helper { margin: 0; min-height: 20px; text-align: center; }
+.tk-chips { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+.tk-helper--inline { flex: 1 1 100%; text-align: center; }
+.tk-chip {
+  min-width: 64px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-capsule, 999px);
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: var(--t-subhead);
+  cursor: pointer;
+  touch-action: manipulation;
+  position: relative;
+}
+/* 44px hit target around the 36px capsule (MOBILE §4.4). */
+.tk-chip::after { content: ''; position: absolute; inset: -4px 0; }
+.tk-chip:disabled { color: var(--label-3); cursor: default; }
+.tk-chip:focus-visible { outline: 2px solid var(--focus, var(--tint)); outline-offset: 2px; }
+
+.tk-box-slot { min-height: 94px; }
+.tk-box {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--r-inner, 12px);
+  background: var(--elevated-cell, var(--cell));
+}
+.tk-box p { margin: 0; }
+.tk-box__row { display: flex; justify-content: space-between; gap: 12px; }
+.tk-problem { grid-template-columns: 20px 1fr; align-items: start; gap: 10px; }
+.tk-problem__icon { margin-top: 1px; color: var(--label); }
+.tk-problem__text { display: grid; gap: 4px; justify-items: start; }
+.tk-problem__text .ios-button { margin-top: 4px; }
+.tk-inline-tip { padding: 8px 12px 12px; border-radius: var(--r-inner, 12px); background: var(--elevated-cell, var(--cell)); }
+.tk-inline-tip__extra { margin: 0 0 8px; color: var(--label); }
+
+.tk-entry[data-compact] { gap: 6px; }
+.tk-entry[data-compact] .tk-box-slot { min-height: 64px; }
+.tk-entry[data-compact] .tk-quote { min-height: 36px; }
+.tk-entry[data-compact] .tk-amount { margin-top: 0; }
+
+/* Preview and Filled cards. */
+.tk-recap { margin: 0 4px 12px; }
+.tk-card {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: var(--r-card);
+  background: var(--elevated-cell, var(--cell));
+  overflow: hidden;
+}
+.tk-row { display: block; padding: 10px 16px; min-height: 44px; }
+.tk-row + .tk-row,
+.tk-inline-tip-row + .tk-row { box-shadow: inset 16px 0.5px 0 0 var(--elevated-cell, var(--cell)), inset 0 0.5px 0 0 var(--separator); }
+.tk-row__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 24px; }
+.tk-row__note { margin: 2px 0 0; }
+.tk-inline-tip-row { list-style: none; padding: 0 8px 8px; }
+.tk-note { margin: 8px 4px 0; }
+.tk-mono { font-family: var(--font-mono, ui-monospace, monospace); }
+
+.tk-filled { display: grid; justify-items: center; text-align: center; padding-top: 12px; }
+.tk-filled .tk-card { width: 100%; margin-top: 16px; text-align: start; }
+.tk-seal { margin: 8px 0 12px; }
+.tk-filled__title { margin: 0; outline: none; }
+.tk-filled__headline { margin: 4px 0 0; }
+.tk-flavor { font-style: italic; }
+.tk-filled__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 16px; }
+
+.tk-attention { display: grid; justify-items: center; text-align: center; gap: 8px; padding-top: 24px; }
+.tk-attention__icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label);
+  margin: 12px 0 8px;
+}
+.tk-attention__title { margin: 0; outline: none; }
+.tk-attention__message { margin: 0; max-width: 34ch; }
+
+.tk-choose { display: grid; gap: 8px; }
+.tk-section { margin-top: 8px; }

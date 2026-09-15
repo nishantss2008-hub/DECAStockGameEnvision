@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { GlossaryEntry } from '../../lib/glossary';
@@ -93,5 +93,30 @@ describe('InfoTipSheet', () => {
     render(<InfoTipLines entry={PE} density="inline" id="pe-tip" />);
     expect(screen.getByText(PE.whatItIs)).toBeInTheDocument();
     expect(document.getElementById('pe-tip')).toHaveAttribute('data-density', 'inline');
+  });
+  it('replaces the sheet entry when "Open in Learn" is pressed, so Back does not reopen the sheet', async () => {
+    const user = userEvent.setup();
+    function Where() {
+      const { pathname, search } = useLocation();
+      const navigate = useNavigate();
+      return (
+        <>
+          <output data-testid="where">{pathname + search}</output>
+          <button type="button" onClick={() => navigate(-1)}>
+            Go back
+          </button>
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={['/markets', '/markets?sheet=term&id=peRatio']} initialIndex={1}>
+        <Where />
+        <InfoTipSheet entry={PE} onOpenChange={() => undefined} replaceOnOpenInLearn />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole('link', { name: 'Open in Learn' }));
+    expect(screen.getByTestId('where')).toHaveTextContent('/learn/glossary/peRatio');
+    await user.click(screen.getByRole('button', { name: 'Go back', hidden: true }));
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent(/^\/markets$/));
   });
 });

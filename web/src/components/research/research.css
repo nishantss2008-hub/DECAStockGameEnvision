@@ -1,0 +1,157 @@
+/* Company, Financials and All stats (MOBILE §7.7–§7.8). Section gap 16px (§4.2); cards --cell, --r-card. */
+.rs-page { padding-block-start: 4px; }
+.rs-page--actions { padding-bottom: 96px; }
+.rs-section { margin-block-start: 16px; }
+.rs-secondary { color: var(--label-2); }
+.rs-tertiary { color: var(--label-3); }
+.rs-heading { margin: 0; color: var(--label); }
+.rs-subtitle { margin: 0; }
+.rs-lead { margin: 0 0 4px; color: var(--label-2); }
+.rs-summary { margin: 0 0 12px; }
+.rs-units { margin: 8px 16px 0; }
+.rs-group-title { margin: 24px 0 2px; }
+.rs-group-note { margin: 0; }
+
+/* Company top bar: StockHeader is the page's h1, so the navbar's large title is not drawn. */
+.rs-company-nav .ios-navbar__title,
+.rs-company-nav .ios-navbar__sentinel { display: none; }
+.rs-company-nav .ios-navbar__large { padding-block-end: 0; }
+.rs-star[data-watched] svg { fill: currentColor; color: var(--accent, var(--tint)); }
+
+.rs-card {
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--cell);
+}
+.rs-card > p { margin: 0; }
+.rs-card > p + p { margin-top: 8px; }
+.rs-card-row { display: block; padding: 12px 16px; }
+.rs-card-row > p { margin: 0; }
+.rs-card-row > p + p { margin-top: 4px; }
+
+.rs-header-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--tint);
+  font-size: var(--t-subhead);
+  text-decoration: none;
+}
+.rs-section-header { display: flex; align-items: center; gap: 4px; min-height: 44px; padding-inline: 4px; }
+.rs-label-with-tip { display: inline-flex; align-items: center; gap: 2px; }
+
+/* Session range row inside Key stats. */
+.rs-range-row { display: block; padding: 8px 16px 12px; }
+.rs-range-row[data-highlighted] { background: var(--tint-soft); }
+.rs-range-row__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.rs-range-row__ends { display: flex; justify-content: space-between; color: var(--label-3); margin-top: 4px; }
+
+/* Analyst view. */
+.rs-analyst__target { display: flex; align-items: center; gap: 4px; }
+.rs-analyst__target .ios-num { margin-inline-start: auto; color: var(--label); }
+
+/* News rows. */
+.rs-news-sub { display: grid; gap: 2px; }
+.rs-news-meaning { color: var(--label-2); }
+.rs-trailing-stack { display: grid; justify-items: end; gap: 2px; }
+
+/* Floating Buy / Sell above the tab bar (MOBILE §7.7), with a 20px edge fade behind. */
+.rs-float {
+  position: fixed;
+  z-index: var(--z-floating, 30);
+  inset-inline: 0;
+  bottom: calc(var(--tabbar-height, 62px) + var(--tabbar-bottom, 8px));
+  display: flex;
+  gap: 9px;
+  padding: 20px var(--gutter-right, 16px) 20px var(--gutter-left, 16px);
+  background: linear-gradient(to bottom, transparent, var(--bg-grouped) 20px);
+  pointer-events: none;
+}
+.rs-float > * { pointer-events: auto; box-shadow: var(--float-shadow); }
+.bx-shell[data-layout='split'] .rs-float { inset-inline-start: 280px; bottom: 16px; max-width: 672px; margin-inline: auto; }
+.bx-shell[data-layout='rail'] .rs-float { inset-inline-start: calc(72px + env(safe-area-inset-left, 0px)); bottom: 12px; }
+
+/* 4-year bars. */
+.rs-bars { display: grid; gap: 8px; }
+.rs-bars__readout { margin: 0; color: var(--label); }
+.rs-bars__row { display: flex; align-items: flex-end; gap: 12px; }
+.rs-bars__col {
+  flex: 1 1 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font: inherit;
+}
+.rs-bars__col--button { min-height: 44px; border-radius: var(--r-inner, 10px); cursor: pointer; touch-action: manipulation; }
+.rs-bars__col--button:focus-visible { outline: 2px solid var(--focus, var(--tint)); outline-offset: 2px; }
+.rs-bars__col[data-selected] .rs-bars__year { color: var(--label); font-weight: 600; }
+.rs-bars__plot { position: relative; display: flex; align-items: flex-end; justify-content: center; width: 100%; }
+.rs-bars__bar { width: min(44px, 70%); border-radius: 4px 4px 0 0; background: var(--tint); opacity: 0.35; }
+.rs-bars__col[data-selected] .rs-bars__bar { opacity: 0.6; }
+.rs-bars__tick { position: absolute; left: 50%; width: min(52px, 80%); height: 3px; transform: translate(-50%, 50%); border-radius: 2px; background: var(--label); }
+.rs-bars__legend { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--label-2); }
+.rs-bars__key { display: inline-block; width: 12px; height: 8px; border-radius: 2px; }
+.rs-bars__key--sales { background: var(--tint); opacity: 0.45; }
+.rs-bars__key--profit { height: 3px; background: var(--label); margin-inline-start: 8px; }
+
+/* Statements. */
+.rs-statement-switch { margin-block: 8px; }
+.rs-table-card { position: relative; border-radius: var(--r-card); background: var(--cell); overflow: hidden; }
+.rs-table-card::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 20px;
+  background: linear-gradient(to right, transparent, var(--cell));
+  pointer-events: none;
+}
+.rs-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+.rs-table-scroll:focus-visible { outline: 2px solid var(--focus, var(--tint)); outline-offset: -2px; }
+.rs-table { border-collapse: collapse; min-width: 100%; }
+.rs-table th,
+.rs-table td { padding: 0 12px; height: 44px; text-align: right; white-space: nowrap; border-bottom: 0.5px solid var(--separator); color: var(--label-2); }
+.rs-table tr:last-child th,
+.rs-table tr:last-child td { border-bottom: 0; }
+.rs-table thead th { font-weight: 400; color: var(--label-2); min-width: 88px; }
+.rs-table [data-latest] { color: var(--label); font-weight: 600; }
+.rs-table__corner,
+.rs-table__name {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 132px;
+  min-width: 132px;
+  text-align: left !important;
+  background: var(--cell);
+}
+.rs-table__term {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label);
+  font-family: inherit;
+  font-size: var(--t-footnote);
+  line-height: var(--lh-footnote);
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.rs-table__name { font-weight: 400; }
+.rs-table__term svg { flex: none; color: var(--tint); }
+
+.rs-help { display: grid; gap: 20px; padding: 4px 16px 24px; }
+.rs-help__item h3 { margin: 0 0 4px; }
+.rs-about { white-space: pre-line; }

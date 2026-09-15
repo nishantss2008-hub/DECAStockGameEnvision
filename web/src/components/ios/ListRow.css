@@ -244,6 +244,10 @@
 .ios-row--highlighted .ios-explain__average {
   color: var(--label-2);
 }
+/* A flat change pill (--fill over --tint-soft) is too faint with --label-2 in dark: axe color-contrast. */
+.ios-row--highlighted .ios-pill--change[data-direction='flat'] {
+  color: var(--label);
+}
 
 /* A switch's description is read before deciding, so it wraps instead of truncating. */
 .ios-row--toggle .ios-row__subtitle {

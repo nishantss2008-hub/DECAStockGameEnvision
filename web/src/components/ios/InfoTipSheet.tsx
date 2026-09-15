@@ -79,6 +79,8 @@ export interface InfoTipSheetProps {
   /** Called when "Open in Learn" is pressed, before the link navigates. */
   onOpenInLearn?: (entry: GlossaryEntry) => void;
   learnHref?: (termId: string) => string;
+  /** Replace the current history entry instead of pushing, for sheets that live in the URL: Back then skips the sheet. */
+  replaceOnOpenInLearn?: boolean;
   copy?: InfoTipCopy;
 }
 
@@ -88,6 +90,7 @@ export function InfoTipSheet({
   onOpenChange,
   onOpenInLearn,
   learnHref = glossaryTermPath,
+  replaceOnOpenInLearn = false,
   copy = INFO_TIP_COPY,
 }: InfoTipSheetProps) {
   const isOpen = open ?? entry !== null;
@@ -119,6 +122,7 @@ export function InfoTipSheet({
       <div className="ios-infotip-sheet__actions">
         <Link
           to={learnHref(current.id)}
+          replace={replaceOnOpenInLearn}
           className="ios-button"
           data-style="tinted"
           data-size="medium"
