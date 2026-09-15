@@ -13,7 +13,8 @@
  *    (label `value:${id}`), P/E = PEref·e^(−0.35c); loss-makers are valued on sales.
  * 5. The score s and engine input q are MEASURED from the generated statements with
  *    `computeQualityScores`, so reading the statements well gives the full edge.
- * 6. The analyst view is a noisy, optimistic hint of s and never feeds the score.
+ * 6. The analyst view is a noisy, mildly optimistic hint of s and never feeds the score; its
+ *    rating follows the implied upside of the target, so a Sell never has a target above the price.
  *
  * All money is integer cents of Ð. No I/O and no Math.random.
  */
@@ -116,11 +117,22 @@ const MIN_ABS_NET_MARGIN = 0.005;
 const VALUE_Q = -0.32;
 const VALUE_V = 0.95;
 const VALUE_SLOPE = 0.35;
-/** Analyst view: z = 0.5·s + 0.87·n; target = price·(1 + 0.12 + 0.10·z). */
+/** Analyst view: z = 0.5·s + 0.87·n; target = price·(1 + 0.04 + 0.12·z); rating from the implied upside. */
 const ANALYST_S = 0.5;
 const ANALYST_N = 0.87;
-const ANALYST_OPTIMISM = 0.12;
-const ANALYST_SLOPE = 0.1;
+const ANALYST_OPTIMISM = 0.04;
+const ANALYST_SLOPE = 0.12;
+/**
+ * Lowest implied upside (target/price − 1) for each rating, in whole percent, best first; below the
+ * last is Strong Sell. Whole percents let analystRating compare exactly in integer cents.
+ */
+const ANALYST_RATING_FLOORS_PCT: readonly (readonly [rating: string, minUpsidePct: number])[] = [
+  ['Strong Buy', 20],
+  ['Buy', 8],
+  ['Hold', -5],
+  ['Sell', -15],
+];
+const ANALYST_LOWEST_RATING = 'Strong Sell';
 const TAX_RATE = 0.21;
 const INTEREST_RATE = 0.06;
 const REVENUE_MIN = 5e10; // Ð500M in cents
@@ -139,7 +151,7 @@ const THIN_CASH_CURRENT_RATIO = 0.9;
 /** Sector cyclicality added to beta (±0.15). */
 const CYCLICALITY: Record<Sector, number> = {
   'Shipping & Salvage': 0.1,
-  'Rum & Provisions': -0.1,
+  'Provisions & Spice': -0.1,
   'Naval Arms': 0,
   'Cartography & Navigation': 0.05,
   'Treasure Banking': 0.1,
@@ -543,6 +555,17 @@ function riskFactors(rng: Prng, debtToEquity: number, currentRatio: number): str
   return [...out, ...rng.shuffle(RISKS).slice(0, 3)];
 }
 
+/**
+ * Rating from the implied upside of the stored (rounded) target, so the card never contradicts itself.
+ * Both arguments are integer cents; `target·100 ≥ price·(100 + pct)` is exact integer arithmetic, so a
+ * target exactly on a floor (e.g. 33,535 vs 35,300 = −5%) takes the higher rating. The float form
+ * `target/price − 1 ≥ −0.05` gets that case wrong (−0.050000000000000044).
+ */
+export function analystRating(priceTarget: number, price: number): string {
+  for (const [rating, minUpsidePct] of ANALYST_RATING_FLOORS_PCT) if (priceTarget * 100 >= price * (100 + minUpsidePct)) return rating;
+  return ANALYST_LOWEST_RATING;
+}
+
 function industryNotes(sector: Sector, growthRate: number, rng: Prng): string {
   const trend =
     Math.abs(growthRate) < 0.0005
@@ -568,14 +591,8 @@ export function generateMarket(seed: string): GeneratedMarket {
   // 6. Measured quality from the generated statements.
   const qualities = computeQualityScores(drafts.map(qualityInput), sectorRefs());
 
-  // 7. Analyst view: a noisy, optimistic hint of the measured score, rated by quintile.
+  // 7. Analyst view: a noisy, mildly optimistic hint of the measured score.
   const analystZ = drafts.map((d, i) => ANALYST_S * qualities[i]!.score + ANALYST_N * new Prng(deriveSeed(seed, `analyst:${d.entry.id}`)).gauss());
-  const byZ = analystZ.map((z, i) => ({ z, i })).sort((a, b) => b.z - a.z || a.i - b.i);
-  const ratingIndex = new Array<number>(n).fill(0);
-  byZ.forEach(({ i }, rank) => {
-    ratingIndex[i] = Math.min(4, Math.floor((5 * rank) / n));
-  });
-  const ratings = research.analystRatings;
 
   // 8. Text and final documents.
   const usedNames = new Set<string>();
@@ -592,6 +609,7 @@ export function generateMarket(seed: string): GeneratedMarket {
     const { industryGrowthRate, tam, ...base } = d.fundamentals;
     const text = new Prng(deriveSeed(seed, `text:${entry.id}`));
     const position = positionFor(text, base.netIncome, revenueRank0[i]!, n);
+    const priceTarget = Math.max(1, Math.round(startPriceCents * (1 + ANALYST_OPTIMISM + ANALYST_SLOPE * analystZ[i]!)));
     const ships = Math.max(3, Math.round(base.revenue / 8e9)); // about one ship per Ð80M of revenue
     const posts = text.int(2, 9);
 
@@ -609,10 +627,7 @@ export function generateMarket(seed: string): GeneratedMarket {
       marketingStrategy: text.pick(MARKETING)(entry.name),
       riskFactors: riskFactors(text, base.debtToEquity, base.currentRatio),
       recentDevelopments: text.shuffle(DEVELOPMENTS).slice(0, 3),
-      analyst: {
-        rating: ratings[ratingIndex[i]!] ?? 'Hold',
-        priceTarget: Math.max(1, Math.round(startPriceCents * (1 + ANALYST_OPTIMISM + ANALYST_SLOPE * analystZ[i]!))),
-      },
+      analyst: { rating: analystRating(priceTarget, startPriceCents), priceTarget },
     };
 
     const company: Company = {

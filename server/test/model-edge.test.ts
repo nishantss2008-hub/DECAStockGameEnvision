@@ -7,7 +7,7 @@ import { mean, standardDeviation } from 'simple-statistics';
 import { deriveClock, HOUR_MS, MODEL, impactLambda, intervalShareCap, estFillPrice } from '@deca/shared';
 import { Prng, deriveSeed } from '../src/lib/prng';
 import {
-  derive, garchStep, marketStep, companyStep, initialState, idioVolFor, fillPriceExact, closePrice,
+  derive, drift, garchStep, marketStep, companyStep, initialState, idioVolFor, fillPriceExact, closePrice,
   type CompanyState, type Derived, type ModelCompany,
 } from '../src/engine/model';
 import { buildSchedule, hostEvent, jumpsAtTick, type NewsCompany, type ScheduledEvent } from '../src/engine/news';
@@ -71,8 +71,9 @@ describe('per-tick mechanics (spec §5.3 line by line)', () => {
     const dOu: Derived = { ...d, ouSd: 0.01 }; // exercise the (off-by-default) exact OU path
     const s: CompanyState = { v: Math.log(5_000), m: 0.002, f: 0, h: 1.3 };
     companyStep('lab', 42, c, s, 0, 0.05, 123_456, dOu);
-    // qEff 0 → drift 0; beta 0 → no market term
-    expect(s.v).toBeCloseTo(Math.log(5_000) + 0.3 * Math.sqrt(1.3 * d.dt) * z + 0.05, 12);
+    // beta 0 → no market term; at qEff 0 the drift is only the jump compensator −K·(eLogUp + eLogDown)/2 > 0
+    expect(drift(c, d)).toBeCloseTo(-d.K * (d.eLogUp + d.eLogDown) / 2, 15); expect(drift(c, d)).toBeGreaterThan(0);
+    expect(s.v).toBeCloseTo(Math.log(5_000) + drift(c, d) * d.dt + 0.3 * Math.sqrt(1.3 * d.dt) * z + 0.05, 12);
     expect(s.h).toBe(garchStep(1.3, z, d));
     expect(s.m).toBe(0.002 * d.decay + 0.01 * zO);
   });
@@ -179,7 +180,8 @@ describe('fillPriceExact', () => {
 
 describe('impact update order regression guard', () => {
   const setup = (hours: number) => {
-    const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, 0.3); const lam = impactLambda(1, SO);
+    // No news in this stepper (K = 0), so no jump compensator: drift is exactly 0 at qEff 0 and only f moves.
+    const clock = deriveClock(hours * HOUR_MS); const d: Derived = { ...derive(clock, 0.3), K: 0 }; const lam = impactLambda(1, SO);
     const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: SO, lambda: lam };
     const right = (s: CompanyState, q: number) => { companyStep('ord', 1, quiet, s, 0, 0, q, d); };
     // WRONG order: f = decay·f + λQ (impact of the last interval arrives undecayed)
@@ -257,7 +259,7 @@ describe('news schedule ordering and host events', () => {
     const odd: NewsCompany[] = [{ id: 'q', name: 'Cash $& {port} Co', ticker: 'CSH', sector: 'Naval Arms', qEff: 0.5, beta: 1 }];
     const ev = buildSchedule('odd', clock, odd, d).filter((e) => e.source === 'scheduled');
     expect(ev.length).toBeGreaterThan(0);
-    for (const e of ev) { expect(e.headline.includes('Cash $& {port} Co')).toBe(true); expect(e.body.startsWith('Cash $& {port} Co (CSH, Naval Arms) — ')).toBe(true); }
+    for (const e of ev) { expect(e.headline.includes('Cash $& {port} Co')).toBe(true); expect(e.body.startsWith('Cash $& {port} Co (CSH) — ')).toBe(true); }
   });
 });
 

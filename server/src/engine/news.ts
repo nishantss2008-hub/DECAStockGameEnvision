@@ -4,14 +4,18 @@
  *
  * Company events (label `jumps:${id}`): n ~ Poisson(K) (Knuth); each event draws
  * exactly six uniforms in order (tick, sign, size, type pick, variant pick, port
- * pick), so headline wording can change without moving any jump.
+ * pick), so headline wording can change without moving any jump. The log jump is
+ * model.companyLogJump (the drift compensates for its exact expectation); the type
+ * follows the size relative to d.jumpMean: < 0.8× earnings, < 1.4× management or
+ * regulatory, else merger/discovery (good) or scandal/storm (bad).
+ * Body: "{name} ({ticker}) — {sentence}."
  * Macro events (label `macro`): 1–2 per game, J = ±U(0.02, 0.08), applied to
  * every company as ln(1 + beta·J).
  */
 
 import { MODEL, type GameClock, type NewsType } from '@deca/shared';
 import { Prng, deriveSeed } from '../lib/prng';
-import { upProbability, type Derived } from './model';
+import { MIN_JUMP_MULTIPLE, companyLogJump, upProbability, type Derived } from './model';
 
 export interface NewsCompany {
   id: string;
@@ -39,8 +43,14 @@ type Template = readonly [string, string];
 
 const PORTS = ['Nassau', 'Port Royal', 'Cartagena', 'Cape Verde', 'the Windward Passage', 'the Leeward Isles'] as const;
 
-/** Smallest price multiple a single jump may leave (guards ln of a non-positive number). */
-const MIN_JUMP_MULTIPLE = 0.05;
+/**
+ * News type by size RELATIVE to the typical jump d.jumpMean, so the mix is the same for every
+ * game length (S ~ Exp(jumpMean), and maxJump > 1.4·jumpMean for every K): small (earnings)
+ * 1 − e^−0.8 ≈ 55%, medium e^−0.8 − e^−1.4 ≈ 20%, large e^−1.4 ≈ 25%, so each of the four
+ * large types (merger, discovery, scandal, storm) is about 6% of company news.
+ */
+const MEDIUM_JUMP_RATIO = 0.8;
+const LARGE_JUMP_RATIO = 1.4;
 
 const TEMPLATES: Record<Exclude<NewsType, 'macro'>, Record<Sentiment, readonly Template[]>> = {
   earnings: {
@@ -142,10 +152,10 @@ function logJump(multipleMinusOne: number): number {
   return Math.log(Math.max(MIN_JUMP_MULTIPLE, 1 + multipleMinusOne));
 }
 
-function companyEventType(size: number, up: boolean, uType: number): NewsType {
-  if (size < 0.06) return 'earnings';
+function companyEventType(size: number, jumpMean: number, up: boolean, uType: number): NewsType {
+  if (size < MEDIUM_JUMP_RATIO * jumpMean) return 'earnings';
   const first = uType < 0.5;
-  if (size < 0.12) return up ? (first ? 'management' : 'regulatory') : first ? 'regulatory' : 'management';
+  if (size < LARGE_JUMP_RATIO * jumpMean) return up ? (first ? 'management' : 'regulatory') : first ? 'regulatory' : 'management';
   return up ? (first ? 'merger' : 'discovery') : first ? 'scandal' : 'storm';
 }
 
@@ -168,8 +178,8 @@ function companyEvents(seed: string, clock: GameClock, c: NewsCompany, d: Derive
     const uType = r.next();
     const uVariant = r.next();
     const uPort = r.next();
-    const jump = up ? Math.log(1 + size) : logJump(-size);
-    const type = companyEventType(size, up, uType);
+    const jump = companyLogJump(up, size);
+    const type = companyEventType(size, d.jumpMean, up, uType);
     const sentiment: Sentiment = up ? 'bullish' : 'bearish';
     const variants = TEMPLATES[type as Exclude<NewsType, 'macro'>][sentiment];
     const [headline, sentence] = variants[pickIndex(uVariant, variants.length)]!;
@@ -182,7 +192,7 @@ function companyEvents(seed: string, clock: GameClock, c: NewsCompany, d: Derive
       sentiment,
       source: 'scheduled',
       headline: fill(headline, c.name, port),
-      body: `${c.name} (${c.ticker}, ${c.sector}) — ${fill(sentence, c.name, port)}.`,
+      body: `${c.name} (${c.ticker}) — ${fill(sentence, c.name, port)}.`,
     });
   }
   return out;

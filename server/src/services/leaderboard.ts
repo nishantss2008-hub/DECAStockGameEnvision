@@ -1,58 +1,284 @@
 /**
- * Leaderboard recompute. Marks every team to market using the engine's live
- * prices and writes a public `leaderboard/current` doc (no private holdings) plus
- * each team's totalValue + rank.
+ * Leaderboard, team value history and the research-grade accumulators.
  *
- * Note: cash + holdings are read non-transactionally, so `totalValue` is
- * eventually-consistent — a fill landing mid-recompute may be off by one trade for
- * one tick. It is a derived/display value; authoritative cash/holdings (written
- * atomically in trading.ts) are never affected, and the next tick self-corrects.
+ * `recomputeLeaderboard` runs after every committed tick: it marks every crew to
+ * market with the engine's live prices and writes
+ *   - `teams/{id}` {totalValue, rank, holdingsCount} (+ sessionOpenValue when a session starts)
+ *   - `teams/{id}/history/{chunk}` total value per tick (ValueChunk)
+ *   - `_teamStats/{id}` exposure += Σ value·q, weight += Σ value (holdings only, per elapsed tick)
+ *   - `leaderboard/current` entries with prevRank and a ≤40-point spark
+ *
+ * The research grade uses the visible-fundamentals `q`, not `qEff`, so it rewards
+ * reading the statements rather than the hidden surprise.
+ *
+ * `finalizeLeaderboard` runs once at the end: holdings are valued at the closing
+ * price (impact excluded), which stops last-interval pumping of final marks.
+ *
+ * Cash and holdings are read outside a transaction, so a fill landing mid-recompute
+ * can be one trade behind for one tick. These are display values; the next tick
+ * self-corrects and authoritative cash/holdings are never touched here.
  */
 
-import type { LeaderboardEntry } from '@deca/shared';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { FinalEntry, Holding, LeaderboardEntry, Team, ValueChunk } from '@deca/shared';
 import { db } from '../firebase';
-import { shareValue } from '../lib/money';
 import type { GameEngine } from '../engine/loop';
+import {
+  commitInBatches,
+  crossedSession,
+  putSeriesValue,
+  rankEntries,
+  researchGrade,
+  seriesChunks,
+  seriesFromChunks,
+  type BatchOp,
+  type StandingRow,
+  type TeamSeries,
+} from '../engine/loopHelpers';
 
-export async function recomputeLeaderboard(engine: GameEngine): Promise<void> {
-  const teamsSnap = await db.collection('teams').get();
-  if (teamsSnap.empty) return;
+interface LeaderboardCache {
+  /** Total value per tick per team. */
+  series: Map<string, TeamSeries>;
+  /** Last tick recorded per team (session crossings and time weights). */
+  lastTick: Map<string, number>;
+  /** Ranks from the previous leaderboard doc; null until read. */
+  prevRanks: Record<string, number> | null;
+}
 
-  const entries: LeaderboardEntry[] = [];
-  for (const teamDoc of teamsSnap.docs) {
-    const team = teamDoc.data() as { name: string; cashBalance: number };
-    const holdingsSnap = await db.collection(`teams/${teamDoc.id}/holdings`).get();
-    let holdingsValue = 0;
-    holdingsSnap.forEach((h) => {
-      const hd = h.data() as { companyId: string; shares: number };
-      holdingsValue += shareValue(hd.shares, engine.getPrice(hd.companyId));
-    });
-    entries.push({
-      teamId: teamDoc.id,
-      name: team.name,
-      totalValue: team.cashBalance + holdingsValue,
-      rank: 0,
-    });
+function freshCache(): LeaderboardCache {
+  return { series: new Map(), lastTick: new Map(), prevRanks: null };
+}
+
+let cache = freshCache();
+
+/** Drops every in-memory series and rank (call after a new market is created). */
+export function resetLeaderboardCache(): void {
+  cache = freshCache();
+}
+
+interface TeamRead {
+  team: Team;
+  holdings: Holding[];
+}
+
+async function readTeams(): Promise<TeamRead[]> {
+  const [teamsSnap, holdingsSnap] = await Promise.all([db.collection('teams').get(), db.collectionGroup('holdings').get()]);
+  const byTeam = new Map<string, Holding[]>();
+  for (const doc of holdingsSnap.docs) {
+    const teamId = doc.ref.parent.parent?.id;
+    if (!teamId || doc.ref.parent.parent?.parent.id !== 'teams') continue;
+    const h = doc.data() as Partial<Holding>;
+    const list = byTeam.get(teamId) ?? [];
+    list.push({ companyId: h.companyId ?? doc.id, shares: Number(h.shares) || 0, avgCost: Number(h.avgCost) || 0 });
+    byTeam.set(teamId, list);
   }
-
-  entries.sort((a, b) => b.totalValue - a.totalValue);
-  entries.forEach((e, i) => {
-    e.rank = i + 1;
+  return teamsSnap.docs.map((doc) => {
+    const t = doc.data() as Partial<Team>;
+    const team: Team = {
+      id: doc.id,
+      name: t.name ?? doc.id,
+      cashBalance: Number(t.cashBalance) || 0,
+      totalValue: Number(t.totalValue) || 0,
+      rank: Number(t.rank) || 0,
+      realizedPnl: Number(t.realizedPnl) || 0,
+      feesPaid: Number(t.feesPaid) || 0,
+      tradeCount: Number(t.tradeCount) || 0,
+      tradingDisabled: Boolean(t.tradingDisabled),
+      sessionOpenValue: Number(t.sessionOpenValue) || 0,
+      holdingsCount: Number(t.holdingsCount) || 0,
+      createdAt: Number(t.createdAt) || 0,
+    };
+    return { team, holdings: byTeam.get(doc.id) ?? [] };
   });
+}
 
-  // Publish the leaderboard doc first, then chunk the per-team updates to stay
-  // under Firestore's 500-write batch limit (scales past ~499 teams).
-  await db.doc('leaderboard/current').set({ updatedAt: Date.now(), entries });
+/** Loads stored value history for teams seen for the first time since the cache was reset. */
+async function ensureSeries(teamIds: string[]): Promise<void> {
+  const missing = teamIds.filter((id) => !cache.series.has(id) && !cache.lastTick.has(id));
+  await Promise.all(
+    missing.map(async (id) => {
+      const snap = await db.collection(`teams/${id}/history`).get();
+      const s = seriesFromChunks(snap.docs.map((d) => d.data() as ValueChunk));
+      if (s) {
+        cache.series.set(id, s);
+        cache.lastTick.set(id, s.start + s.values.length - 1);
+      }
+    }),
+  );
+}
 
-  let batch = db.batch();
-  let ops = 0;
-  for (const e of entries) {
-    batch.update(db.doc(`teams/${e.teamId}`), { totalValue: e.totalValue, rank: e.rank });
-    if (++ops >= 450) {
-      await batch.commit();
-      batch = db.batch();
-      ops = 0;
+async function previousRanks(): Promise<Record<string, number>> {
+  if (cache.prevRanks) return cache.prevRanks;
+  const snap = await db.doc('leaderboard/current').get();
+  const entries = (snap.data()?.entries ?? []) as LeaderboardEntry[];
+  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
+  return cache.prevRanks;
+}
+
+/**
+ * Team doc updates: one batch normally; if a crew was removed mid-recompute the
+ * batch fails, so fall back to single updates and skip the missing crews.
+ */
+async function commitTeamUpdates(updates: { id: string; data: Record<string, unknown> }[]): Promise<void> {
+  const ops: BatchOp[] = updates.map(({ id, data }) => (b) => b.update(db.doc(`teams/${id}`), data));
+  try {
+    await commitInBatches(db, ops);
+  } catch {
+    await Promise.all(
+      updates.map(({ id, data }) =>
+        db
+          .doc(`teams/${id}`)
+          .update(data)
+          .catch((err: { code?: number }) => {
+            if (err?.code !== 5) console.error('[leaderboard] team update failed', id, err); // 5 = NOT_FOUND
+          }),
+      ),
+    );
+  }
+}
+
+interface Valued {
+  read: TeamRead;
+  totalValue: number;
+  invested: number;
+  exposure: number;
+  holdingsCount: number;
+}
+
+function valueTeam(read: TeamRead, priceOf: (companyId: string) => number, qOf: (companyId: string) => number): Valued {
+  let invested = 0;
+  let exposure = 0;
+  let holdingsCount = 0;
+  for (const h of read.holdings) {
+    if (h.shares <= 0) continue;
+    const value = Math.round(h.shares * priceOf(h.companyId));
+    invested += value;
+    exposure += value * qOf(h.companyId);
+    holdingsCount++;
+  }
+  return { read, totalValue: read.team.cashBalance + invested, invested, exposure, holdingsCount };
+}
+
+export async function recomputeLeaderboard(engine: GameEngine, tick: number): Promise<void> {
+  const { startingCapital, sessionTicks } = engine.state;
+  const reads = await readTeams();
+  await ensureSeries(reads.map((r) => r.team.id));
+  const prevRanks = await previousRanks();
+
+  const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
+  const rows: StandingRow[] = [];
+  const updates: { id: string; data: Record<string, unknown> }[] = [];
+  const ops: BatchOp[] = [];
+
+  for (const read of reads) {
+    const id = read.team.id;
+    const v = valueTeam(read, (cid) => engine.getPrice(cid), qOf);
+    const prev = cache.lastTick.get(id);
+    const series = putSeriesValue(cache.series.get(id), tick, v.totalValue);
+    cache.series.set(id, series);
+    cache.lastTick.set(id, tick);
+
+    const newSession = crossedSession(prev, tick, sessionTicks);
+    const sessionOpenValue = newSession ? v.totalValue : read.team.sessionOpenValue || startingCapital;
+    rows.push({
+      teamId: id,
+      name: read.team.name,
+      totalValue: v.totalValue,
+      cash: read.team.cashBalance,
+      holdingsCount: v.holdingsCount,
+      sessionOpenValue,
+      series: series.values,
+    });
+
+    const data: Record<string, unknown> = { totalValue: v.totalValue, holdingsCount: v.holdingsCount };
+    if (newSession) data.sessionOpenValue = v.totalValue;
+    updates.push({ id, data });
+
+    for (const chunk of seriesChunks(series, prev === undefined ? tick : Math.min(prev + 1, tick), tick)) {
+      ops.push((b) => b.set(db.doc(`teams/${id}/history/${chunk.chunk}`), chunk));
+    }
+
+    const elapsed = prev === undefined ? 1 : Math.max(0, tick - prev);
+    if (elapsed > 0) {
+      ops.push((b) =>
+        b.set(
+          db.doc(`_teamStats/${id}`),
+          {
+            teamId: id,
+            exposure: FieldValue.increment(v.exposure * elapsed),
+            weight: FieldValue.increment(v.invested * elapsed),
+            lastTick: tick,
+          },
+          { merge: true },
+        ),
+      );
     }
   }
-  if (ops > 0) await batch.commit();
+
+  const entries = rankEntries(rows, prevRanks, startingCapital);
+  const rankOf = new Map(entries.map((e) => [e.teamId, e.rank]));
+  for (const u of updates) u.data.rank = rankOf.get(u.id) ?? 0;
+
+  ops.push((b) => b.set(db.doc('leaderboard/current'), { updatedAt: Date.now(), tick, entries }));
+  await commitInBatches(db, ops);
+  await commitTeamUpdates(updates);
+  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
+}
+
+export async function finalizeLeaderboard(engine: GameEngine): Promise<void> {
+  const { startingCapital, currentTick: tick } = engine.state;
+  const [reads, statsSnap] = await Promise.all([readTeams(), db.collection('_teamStats').get()]);
+  await ensureSeries(reads.map((r) => r.team.id));
+  const prevRanks = await previousRanks();
+  const stats = new Map(statsSnap.docs.map((d) => [d.id, d.data() as { exposure?: number; weight?: number }]));
+
+  const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
+  const rows: StandingRow[] = [];
+  const updates: { id: string; data: Record<string, unknown> }[] = [];
+  const ops: BatchOp[] = [];
+
+  for (const read of reads) {
+    const id = read.team.id;
+    const v = valueTeam(read, (cid) => engine.closePrice(cid), qOf);
+    const series = putSeriesValue(cache.series.get(id), tick, v.totalValue);
+    cache.series.set(id, series);
+    cache.lastTick.set(id, tick);
+    rows.push({
+      teamId: id,
+      name: read.team.name,
+      totalValue: v.totalValue,
+      cash: read.team.cashBalance,
+      holdingsCount: v.holdingsCount,
+      sessionOpenValue: read.team.sessionOpenValue || startingCapital,
+      series: series.values,
+    });
+    updates.push({ id, data: { totalValue: v.totalValue, holdingsCount: v.holdingsCount } });
+    for (const chunk of seriesChunks(series, tick, tick)) {
+      ops.push((b) => b.set(db.doc(`teams/${id}/history/${chunk.chunk}`), chunk));
+    }
+  }
+
+  const entries = rankEntries(rows, prevRanks, startingCapital);
+  const rankOf = new Map(entries.map((e) => [e.teamId, e.rank]));
+  for (const u of updates) u.data.rank = rankOf.get(u.id) ?? 0;
+
+  const finalEntries: FinalEntry[] = entries.map((e) => {
+    const s = stats.get(e.teamId);
+    const weight = Number(s?.weight) || 0;
+    const researchScore = weight > 0 ? (Number(s?.exposure) || 0) / weight : 0;
+    return { ...e, researchScore, researchGrade: researchGrade(researchScore) };
+  });
+
+  const now = Date.now();
+  ops.push((b) =>
+    b.set(db.doc('leaderboard/current'), {
+      updatedAt: now,
+      tick,
+      entries,
+      final: { endedAt: engine.state.endedAt ?? now, entries: finalEntries },
+    }),
+  );
+  await commitInBatches(db, ops);
+  await commitTeamUpdates(updates);
+  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
 }

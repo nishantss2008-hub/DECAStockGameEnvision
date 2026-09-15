@@ -1,304 +1,1013 @@
 /**
- * GameEngine — the always-on authority that advances the market.
+ * GameEngine: the always-on authority that advances the market (IO layer).
  *
- * Holds the hidden state in memory (intrinsic paths, per-company volatility, the
- * news schedule, the shared order-flow book) and, each tick, computes the new
- * realized price for every company and persists it to Firestore. The intrinsic
- * paths + news are deterministic from the seed and the per-tick noise is seeded by
- * (companyId, tick), so the engine is fully RESUME-SAFE: after any restart it reads
- * the persisted clock and continues exactly where it should be.
+ * All math lives in the pure modules (model, news, flow, state, loopHelpers);
+ * this class holds the in-memory market, runs ticks and persists them.
  *
- * The same engine instance is shared with the trading service, which feeds buy/sell
- * pressure into the order-flow book — that's how trade volume moves prices.
+ * - Fair value v, GARCH h and the news schedule are pure functions of the seed,
+ *   the clock and the tick, so the engine is resume-safe: `_engine/state` is
+ *   written in the same commit as prices, and when it is missing the fair value
+ *   is replayed from tick 0 and the impact term recovered from persisted prices.
+ * - Player flow is reserved synchronously (`reserveFlow`) before any await, so a
+ *   fill always prices in every order already traded this interval; the next tick
+ *   drains it into the linear transient impact term.
+ * - Every state-changing operation (tick, start, pause, resume, end, settings,
+ *   host news, load) runs through one async queue, so they never interleave.
  */
 
-import { FieldValue } from 'firebase-admin/firestore';
-import type { Archetype, GameState, NewsEvent } from '@deca/shared';
-import { ENGINE_PARAMS, TICK_INTERVAL_MS, TOTAL_TICKS, CURRENCY, STARTING_CAPITAL } from '@deca/shared';
+import {
+  EDGE_SPREAD,
+  HISTORY_CHUNK,
+  MODEL,
+  chunkOf,
+  deriveClock,
+  impactLambda,
+  intervalShareCap,
+  tickAt,
+  type AdminMarketRow,
+  type Company,
+  type FireNewsInput,
+  type GameClock,
+  type GameState,
+  type Grade,
+  type HealthResponse,
+  type HistoryChunk,
+  type MarketSummary,
+  type NewsEvent,
+  type OrderSide,
+  type QualityPillars,
+  type ScheduledNewsView,
+  type Sector,
+  type SettingsInput,
+  type Team,
+  type Trade,
+  type ValueChunk,
+} from '@deca/shared';
 import { db } from '../firebase';
 import { config } from '../config';
-import { Prng, deriveSeed } from '../lib/prng';
-import { generateIntrinsicPath, companySigma } from './intrinsic';
-import { OrderFlowBook } from './orderflow';
-import { stepPrice } from './engine';
-import { resumeTick, computeEndAt } from './state';
-import { NewsScheduler } from '../news/scheduler';
-import type { ScheduledNews } from '../news/schedule';
-import { recomputeLeaderboard } from '../services/leaderboard';
 import { auditLog } from '../lib/logger';
+import { ROSTER } from '../seed/roster';
+import { finalizeLeaderboard, recomputeLeaderboard, resetLeaderboardCache } from '../services/leaderboard';
+import { FlowBook } from './flow';
+import {
+  closePrice as closeMark,
+  companyStep,
+  derive,
+  effectiveQuality,
+  expectedLogReturn,
+  fillPriceExact,
+  initialState,
+  marketStep,
+  surpriseFor,
+  type CompanyState,
+  type Derived,
+} from './model';
+import { buildSchedule, hostEvent, jumpsAtTick, type ScheduledEvent } from './news';
+import { recoverImpact, replayFairValue, serializeState, type EngineState } from './state';
+import {
+  INDEX_BASE,
+  advanceSnapshot,
+  appendChunk,
+  appendValue,
+  buildReveal,
+  commitInBatches,
+  compositeValue,
+  engineMessages,
+  indexQuote,
+  marketBreadth,
+  mergeSettings,
+  newsDocId,
+  normalizeState,
+  type BatchOp,
+  type Snapshot,
+} from './loopHelpers';
 
-const DAY_TICKS = Math.floor((24 * 60 * 60 * 1000) / TICK_INTERVAL_MS);
-
-interface CompanyRuntime {
+export interface EngineCompany {
   id: string;
+  ticker: string;
+  name: string;
+  sector: Sector;
+  sharesOutstanding: number;
+  beta: number;
+  idioVol: number;
+  /** Visible-fundamentals quality in (−1, 1). */
+  q: number;
+  /** Hidden surprise ξ ~ U[−1, 1]. */
+  surprise: number;
+  /** effectiveQuality(q, surprise): what the model actually tilts by. */
+  qEff: number;
+  /** impactLambda(beta, sharesOutstanding). */
+  lambda: number;
+  /** Measured quality score s. */
+  quality: number;
+  grade: Grade;
+  pillars: QualityPillars;
+  startPriceCents: number;
+}
+
+export class EngineError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'EngineError';
+  }
+}
+
+/** Server-only `_schedule/{companyId}` doc written by services/market. */
+interface ScheduleCompanyDoc {
+  q: number;
+  quality: number;
+  grade: Grade;
+  pillars: QualityPillars;
+  idioVol: number;
+  beta: number;
   sharesOutstanding: number;
   startPriceCents: number;
-  archetype: Archetype;
-  path: number[];
-  sigma: number;
+  ticker: string;
+  name: string;
+  sector: Sector;
+}
+
+/** Server-only `_schedule/_news`: the full schedule (fired host news appended) and queued host news. */
+interface NewsScheduleDoc {
+  events?: ScheduledEvent[];
+  pending?: ScheduledEvent[];
+}
+
+export interface QuoteResult {
+  lastPrice: number;
+  /** Unrounded cents, pending flow included. */
+  fillPrice: number;
+  impactBps: number;
+  intervalRemaining: number;
+}
+
+export interface FlowReservation {
+  lastPrice: number;
+  /** Unrounded cents, pending flow included. */
+  fillPrice: number;
+  impactBps: number;
+  /**
+   * Undoes the reservation (idempotent). Before a tick drains it, the pending flow is removed; after, the
+   * order's decayed impact is taken back out of the price state so a failed trade never moves the price
+   * (the volume already recorded for that tick stays).
+   */
+  release(): void;
+}
+
+const NO_FLOW = { net: 0, volume: 0 } as const;
+/** The timer fires at most this often so catch-up stays prompt at any tick interval. */
+const MAX_TIMER_MS = 5_000;
+
+function finiteOr(x: unknown, fallback: number): number {
+  return typeof x === 'number' && Number.isFinite(x) ? x : fallback;
+}
+
+function validCompanyState(s: Partial<CompanyState> | undefined): s is CompanyState {
+  return !!s && [s.v, s.m, s.f, s.h].every((x) => typeof x === 'number' && Number.isFinite(x));
+}
+
+function snapshotFrom(c: Partial<Company>, start: number, shares: number): Snapshot {
+  const price = finiteOr(c.currentPrice, start);
+  return {
+    currentPrice: price,
+    startPrice: finiteOr(c.startPrice, start),
+    sessionOpen: finiteOr(c.sessionOpen, price),
+    sessionHigh: finiteOr(c.sessionHigh, price),
+    sessionLow: finiteOr(c.sessionLow, price),
+    sessionVolume: finiteOr(c.sessionVolume, 0),
+    voyageHigh: finiteOr(c.voyageHigh, price),
+    voyageLow: finiteOr(c.voyageLow, price),
+    sessionChange: finiteOr(c.sessionChange, 0),
+    voyageChange: finiteOr(c.voyageChange, 0),
+    marketCap: finiteOr(c.marketCap, price * shares),
+    sharesOutstanding: shares,
+    lastTick: finiteOr(c.lastTick, 0),
+  };
+}
+
+function startSnapshot(start: number, shares: number): Snapshot {
+  return snapshotFrom({}, start, shares);
+}
+
+/** The per-tick company doc fields (never the static research fields). */
+function snapshotFields(s: Snapshot): Record<string, number> {
+  return {
+    currentPrice: s.currentPrice,
+    sessionOpen: s.sessionOpen,
+    sessionHigh: s.sessionHigh,
+    sessionLow: s.sessionLow,
+    sessionVolume: s.sessionVolume,
+    voyageHigh: s.voyageHigh,
+    voyageLow: s.voyageLow,
+    sessionChange: s.sessionChange,
+    voyageChange: s.voyageChange,
+    marketCap: s.marketCap,
+    lastTick: s.lastTick,
+  };
 }
 
 export class GameEngine {
-  private companies = new Map<string, CompanyRuntime>();
-  private prices = new Map<string, number>();
-  private dayOpen = new Map<string, number>();
-  private orderFlow = new OrderFlowBook();
-  private scheduler = new NewsScheduler([]);
+  /** Mirror of `game/state`. */
+  state: GameState = normalizeState(undefined, Date.now());
 
-  phase: GameState['phase'] = 'lobby';
-  startAt: number | null = null;
-  endAt: number | null = null;
-  pausedAt: number | null = null;
-  currentTick = 0;
+  private seed = '';
+  private clock: GameClock = deriveClock(this.state.gameLengthMs);
+  private d: Derived = derive(this.clock, EDGE_SPREAD[this.state.researchEdge]);
+  private cos = new Map<string, EngineCompany>();
+  private ids: string[] = [];
+  private sectorIds = new Map<string, string[]>();
+  private starts: Record<string, number> = {};
+  private shares: Record<string, number> = {};
+  private snaps = new Map<string, Snapshot>();
+  private es: EngineState | null = null;
+  private schedule: ScheduledEvent[] = [];
+  private byTick = new Map<number, ScheduledEvent[]>();
+  private pendingHost: ScheduledEvent[] = [];
+  private flow = new FlowBook();
 
-  /** Game seed — loaded from the server-only `_schedule/_meta` doc (never guessable). */
-  private seed: string = config.seed;
+  private chunks = new Map<string, HistoryChunk>();
+  private compositeChunk: ValueChunk = { chunk: 0, startTick: 0, values: [INDEX_BASE] };
+  private indexNow: { composite: number; sectors: Record<string, number> } = { composite: INDEX_BASE, sectors: {} };
+  private indexSessionOpen: { composite: number; sectors: Record<string, number> } = { composite: INDEX_BASE, sectors: {} };
+
+  /** Writes not yet committed (kept across a failed commit and retried next tick). */
+  private outChunks = new Map<string, HistoryChunk | ValueChunk>();
+  private outNews = new Map<string, NewsEvent>();
+  private newsDocDirty = false;
+  private finalized = false;
 
   private timer: ReturnType<typeof setInterval> | null = null;
-  private ticking = false;
+  private queue: Promise<void> = Promise.resolve();
+  private inFlight: Promise<void> | null = null;
+  /** Bumped by stop(); a tick that started before a stop never commits. */
+  private generation = 0;
 
-  /** Load all state from Firestore and rebuild the in-memory hidden market. */
-  async load(): Promise<void> {
-    const stateSnap = await db.doc('game/state').get();
-    const state = stateSnap.data() as GameState | undefined;
-    if (state) {
-      this.phase = state.phase;
-      this.startAt = state.startAt;
-      this.endAt = state.endAt;
-      this.pausedAt = state.pausedAt ?? null;
-      this.currentTick = state.currentTick ?? 0;
-    }
+  // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
-    const [companiesSnap, scheduleSnap, newsDoc] = await Promise.all([
-      db.collection('companies').get(),
-      db.collection('_schedule').get(),
-      db.doc('_schedule/_news').get(),
-    ]);
-
-    // Game seed lives in the server-only `_schedule/_meta` doc (clients can never read it).
-    const metaSeed = (scheduleSnap.docs.find((d) => d.id === '_meta')?.data() as { seed?: string } | undefined)?.seed;
-    this.seed = metaSeed || config.seed;
-
-    const scheduleById = new Map<string, { archetype: Archetype; startPriceCents: number }>();
-    scheduleSnap.forEach((d) => {
-      if (d.id === '_news' || d.id === '_meta') return;
-      const data = d.data() as { archetype: Archetype; startPriceCents: number };
-      scheduleById.set(d.id, data);
-    });
-
-    companiesSnap.forEach((doc) => {
-      const c = doc.data() as { sharesOutstanding: number; currentPrice: number; prevClose?: number };
-      const sched = scheduleById.get(doc.id);
-      if (!sched) return;
-      const path = generateIntrinsicPath(this.seed, doc.id, sched.archetype);
-      this.companies.set(doc.id, {
-        id: doc.id,
-        sharesOutstanding: c.sharesOutstanding,
-        startPriceCents: sched.startPriceCents,
-        archetype: sched.archetype,
-        path,
-        sigma: companySigma(this.seed, doc.id, sched.archetype, ENGINE_PARAMS.sigmaBase),
-      });
-      this.prices.set(doc.id, c.currentPrice);
-      this.dayOpen.set(doc.id, c.prevClose ?? c.currentPrice);
-    });
-
-    const newsData = newsDoc.data() as { events?: ScheduledNews[] } | undefined;
-    this.scheduler = new NewsScheduler(newsData?.events ?? []);
+  /** Loads game/state, companies, _schedule, _engine/state (or replay + recovery), current chunks, market/summary and pending flow. */
+  load(): Promise<void> {
+    return this.exclusive(() => this.loadLocked());
   }
 
-  /** Begin the tick interval. Safe to call once after load(). */
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.tickOnce();
-    }, TICK_INTERVAL_MS);
+    this.timer = setInterval(() => void this.autoTick(), Math.min(this.clock.tickIntervalMs, MAX_TIMER_MS));
+    this.timer.unref?.();
   }
 
-  stop(): void {
+  /**
+   * Stops the timer; a tick already running skips its remaining writes. The returned
+   * promise resolves once queued engine work has settled (await it before clearing data).
+   */
+  stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.generation++;
+    return this.queue;
   }
 
-  getPrice(id: string): number {
-    return this.prices.get(id) ?? 0;
+  /** stop → clear memory → load → start. Waits for an in-flight tick to finish first. */
+  async reload(): Promise<void> {
+    this.stop();
+    await this.exclusive(() => this.loadLocked());
+    this.start();
   }
 
-  /** Trade pressure from the trading service flows in here. */
-  recordOrderFlow(companyId: string, side: 'buy' | 'sell', shares: number): void {
-    this.orderFlow.record(companyId, side, shares);
+  // ─── Read API ───────────────────────────────────────────────────────────────
+
+  getPrice(companyId: string): number {
+    return this.snaps.get(companyId)?.currentPrice ?? 0;
   }
 
-  // ── Admin game-control ────────────────────────────────────────────────────
-  async startGame(): Promise<void> {
-    const now = Date.now();
-    this.phase = 'live';
-    this.startAt = now;
-    this.endAt = computeEndAt(now, TICK_INTERVAL_MS);
-    this.pausedAt = null;
-    this.currentTick = 0;
-    for (const [id, c] of this.companies) this.dayOpen.set(id, this.prices.get(id) ?? c.startPriceCents);
-    await this.persistState();
-    await auditLog('game.start', 'admin', { startAt: now, endAt: this.endAt });
+  getCompany(companyId: string): EngineCompany | undefined {
+    return this.cos.get(companyId);
   }
 
-  async pauseGame(): Promise<void> {
-    if (this.phase !== 'live') return;
-    this.phase = 'paused';
-    this.pausedAt = Date.now();
-    await this.persistState();
-    await auditLog('game.pause', 'admin', { tick: this.currentTick });
+  companies(): EngineCompany[] {
+    return this.ids.map((id) => this.cos.get(id)!);
   }
 
-  async resumeGame(): Promise<void> {
-    if (this.phase !== 'paused') return;
-    const pausedAt = this.pausedAt ?? Date.now();
-    const delta = Date.now() - pausedAt;
-    if (this.startAt != null) this.startAt += delta;
-    if (this.endAt != null) this.endAt += delta;
-    this.pausedAt = null;
-    this.phase = 'live';
-    await this.persistState();
-    await auditLog('game.resume', 'admin', { tick: this.currentTick, delta });
-  }
-
-  async endGame(): Promise<void> {
-    this.phase = 'ended';
-    await this.persistState();
-    // Post-game reveal: expose each company's hidden archetype + final intrinsic value.
-    const batch = db.batch();
-    for (const [id, c] of this.companies) {
-      batch.update(db.doc(`companies/${id}`), {
-        revealedArchetype: c.archetype,
-        revealedIntrinsic: Math.round(c.startPriceCents * (c.path[TOTAL_TICKS] ?? 1)),
-      });
-    }
-    await batch.commit();
-    await auditLog('game.end', 'admin', { tick: this.currentTick });
-  }
-
-  async fireManualNews(event: Omit<ScheduledNews, 'tick'>): Promise<void> {
-    this.scheduler.queueManual({ ...event, tick: this.currentTick + 1 });
-    await auditLog('news.manual', 'admin', { ...event });
-  }
-
-  private async persistState(): Promise<void> {
-    const state: GameState = {
-      phase: this.phase,
-      startAt: this.startAt,
-      endAt: this.endAt,
-      pausedAt: this.pausedAt,
-      currentTick: this.currentTick,
-      tickIntervalMs: TICK_INTERVAL_MS,
-      serverTime: Date.now(),
-      currency: { name: CURRENCY.name, symbol: CURRENCY.symbol },
-      startingCapital: STARTING_CAPITAL,
+  /**
+   * Price preview for an order of `quantity` shares, including flow already
+   * traded this interval. `intervalRemaining` is the crew's remaining interval
+   * cap when `teamId` is given, else the full cap. Allowed in every phase.
+   */
+  quote(companyId: string, side: OrderSide, quantity: number, teamId?: string): QuoteResult {
+    const c = this.cos.get(companyId);
+    if (!c) throw new EngineError('unknown_company', engineMessages.unknownCompany);
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
+    const lastPrice = this.getPrice(companyId);
+    const s = this.es?.companies[companyId] ?? initialState(lastPrice);
+    const signed = side === 'buy' ? quantity : -quantity;
+    const cap = intervalShareCap(c.sharesOutstanding);
+    const used = teamId ? this.flow.teamGross(teamId, companyId) : 0;
+    return {
+      lastPrice,
+      fillPrice: fillPriceExact(s, c.lambda, this.flow.pendingNet(companyId), signed),
+      impactBps: Math.round(((c.lambda * quantity) / 2) * 10_000),
+      intervalRemaining: Math.max(0, cap - used),
     };
-    await db.doc('game/state').set(state, { merge: true });
   }
 
-  // ── The tick ──────────────────────────────────────────────────────────────
-  private async tickOnce(): Promise<void> {
-    if (this.ticking) return;
-    if (this.phase !== 'live' || this.startAt == null) return;
-    this.ticking = true;
-    try {
+  /**
+   * SYNCHRONOUS: prices the order against the current state plus pending flow and
+   * adds its signed quantity to pending flow before returning. Call `release()` if
+   * the trade does not commit.
+   */
+  reserveFlow(teamId: string, companyId: string, side: OrderSide, quantity: number): FlowReservation {
+    if (this.state.phase !== 'live') throw new EngineError('market_closed', engineMessages.marketClosed(this.state.phase));
+    const c = this.cos.get(companyId);
+    const s = this.es?.companies[companyId];
+    if (!c || !s) throw new EngineError('unknown_company', engineMessages.unknownCompany);
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
+    const cap = intervalShareCap(c.sharesOutstanding);
+    const used = this.flow.teamGross(teamId, companyId);
+    if (used + quantity > cap) {
+      throw new EngineError(
+        'interval_limit',
+        engineMessages.intervalLimit({ cap, used, ticker: c.ticker, seconds: this.secondsToNextTick(Date.now()) }),
+      );
+    }
+    const signed = side === 'buy' ? quantity : -quantity;
+    const fillPrice = fillPriceExact(s, c.lambda, this.flow.pendingNet(companyId), signed);
+    const releaseFlow = this.flow.reserve(teamId, companyId, signed);
+    const es = this.es;
+    const tickAtReserve = this.state.currentTick;
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      releaseFlow(); // undoes pending flow and the interval counter when no tick has drained them yet
+      // A tick already drained this flow into the impact term (the trade failed after the drain): impact is
+      // linear, so take this order's decayed contribution λ·σ·decay^k back out; otherwise a failed order moves the price.
+      const ticks = this.state.currentTick - tickAtReserve;
+      if (ticks > 0 && this.es === es && es) {
+        const state = es.companies[companyId];
+        if (state) state.f -= c.lambda * signed * Math.pow(this.d.decay, ticks);
+      }
+    };
+    return {
+      lastPrice: this.getPrice(companyId),
+      fillPrice,
+      impactBps: Math.round(((c.lambda * quantity) / 2) * 10_000),
+      release,
+    };
+  }
+
+  /** Closing mark round(exp(v+m)), impact excluded. Used for final standings and the reveal. */
+  closePrice(companyId: string): number {
+    const s = this.es?.companies[companyId];
+    return s ? closeMark(s) : this.getPrice(companyId);
+  }
+
+  adminMarket(): AdminMarketRow[] {
+    return this.ids.map((id) => {
+      const c = this.cos.get(id)!;
+      const snap = this.snaps.get(id)!;
+      const s = this.es?.companies[id];
+      const fairValue = s ? Math.max(1, Math.round(Math.exp(s.v))) : c.startPriceCents;
+      return {
+        companyId: id,
+        ticker: c.ticker,
+        name: c.name,
+        sector: c.sector,
+        price: snap.currentPrice,
+        sessionChange: snap.sessionChange,
+        sessionVolume: snap.sessionVolume,
+        netFlow: this.flow.pendingNet(id),
+        quality: c.quality,
+        q: c.q,
+        grade: c.grade,
+        fairValue,
+        deviation: fairValue > 0 ? snap.currentPrice / fairValue - 1 : 0,
+      };
+    });
+  }
+
+  scheduledNews(): ScheduledNewsView[] {
+    const started = this.state.phase !== 'lobby';
+    const view = (e: ScheduledEvent, fired: boolean): ScheduledNewsView => ({
+      tick: e.tick,
+      companyIds: [...e.companyIds],
+      type: e.type,
+      sentiment: e.sentiment,
+      headline: e.headline,
+      fired,
+      source: e.source,
+    });
+    return [
+      ...this.schedule.map((e) => view(e, started && e.tick <= this.state.currentTick)),
+      ...this.pendingHost.map((e) => view(e, false)),
+    ].sort((a, b) => a.tick - b.tick);
+  }
+
+  health(now: number = Date.now()): HealthResponse {
+    const { phase, startAt, currentTick, totalTicks, lastTickAt } = this.state;
+    const ticksBehind = phase === 'live' ? Math.max(0, tickAt(now, startAt, this.clock) - currentTick) : 0;
+    return { ok: true, phase, tick: currentTick, totalTicks, serverTime: now, lastTickAt, ticksBehind };
+  }
+
+  // ─── Host controls ──────────────────────────────────────────────────────────
+
+  applySettings(input: SettingsInput): Promise<GameState> {
+    return this.exclusive(async () => {
+      if (this.state.phase !== 'lobby') throw new EngineError('not_lobby', engineMessages.notLobby);
       const now = Date.now();
-      const target = resumeTick(now, this.startAt, TICK_INTERVAL_MS);
-      if (target <= this.currentTick) {
-        await db.doc('game/state').update({ serverTime: now });
-        return;
+      const settings = mergeSettings(this.state, input);
+      const clock = deriveClock(settings.gameLengthMs);
+      const next: GameState = {
+        ...this.state,
+        ...settings,
+        tickIntervalMs: clock.tickIntervalMs,
+        totalTicks: clock.totalTicks,
+        sessionTicks: clock.sessionTicks,
+        serverTime: now,
+      };
+      await db.doc('game/state').set(next);
+      this.state = next;
+      this.clock = clock;
+      this.d = derive(clock, EDGE_SPREAD[next.researchEdge]);
+      return { ...next, currency: { ...next.currency } };
+    });
+  }
+
+  /** Lobby only: derives the clock, builds the hidden schedule and engine state, and opens trading. */
+  startGame(): Promise<void> {
+    return this.exclusive(async () => {
+      if (this.state.phase !== 'lobby') throw new EngineError('not_lobby', engineMessages.alreadyStarted);
+      if (this.ids.length === 0) throw new EngineError('no_market', engineMessages.noMarket);
+      // Every crew starts with the lobby's Starting cash (COPY §11: "The cash each crew gets at the start"),
+      // including crews created before the host changed it; otherwise returnPct is measured from the wrong base.
+      const teamsSnap = await db.collection('teams').get();
+      const now = Date.now();
+      const clock = deriveClock(this.state.gameLengthMs);
+      const d = derive(clock, EDGE_SPREAD[this.state.researchEdge]);
+      const schedule = buildSchedule(this.seed, clock, this.companies(), d);
+      const es: EngineState = {
+        lastTick: 0,
+        hM: 1,
+        companies: Object.fromEntries(this.ids.map((id) => [id, initialState(this.cos.get(id)!.startPriceCents)])),
+      };
+      const next: GameState = {
+        ...this.state,
+        phase: 'live',
+        startAt: now,
+        endAt: now + clock.totalTicks * clock.tickIntervalMs,
+        pausedAt: null,
+        endedAt: null,
+        currentTick: 0,
+        tickIntervalMs: clock.tickIntervalMs,
+        totalTicks: clock.totalTicks,
+        sessionTicks: clock.sessionTicks,
+        serverTime: now,
+        lastTickAt: now,
+      };
+
+      // Memory is reset before the commit; while phase stays 'lobby' nothing reads it, and a retry rebuilds it.
+      this.clock = clock;
+      this.d = d;
+      this.schedule = schedule;
+      this.byTick = jumpsAtTick(schedule);
+      this.pendingHost = [];
+      this.es = es;
+      this.flow = new FlowBook();
+      this.outChunks.clear();
+      this.outNews.clear();
+      this.newsDocDirty = false;
+      this.finalized = false;
+      for (const id of this.ids) {
+        const c = this.cos.get(id)!;
+        this.snaps.set(id, startSnapshot(c.startPriceCents, c.sharesOutstanding));
+        this.chunks.set(id, { chunk: 0, startTick: 0, prices: [c.startPriceCents], volumes: [0] });
       }
+      this.compositeChunk = { chunk: 0, startTick: 0, values: [INDEX_BASE] };
+      this.indexNow = this.computeIndexes();
+      this.indexSessionOpen = { composite: this.indexNow.composite, sectors: { ...this.indexNow.sectors } };
 
-      const firedNews: NewsEvent[] = [];
-      let newsSeq = 0; // guarantees unique news doc ids within this batch
-      const writeHistory = target - this.currentTick <= 8; // skip per-tick history during big catch-up
-
-      const batch = db.batch();
-      for (let t = this.currentTick + 1; t <= target; t++) {
-        const events = this.scheduler.eventsAtTick(t).concat(t === target ? this.scheduler.takePending() : []);
-        const jump = new Map<string, number>();
-        for (const ev of events) {
-          for (const cid of ev.companyIds) jump.set(cid, (jump.get(cid) ?? 0) + ev.magnitude);
+      const ops: BatchOp[] = [];
+      for (const id of this.ids) {
+        const fields = snapshotFields(this.snaps.get(id)!);
+        const chunk = this.chunks.get(id)!;
+        const history: HistoryChunk = { ...chunk, prices: [...chunk.prices], volumes: [...chunk.volumes] };
+        ops.push((b) => b.update(db.doc(`companies/${id}`), fields));
+        ops.push((b) => b.set(db.doc(`companies/${id}/history/0`), history));
+      }
+      const summaryChunk: ValueChunk = { ...this.compositeChunk, values: [...this.compositeChunk.values] };
+      const summary = { ...this.summary(now), lastTick: 0 };
+      ops.push((b) => b.set(db.doc('market/summary/history/0'), summaryChunk));
+      ops.push((b) => b.set(db.doc('market/summary'), summary));
+      ops.push((b) => b.set(db.doc('_schedule/_news'), { events: schedule, pending: [] }));
+      ops.push((b) => b.set(db.doc('_engine/state'), serializeState(es)));
+      const capital = next.startingCapital;
+      for (const doc of teamsSnap.docs) {
+        const t = doc.data() as Partial<Team>;
+        if ((Number(t.tradeCount) || 0) > 0) continue; // never overwrite a crew that has traded
+        if (t.cashBalance !== capital || t.totalValue !== capital || t.sessionOpenValue !== capital) {
+          ops.push((b) => b.update(doc.ref, { cashBalance: capital, totalValue: capital, sessionOpenValue: capital }));
         }
-
-        const isNewDay = t % DAY_TICKS === 0;
-        for (const c of this.companies.values()) {
-          const prev = this.prices.get(c.id) ?? c.startPriceCents;
-          const idx = Math.min(t, c.path.length - 1);
-          const intrinsicCents = Math.round(c.startPriceCents * (c.path[idx] ?? 1));
-          const flowImpact = this.orderFlow.step(c.id, c.sharesOutstanding);
-          const rng = new Prng(deriveSeed(this.seed, `noise:${c.id}:${t}`));
-          const price = stepPrice({
-            prevCents: prev,
-            intrinsicCents,
-            sigma: c.sigma,
-            flowImpact,
-            newsJumpFrac: jump.get(c.id) ?? 0,
-            rng,
-          });
-          this.prices.set(c.id, price);
-          if (isNewDay) this.dayOpen.set(c.id, price);
-          const volume = this.orderFlow.drainVolume(c.id);
-
-          if (writeHistory) {
-            batch.set(db.doc(`companies/${c.id}/priceHistory/${t}`), {
-              tick: t,
-              timestamp: this.startAt + t * TICK_INTERVAL_MS,
-              price,
-              volume,
-            });
-          }
-        }
-
-        // Record fired events for posting once (use the tick's timestamp).
-        for (const ev of events) {
-          firedNews.push({
-            id: `${ev.impact}-${t}-${ev.companyIds[0] ?? 'mkt'}-${newsSeq++}`,
-            headline: ev.headline,
-            body: ev.body,
-            companyIds: ev.companyIds,
-            impact: ev.impact,
-            magnitude: ev.magnitude,
-            firedAt: this.startAt + t * TICK_INTERVAL_MS,
-          });
-        }
+        // Value history starts at tick 0 with the starting cash (the first recompute would otherwise copy tick 1 there).
+        const history: ValueChunk = { chunk: 0, startTick: 0, values: [capital] };
+        ops.push((b) => b.set(doc.ref.collection('history').doc('0'), history));
       }
+      ops.push((b) => b.set(db.doc('game/state'), next));
+      await commitInBatches(db, ops);
 
-      // Persist company snapshots (current price, day change, market cap).
-      for (const c of this.companies.values()) {
-        const price = this.prices.get(c.id) ?? c.startPriceCents;
-        const open = this.dayOpen.get(c.id) ?? price;
-        batch.update(db.doc(`companies/${c.id}`), {
-          currentPrice: price,
-          prevClose: open,
-          dayChange: open > 0 ? (price - open) / open : 0,
-          marketCap: price * c.sharesOutstanding,
-        });
-      }
+      resetLeaderboardCache();
+      this.state = next;
+    });
+  }
 
-      // Post fired news.
-      for (const n of firedNews) {
-        batch.set(db.doc(`news/${n.id}`), n);
-      }
+  /** Live → paused (no-op otherwise). The clock stops; pending flow waits for the next tick. */
+  pauseGame(): Promise<void> {
+    return this.exclusive(async () => {
+      if (this.state.phase !== 'live') return;
+      const now = Date.now();
+      await db.doc('game/state').update({ phase: 'paused', pausedAt: now, serverTime: now });
+      this.state = { ...this.state, phase: 'paused', pausedAt: now, serverTime: now };
+    });
+  }
 
-      this.currentTick = target;
-      batch.set(db.doc('game/state'), { currentTick: target, serverTime: now }, { merge: true });
-      await batch.commit();
+  /** Paused → live (no-op otherwise), shifting startAt/endAt by the pause length. */
+  resumeGame(): Promise<void> {
+    return this.exclusive(async () => {
+      if (this.state.phase !== 'paused') return;
+      const now = Date.now();
+      const delta = Math.max(0, now - (this.state.pausedAt ?? now));
+      const startAt = this.state.startAt === null ? null : this.state.startAt + delta;
+      const endAt = this.state.endAt === null ? null : this.state.endAt + delta;
+      await db.doc('game/state').update({ phase: 'live', startAt, endAt, pausedAt: null, serverTime: now });
+      this.state = { ...this.state, phase: 'live', startAt, endAt, pausedAt: null, serverTime: now };
+    });
+  }
 
-      for (const n of firedNews) {
-        await auditLog('news.fired', 'engine', { id: n.id, impact: n.impact, magnitude: n.magnitude });
-      }
+  /** Ends the game: closing marks, reveal per company, final leaderboard. No-op once ended (retries a failed finalize). */
+  endGame(): Promise<void> {
+    return this.exclusive(() => this.endGameLocked('admin'));
+  }
 
-      await recomputeLeaderboard(this);
+  /** Live/paused only. The event fires (and is persisted in the schedule) at the next tick. */
+  queueHostNews(input: FireNewsInput): Promise<void> {
+    return this.exclusive(async () => {
+      const { phase } = this.state;
+      if (phase !== 'live' && phase !== 'paused') throw new EngineError('not_live', engineMessages.notRunning);
+      const ev = hostEvent(this.state.currentTick + 1, this.companies(), {
+        companyIds: input.companyIds,
+        type: input.type,
+        magnitude: input.magnitude,
+        headline: input.headline,
+        body: input.body ?? '',
+      });
+      if (ev.companyIds.length === 0) throw new EngineError('unknown_company', engineMessages.noNewsCompanies);
+      const pending = [...this.pendingHost, ev];
+      await db.doc('_schedule/_news').set({ pending }, { merge: true });
+      this.pendingHost = pending;
+    });
+  }
 
-      if (target >= TOTAL_TICKS || (this.endAt != null && now >= this.endAt)) {
-        await this.endGame();
-      }
+  // ─── Tick ───────────────────────────────────────────────────────────────────
+
+  /** Advances to the tick for `now` and persists it. Exported for integration tests; waits for any running operation. */
+  async tickOnce(now: number = Date.now()): Promise<void> {
+    const run = this.exclusive(() => this.tickLocked(now));
+    this.inFlight = run;
+    try {
+      await run;
+    } finally {
+      if (this.inFlight === run) this.inFlight = null;
+    }
+  }
+
+  private async autoTick(): Promise<void> {
+    if (this.inFlight) return;
+    try {
+      await this.tickOnce();
     } catch (err) {
       console.error('[engine] tick failed', err);
-    } finally {
-      this.ticking = false;
+    }
+  }
+
+  private shouldEnd(now: number): boolean {
+    const { currentTick, totalTicks, endAt } = this.state;
+    return currentTick >= totalTicks || (endAt !== null && now >= endAt);
+  }
+
+  private async tickLocked(now: number): Promise<void> {
+    if (this.state.phase === 'ended' && !this.finalized) {
+      await this.endGameLocked('engine'); // retries a final leaderboard that failed to write
+      return;
+    }
+    if (this.state.phase !== 'live' || this.state.startAt === null) return;
+    const gen = this.generation;
+    const target = tickAt(now, this.state.startAt, this.clock);
+    const es = this.es;
+
+    if (!es || target <= this.state.currentTick) {
+      // Heartbeat only (or a market with no companies, which just follows the clock).
+      const update: Record<string, number> = { serverTime: now };
+      if (!es && target > this.state.currentTick) {
+        update.currentTick = target;
+        update.lastTickAt = Date.now();
+      }
+      if (gen !== this.generation) return;
+      await db.doc('game/state').update(update);
+      this.state = { ...this.state, ...update };
+      if (gen === this.generation && this.shouldEnd(now)) await this.endGameLocked('engine');
+      return;
+    }
+
+    const prevTick = this.state.currentTick;
+    const { sessionTicks, tickIntervalMs, startAt } = this.state;
+    const d = this.d;
+    const mk = { hM: es.hM };
+    // Flow is drained synchronously below; trades that reserve after this instant belong to the next tick.
+    const drainedAt = Date.now();
+
+    for (let t = prevTick + 1; t <= target; t++) {
+      const first = t === prevTick + 1;
+      const rM = marketStep(this.seed, t, mk, d);
+
+      let events = this.byTick.get(t) ?? [];
+      if (t === target && this.pendingHost.length > 0) {
+        const host = this.pendingHost.splice(0).map((e) => ({ ...e, tick: t }));
+        events = [...events, ...host];
+        this.byTick.set(t, events);
+        this.schedule = [...this.schedule, ...host].sort((a, b) => a.tick - b.tick); // stable: host news after scheduled news at t
+        this.newsDocDirty = true;
+      }
+
+      // priceAtFire = price at the end of tick t−1, before this tick's news jump.
+      const priceBefore: Record<string, number> = {};
+      for (const e of events) for (const id of e.companyIds) priceBefore[id] = this.getPrice(id);
+
+      for (const id of this.ids) {
+        const c = this.cos.get(id)!;
+        const { net, volume } = first ? this.flow.drain(id) : NO_FLOW;
+        let jump = 0;
+        for (const e of events) jump += e.jumps[id] ?? 0;
+        const price = companyStep(this.seed, t, c, es.companies[id]!, rM, jump, net, d);
+        advanceSnapshot(this.snaps.get(id)!, t, price, volume, sessionTicks);
+        const chunk = appendChunk(this.chunks.get(id)!, t, price, volume);
+        this.chunks.set(id, chunk);
+        this.outChunks.set(`companies/${id}/history/${chunk.chunk}`, chunk);
+      }
+      if (first) this.flow.resetInterval(); // per-crew interval caps reset every tick
+
+      this.indexNow = this.computeIndexes();
+      if (sessionTicks > 0 && t % sessionTicks === 0) {
+        this.indexSessionOpen = { composite: this.indexNow.composite, sectors: { ...this.indexNow.sectors } };
+      }
+      this.compositeChunk = appendValue(this.compositeChunk, t, this.indexNow.composite);
+      this.outChunks.set(`market/summary/history/${this.compositeChunk.chunk}`, this.compositeChunk);
+
+      events.forEach((e, seq) => {
+        const id = newsDocId(e.source, t, e.companyIds[0], seq);
+        this.outNews.set(id, {
+          id,
+          headline: e.headline,
+          body: e.body,
+          companyIds: [...e.companyIds],
+          type: e.type,
+          sentiment: e.sentiment,
+          source: e.source,
+          tick: t,
+          firedAt: (startAt ?? now) + t * tickIntervalMs,
+          priceAtFire: Object.fromEntries(e.companyIds.map((cid) => [cid, priceBefore[cid] ?? 0])),
+        });
+      });
+    }
+
+    es.hM = mk.hM;
+    es.lastTick = target;
+    this.state = { ...this.state, currentTick: target, lastTickAt: drainedAt, serverTime: now };
+
+    if (gen !== this.generation) return;
+    await this.commitTick(now);
+    if (gen !== this.generation) return;
+    try {
+      await recomputeLeaderboard(this, target);
+    } catch (err) {
+      console.error('[engine] leaderboard recompute failed', err);
+    }
+    if (gen === this.generation && this.shouldEnd(now)) await this.endGameLocked('engine');
+  }
+
+  /** One logical commit (split at 450 ops): company docs first, engine state and game state last. */
+  private async commitTick(now: number): Promise<void> {
+    const es = this.es!;
+    const ops: BatchOp[] = [];
+    for (const id of this.ids) {
+      const fields = snapshotFields(this.snaps.get(id)!);
+      // update (not set): a market cleared mid-tick fails this batch instead of resurrecting docs
+      ops.push((b) => b.update(db.doc(`companies/${id}`), fields));
+    }
+    for (const [path, chunk] of this.outChunks) {
+      const data = 'prices' in chunk ? { ...chunk, prices: [...chunk.prices], volumes: [...chunk.volumes] } : { ...chunk, values: [...chunk.values] };
+      ops.push((b) => b.set(db.doc(path), data));
+    }
+    for (const [id, news] of this.outNews) ops.push((b) => b.set(db.doc(`news/${id}`), news));
+    const summary = this.summary(now);
+    ops.push((b) => b.set(db.doc('market/summary'), summary));
+    if (this.newsDocDirty) {
+      const doc = { events: this.schedule.map((e) => ({ ...e })), pending: this.pendingHost.map((e) => ({ ...e })) };
+      ops.push((b) => b.set(db.doc('_schedule/_news'), doc));
+    }
+    const engineDoc = serializeState(es);
+    ops.push((b) => b.set(db.doc('_engine/state'), engineDoc));
+    const { currentTick, serverTime, lastTickAt } = this.state;
+    ops.push((b) => b.update(db.doc('game/state'), { currentTick, serverTime, lastTickAt }));
+    await commitInBatches(db, ops);
+    this.outChunks.clear();
+    this.outNews.clear();
+    this.newsDocDirty = false;
+  }
+
+  private async endGameLocked(actor: 'admin' | 'engine'): Promise<void> {
+    if (this.state.phase === 'ended') {
+      if (!this.finalized) {
+        await finalizeLeaderboard(this);
+        this.finalized = true;
+      }
+      return;
+    }
+    if (this.state.phase === 'lobby') throw new EngineError('not_started', engineMessages.notStarted);
+
+    const gen = this.generation;
+    const now = Date.now();
+    const ops: BatchOp[] = [];
+    const closed = new Map<string, Snapshot>();
+    for (const id of this.ids) {
+      const c = this.cos.get(id)!;
+      const snap = { ...this.snaps.get(id)! };
+      const s = this.es?.companies[id];
+      const close = s ? closeMark(s) : snap.currentPrice;
+      const reveal = buildReveal({
+        quality: c.quality,
+        q: c.q,
+        qEff: c.qEff,
+        surprise: c.surprise,
+        grade: c.grade,
+        pillars: c.pillars,
+        v: s ? s.v : Math.log(c.startPriceCents),
+        closePrice: close,
+        startPrice: c.startPriceCents,
+        // spread·qEff + beta·mktDrift: the hidden surprise is inside expected, so luck is news, market and chance (COPY.md §10)
+        expectedReturn: expectedLogReturn(c, this.d),
+      });
+      // The closing mark replaces the last traded price, so final marks can't be pumped in the last interval.
+      snap.currentPrice = close;
+      snap.sessionHigh = Math.max(snap.sessionHigh, close);
+      snap.sessionLow = Math.min(snap.sessionLow, close);
+      snap.voyageHigh = Math.max(snap.voyageHigh, close);
+      snap.voyageLow = Math.min(snap.voyageLow, close);
+      snap.sessionChange = snap.sessionOpen > 0 ? close / snap.sessionOpen - 1 : 0;
+      snap.voyageChange = snap.startPrice > 0 ? close / snap.startPrice - 1 : 0;
+      snap.marketCap = close * snap.sharesOutstanding;
+      closed.set(id, snap);
+      const fields = { ...snapshotFields(snap), reveal };
+      ops.push((b) => b.update(db.doc(`companies/${id}`), fields));
+    }
+    const indexNow = this.computeIndexes((id) => closed.get(id)?.currentPrice ?? 0);
+    const next: GameState = { ...this.state, phase: 'ended', endedAt: now, pausedAt: null, serverTime: now };
+    const summary = this.summary(now, closed, indexNow);
+    ops.push((b) => b.set(db.doc('market/summary'), summary));
+    if (this.es) {
+      const engineDoc = serializeState(this.es);
+      ops.push((b) => b.set(db.doc('_engine/state'), engineDoc));
+    }
+    ops.push((b) => b.update(db.doc('game/state'), { phase: 'ended', endedAt: now, pausedAt: null, serverTime: now }));
+    if (gen !== this.generation) return;
+    await commitInBatches(db, ops);
+    for (const [id, snap] of closed) this.snaps.set(id, snap);
+    this.indexNow = indexNow;
+    this.state = next;
+
+    if (gen !== this.generation) return; // a new market is being created; don't write old standings into it
+    await finalizeLeaderboard(this);
+    this.finalized = true;
+    if (actor === 'engine') await auditLog('game.end', 'engine', { tick: next.currentTick });
+  }
+
+  // ─── Internals ──────────────────────────────────────────────────────────────
+
+  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn);
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private secondsToNextTick(now: number): number {
+    const { startAt, tickIntervalMs } = this.state;
+    if (startAt === null) return Math.ceil(tickIntervalMs / 1000);
+    const intoInterval = (((now - startAt) % tickIntervalMs) + tickIntervalMs) % tickIntervalMs;
+    return Math.max(1, Math.ceil((tickIntervalMs - intoInterval) / 1000));
+  }
+
+  private computeIndexes(priceOf: (id: string) => number = (id) => this.getPrice(id)): { composite: number; sectors: Record<string, number> } {
+    const prices: Record<string, number> = {};
+    for (const id of this.ids) prices[id] = priceOf(id);
+    const sectors: Record<string, number> = {};
+    for (const [sector, ids] of this.sectorIds) sectors[sector] = compositeValue(prices, this.starts, this.shares, ids);
+    return { composite: compositeValue(prices, this.starts, this.shares, this.ids), sectors };
+  }
+
+  private summary(now: number, snaps: Map<string, Snapshot> = this.snaps, indexNow = this.indexNow): MarketSummary {
+    return {
+      lastTick: this.state.currentTick,
+      updatedAt: now,
+      composite: indexQuote(indexNow.composite, this.indexSessionOpen.composite),
+      sectors: Object.fromEntries(
+        Object.entries(indexNow.sectors).map(([s, v]) => [s, indexQuote(v, this.indexSessionOpen.sectors[s] ?? INDEX_BASE)]),
+      ),
+      breadth: marketBreadth(this.ids.map((id) => snaps.get(id)!)),
+    };
+  }
+
+  private resetMemory(): void {
+    this.state = normalizeState(undefined, Date.now());
+    this.seed = '';
+    this.clock = deriveClock(this.state.gameLengthMs);
+    this.d = derive(this.clock, EDGE_SPREAD[this.state.researchEdge]);
+    this.cos.clear();
+    this.ids = [];
+    this.sectorIds.clear();
+    this.starts = {};
+    this.shares = {};
+    this.snaps.clear();
+    this.es = null;
+    this.schedule = [];
+    this.byTick = new Map();
+    this.pendingHost = [];
+    this.flow = new FlowBook();
+    this.chunks.clear();
+    this.compositeChunk = { chunk: 0, startTick: 0, values: [INDEX_BASE] };
+    this.indexNow = { composite: INDEX_BASE, sectors: {} };
+    this.indexSessionOpen = { composite: INDEX_BASE, sectors: {} };
+    this.outChunks.clear();
+    this.outNews.clear();
+    this.newsDocDirty = false;
+    this.finalized = false;
+  }
+
+  private async loadLocked(): Promise<void> {
+    this.resetMemory();
+    const now = Date.now();
+    const [stateSnap, scheduleSnap, companiesSnap, engineSnap, summarySnap, leaderboardSnap] = await Promise.all([
+      db.doc('game/state').get(),
+      db.collection('_schedule').get(),
+      db.collection('companies').get(),
+      db.doc('_engine/state').get(),
+      db.doc('market/summary').get(),
+      db.doc('leaderboard/current').get(),
+    ]);
+
+    const state = normalizeState(stateSnap.data() as Partial<GameState> | undefined, now);
+    this.clock = deriveClock(state.gameLengthMs);
+    this.d = derive(this.clock, EDGE_SPREAD[state.researchEdge]);
+
+    let newsDoc: NewsScheduleDoc = {};
+    const sched = new Map<string, ScheduleCompanyDoc>();
+    for (const doc of scheduleSnap.docs) {
+      if (doc.id === '_meta') this.seed = String(doc.data().seed ?? '');
+      else if (doc.id === '_news') newsDoc = doc.data() as NewsScheduleDoc;
+      else if (!doc.id.startsWith('_')) sched.set(doc.id, doc.data() as ScheduleCompanyDoc);
+    }
+    if (!this.seed) {
+      this.seed = config.seed;
+      if (sched.size > 0) console.warn('[engine] _schedule/_meta has no seed; falling back to GAME_SEED');
+    }
+
+    const companyDocs = new Map(companiesSnap.docs.map((doc) => [doc.id, doc.data() as Partial<Company>]));
+    const rosterIndex = new Map(ROSTER.map((r, i) => [r.id, i]));
+    this.ids = [...sched.keys()]
+      .filter((id) => companyDocs.has(id))
+      .sort((a, b) => (rosterIndex.get(a) ?? 1e9) - (rosterIndex.get(b) ?? 1e9) || (a < b ? -1 : a > b ? 1 : 0));
+
+    for (const id of this.ids) {
+      const s = sched.get(id)!;
+      const doc = companyDocs.get(id)!;
+      const sharesOutstanding = finiteOr(s.sharesOutstanding, finiteOr(doc.sharesOutstanding, 0));
+      const beta = finiteOr(s.beta, finiteOr(doc.beta, 1));
+      const startPriceCents = finiteOr(s.startPriceCents, finiteOr(doc.startPrice, 1));
+      const surprise = surpriseFor(this.seed, id);
+      const c: EngineCompany = {
+        id,
+        ticker: s.ticker ?? doc.ticker ?? id.toUpperCase(),
+        name: s.name ?? doc.name ?? id,
+        sector: (s.sector ?? doc.sector) as Sector,
+        sharesOutstanding,
+        beta,
+        idioVol: finiteOr(s.idioVol, MODEL.idioVolBase),
+        q: finiteOr(s.q, 0),
+        surprise,
+        qEff: effectiveQuality(finiteOr(s.q, 0), surprise),
+        lambda: impactLambda(beta, sharesOutstanding),
+        quality: finiteOr(s.quality, 0),
+        grade: s.grade,
+        pillars: s.pillars,
+        startPriceCents,
+      };
+      this.cos.set(id, c);
+      this.snaps.set(id, snapshotFrom(doc, startPriceCents, sharesOutstanding));
+      this.starts[id] = startPriceCents;
+      this.shares[id] = sharesOutstanding;
+      const list = this.sectorIds.get(c.sector) ?? [];
+      list.push(id);
+      this.sectorIds.set(c.sector, list);
+    }
+
+    this.schedule = [...(newsDoc.events ?? [])].sort((a, b) => a.tick - b.tick);
+    this.byTick = jumpsAtTick(this.schedule);
+    this.pendingHost = newsDoc.pending ?? [];
+    this.finalized = state.phase === 'ended' && leaderboardSnap.data()?.final !== undefined;
+
+    if (state.phase === 'lobby' || this.ids.length === 0) {
+      this.state = state;
+      this.indexNow = this.computeIndexes();
+      this.indexSessionOpen = { composite: INDEX_BASE, sectors: Object.fromEntries(Object.keys(this.indexNow.sectors).map((s) => [s, INDEX_BASE])) };
+      return;
+    }
+
+    // Engine state: persisted doc, or replay fair value from tick 0 and recover impact from prices.
+    const engineDoc = engineSnap.data() as EngineState | undefined;
+    if (engineDoc && typeof engineDoc.lastTick === 'number' && this.ids.every((id) => validCompanyState(engineDoc.companies?.[id]))) {
+      this.es = serializeState(engineDoc);
+      const lastTick = Math.min(Math.max(0, this.es.lastTick), this.clock.totalTicks);
+      if (lastTick !== state.currentTick) {
+        console.warn(`[engine] _engine/state is at tick ${lastTick} but game/state says ${state.currentTick}; resuming from the engine state`);
+        state.currentTick = lastTick;
+      }
+    } else {
+      console.warn(`[engine] _engine/state missing or incomplete; replaying fair value to tick ${state.currentTick}`);
+      const replay = replayFairValue(
+        this.seed,
+        this.clock,
+        EDGE_SPREAD[state.researchEdge],
+        this.companies(),
+        this.starts,
+        this.schedule,
+        state.currentTick,
+      );
+      const prices = Object.fromEntries(this.ids.map((id) => [id, this.getPrice(id)]));
+      this.es = recoverImpact(replay, prices);
+      this.es.lastTick = state.currentTick;
+    }
+    this.state = state;
+
+    // Current history chunks (truncated to the current tick, repaired if short).
+    const tick = state.currentTick;
+    const c = chunkOf(tick);
+    const startTick = c * HISTORY_CHUNK;
+    const keep = tick - startTick + 1;
+    const [chunkSnaps, summaryChunkSnap] = await Promise.all([
+      Promise.all(this.ids.map((id) => db.doc(`companies/${id}/history/${c}`).get())),
+      db.doc(`market/summary/history/${c}`).get(),
+    ]);
+    this.ids.forEach((id, k) => {
+      const data = chunkSnaps[k]!.data() as Partial<HistoryChunk> | undefined;
+      let chunk: HistoryChunk = {
+        chunk: c,
+        startTick,
+        prices: Array.isArray(data?.prices) ? data.prices.slice(0, keep) : [],
+        volumes: Array.isArray(data?.volumes) ? data.volumes.slice(0, keep) : [],
+      };
+      if (chunk.prices.length < keep || chunk.volumes.length < keep) {
+        chunk = appendChunk({ ...chunk, volumes: chunk.volumes.slice(0, chunk.prices.length) }, tick, this.getPrice(id), 0);
+        this.outChunks.set(`companies/${id}/history/${c}`, chunk);
+      }
+      this.chunks.set(id, chunk);
+    });
+
+    this.indexNow = this.computeIndexes();
+    const summaryChunk = summaryChunkSnap.data() as Partial<ValueChunk> | undefined;
+    this.compositeChunk = { chunk: c, startTick, values: Array.isArray(summaryChunk?.values) ? summaryChunk.values.slice(0, keep) : [] };
+    if (this.compositeChunk.values.length < keep) {
+      this.compositeChunk = appendValue(this.compositeChunk, tick, this.indexNow.composite);
+      this.outChunks.set(`market/summary/history/${c}`, this.compositeChunk);
+    }
+    const summary = summarySnap.data() as Partial<MarketSummary> | undefined;
+    const fallbackOpen = (value: number) => (tick < state.sessionTicks ? INDEX_BASE : value);
+    this.indexSessionOpen = {
+      composite: finiteOr(summary?.composite?.sessionOpen, fallbackOpen(this.indexNow.composite)),
+      sectors: Object.fromEntries(
+        Object.entries(this.indexNow.sectors).map(([s, v]) => [s, finiteOr(summary?.sectors?.[s]?.sessionOpen, fallbackOpen(v))]),
+      ),
+    };
+
+    // Pending flow: trades executed since the last committed tick have not reached the impact term yet.
+    if (state.phase === 'live' || state.phase === 'paused') {
+      const since = state.lastTickAt ?? state.startAt ?? 0;
+      const trades = await db.collection('trades').where('executedAt', '>', since).get();
+      for (const doc of trades.docs) {
+        const t = doc.data() as Partial<Trade>;
+        if (!t.teamId || !t.companyId || !this.cos.has(t.companyId) || !(Number(t.quantity) > 0)) continue;
+        this.flow.reserve(t.teamId, t.companyId, t.side === 'sell' ? -Number(t.quantity) : Number(t.quantity));
+      }
     }
   }
 }

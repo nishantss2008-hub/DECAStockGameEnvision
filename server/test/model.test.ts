@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { deriveClock, HOUR_MS, impactLambda } from '@deca/shared';
-import { derive, garchStep, marketStep, companyStep, initialState, drift, idioVolFor, fillPriceExact, closePrice, effectiveQuality, surpriseFor, type ModelCompany } from '../src/engine/model';
+import { deriveClock, HOUR_MS, MODEL, impactLambda } from '@deca/shared';
+import { derive, garchStep, marketStep, companyStep, initialState, drift, expectedLogReturn, idioVolFor, fillPriceExact, closePrice, effectiveQuality, surpriseFor, type ModelCompany } from '../src/engine/model';
 import { replayFairValue, recoverImpact, serializeState } from '../src/engine/state';
 import { buildSchedule, jumpsAtTick } from '../src/engine/news';
 
@@ -44,10 +44,53 @@ describe('model parameters', () => {
     expect(effectiveQuality(0.8, x)).toBeCloseTo(0.75 * 0.8 + 0.25 * x, 12); expect(surpriseFor('s', 'a')).toBe(x);
   });
   it('compensated drift gives expected quality return spread·q regardless of K', () => {
-    const d = derive(deriveClock(48 * HOUR_MS), 0.3);
-    const c = { id: 'x', qEff: 0.5, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1, 1e7) };
-    const jumpDrift = d.K * (2 * (0.5 + 0.3 * c.qEff) - 1) * d.truncMean;
-    expect(drift(c, d) + jumpDrift).toBeCloseTo(0.15, 10);
+    // Expected log jump per event = pUp·E[ln(1+Y)] + (1−pUp)·E[ln(max(0.05, 1−Y))], Y = min(0.25, Exp(jumpMean)).
+    for (const h of [1, 4, 12, 48]) {
+      const d = derive(deriveClock(h * HOUR_MS), 0.3);
+      for (const qEff of [-0.9, 0, 0.5]) {
+        const c = { id: 'x', qEff, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1, 1e7) };
+        const pUp = 0.5 + 0.3 * c.qEff;
+        const jumpDrift = d.K * (pUp * d.eLogUp + (1 - pUp) * d.eLogDown);
+        expect(drift(c, d) + jumpDrift).toBeCloseTo(0.3 * qEff, 10);
+      }
+    }
+  });
+  it('jump compensator terms are the exact expected capped log jumps (independent density-form quadrature, 1e-9)', () => {
+    // E[g(min(cap, S))] = ∫₀^cap g(x)·e^(−x/s)/s dx + g(cap)·e^(−cap/s), S ~ Exp(mean s); fine composite Simpson.
+    const reference = (g: (x: number) => number, s: number, cap: number) => {
+      const n = 200_000; const step = cap / n; let acc = 0;
+      for (let i = 0; i <= n; i++) { const x = i * step; acc += (i === 0 || i === n ? 1 : i % 2 ? 4 : 2) * g(x) * Math.exp(-x / s) / s; }
+      return (acc * step) / 3 + g(cap) * Math.exp(-cap / s);
+    };
+    for (const h of [1, 2, 4, 8, 12, 24, 48]) {
+      const d = derive(deriveClock(h * HOUR_MS), 0.3);
+      expect(Math.abs(d.eLogUp - reference((x) => Math.log(1 + x), d.jumpMean, MODEL.maxJump))).toBeLessThan(1e-9);
+      expect(Math.abs(d.eLogDown - reference((x) => Math.log(Math.max(0.05, 1 - x)), d.jumpMean, MODEL.maxJump))).toBeLessThan(1e-9);
+      expect(d.eLogUp).toBeGreaterThan(0); expect(d.eLogDown).toBeLessThan(0); expect(d.eLogUp + d.eLogDown).toBeLessThan(0); // concavity
+    }
+  });
+  it('drift plus scheduled company jumps has zero mean log return at qEff = 0 (Monte Carlo, 2000 schedules)', () => {
+    for (const hours of [1, 48]) {
+      const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, 0.3);
+      const zero = Array.from({ length: 25 }, (_, i) => ({ id: `z${i}`, name: `Z${i}`, ticker: `Z${i}`, sector: 'Naval Arms', qEff: 0, beta: 1 }));
+      const dr = drift({ id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: 1e7, lambda: 0 }, d); // per game (N·dt = 1)
+      const samples: number[] = []; // one per schedule: mean over 25 independent qEff = 0 companies
+      for (let s = 0; s < 2_000; s++) {
+        let sum = 0;
+        for (const e of buildSchedule(`mc-${hours}-${s}`, clock, zero, d)) if (e.source === 'scheduled') sum += e.jumps[e.companyIds[0]!]!;
+        samples.push(sum / zero.length + dr);
+      }
+      const m = samples.reduce((a, b) => a + b, 0) / samples.length;
+      const sd = Math.sqrt(samples.reduce((a, b) => a + (b - m) ** 2, 0) / (samples.length - 1));
+      const se = sd / Math.sqrt(samples.length);
+      expect(Math.abs(m), `${hours}h mean ${m} vs 3·SE ${3 * se}`).toBeLessThan(3 * se);
+    }
+  });
+  it('expectedLogReturn is spread·qEff + beta·mktDrift (the reveal baseline)', () => {
+    const d = derive(deriveClock(12 * HOUR_MS), 0.4);
+    const c = { id: 'x', qEff: -0.35, beta: 1.2, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1.2, 1e7) };
+    expect(expectedLogReturn(c, d)).toBeCloseTo(0.4 * -0.35 + 1.2 * MODEL.mktDrift, 12);
+    expect(expectedLogReturn(c, d, 0.1)).toBeCloseTo(0.4 * -0.35 + 1.2 * 0.1, 12);
   });
   it('idiosyncratic vol is lower for quality and seeded', () => {
     expect(idioVolFor('s', 'a', 1)).toBeLessThanOrEqual(0.29);
@@ -94,9 +137,10 @@ describe('determinism and resume', () => {
 });
 
 describe('anti-manipulation (zero noise, linear transient impact)', () => {
-  const clock = deriveClock(48 * HOUR_MS); const d = derive(clock, 0.3); const so = 8_000_000;
+  // K = 0: this stepper applies no news, so there is no jump compensator and the drift at qEff = 0 is exactly 0
+  const clock = deriveClock(48 * HOUR_MS); const d = { ...derive(clock, 0.3), K: 0 }; const so = 8_000_000;
   const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: so, lambda: impactLambda(1, so) };
-  // deterministic zero-noise stepper: rM = 0, jump = 0, idioVol = 0, qEff = 0 → v constant; only f moves
+  // deterministic zero-noise stepper: rM = 0, jump = 0, idioVol = 0, qEff = 0, K = 0 → v constant; only f moves
   const step = (s: ReturnType<typeof initialState>, net: number) => companyStep('am', 1, quiet, s, 0, 0, net, d);
   function roundTrip(plan: number[]) { // plan[t] = signed shares traded in interval t (sum must be 0)
     const s = initialState(1_200); let cash = 0; let gross = 0;

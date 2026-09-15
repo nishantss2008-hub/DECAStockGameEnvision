@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   engine.start();
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
-  app.log.info(`⚓ Authority service listening on :${config.port} (phase=${engine.phase}, tick=${engine.currentTick})`);
+  app.log.info(`⚓ Authority service listening on :${config.port} (phase=${engine.state.phase}, tick=${engine.state.currentTick})`);
 }
 
 main().catch((err) => {

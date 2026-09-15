@@ -128,8 +128,9 @@ maps to A/B/C/D/F. Excluded on purpose: analyst rating, management text, 52-week
    - ≥ −15%: Sell
    - below −15%: Strong Sell
 
-   So a Sell or Strong Sell never has a target at or above the price, and a Buy or Strong Buy
-   never has one at or below it. Spearman(score, target/price) stays in (0.2, 0.8).
+   So at the starting price a Sell or Strong Sell never has a target at or above the price, and a
+   Buy or Strong Buy never has one at or below it (the rating and target are set once and do not follow
+   later price moves). Spearman(score, target/price) stays in (0.2, 0.8).
 7. **Beta (public):** `beta = clamp(0.85 + 0.25·Φ(debt/equity latent) + sector cyclicality ±0.15, 0.7, 1.4)`.
 8. **Compute `s` and `q`** with §3 from the generated fundamentals; drift uses the MEASURED score.
 9. **IP rename:** roster `barbossa / Barbossa Provisions / BRBS` becomes
@@ -193,9 +194,10 @@ Generated at **game start** (it depends on N), seeded `('jumps:'+id)`, and store
   size `Y = min(0.25, −s·ln U)` where `s = √(jumpVar/(2K))`. The log jump is `ln(1+Y)` up and
   `ln(max(0.05, 1−Y))` down (`companyLogJump`, the exact form the §5.3 offset compensates).
 - **Headline type by sign and size relative to `s`,** so the mix is the same for every game length
-  (theory: about 55% small, 25% medium, 20% large):
+  (theory: small `1 − e^−0.8` ≈ 55%, medium `e^−0.8 − e^−1.4` ≈ 20%, large `e^−1.4` ≈ 25%, so each of
+  merger, discovery, scandal and storm is about 6% of company news):
   - small (`Y < 0.8·s`): earnings beat (up) or earnings miss (down)
-  - medium (`Y < 1.6·s`): management / regulatory win (up) or loss (down)
+  - medium (`Y < 1.4·s`): management / regulatory win (up) or loss (down)
   - large (otherwise): merger / discovery (up) or scandal / storm (down)
 - **Body:** `"{name} ({ticker}) — {sentence}."` (no sector). Headlines are unchanged.
 - **Macro events:** 1–2 per game, `J_m ∈ ±U(0.02,0.08)`, applied as `beta_i·J_m` to all companies.

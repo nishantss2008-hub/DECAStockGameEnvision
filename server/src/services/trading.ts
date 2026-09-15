@@ -1,144 +1,678 @@
 /**
- * Trade execution — the only path by which team balances/holdings change.
- * Runs as a Firestore transaction (atomic, race-safe), validates funds/shares
- * server-side, applies a fee, records the fill + audit log, and feeds the order
- * into the engine's order-flow book so the trade nudges the price next tick.
+ * Trade execution (spec §6): the only path by which crew cash and holdings change.
+ *
+ * An order fills immediately at the engine's path-exact impacted price in
+ * UNROUNDED cents (other crews' flow this interval plus half the order's own
+ * impact), plus a basis-point fee. `notional = notionalFor(q, fillPrice)`, so
+ * splitting an order costs the same as placing it whole.
+ *
+ * Ordering matters:
+ *   1. A retry of an already-filled `orders/{teamId}_{clientOrderId}` returns
+ *      the original trade, whatever the market is doing now.
+ *   2. Phase, company, quantity and price protection are checked.
+ *   3. `engine.reserveFlow` adds the signed quantity to pending flow
+ *      SYNCHRONOUSLY, before any await, so concurrent orders price in each
+ *      other's impact and the per-crew interval cap holds.
+ *   4. One Firestore transaction, queued per crew in-process, re-checks
+ *      idempotency and the phase, reads the team and its holdings, runs
+ *      computeFill, and writes team, holding, trade and order. The trade's time
+ *      and tick are the moment it was priced. If the transaction fails for any
+ *      reason (or finds a duplicate that already filled) the reservation is released.
+ *   5. Rejections are recorded best-effort as `status: 'rejected'` order docs,
+ *      never over a filled one, and never for a crew that does not exist or
+ *      while a host rebuild has halted trading (see haltTrading).
+ *
+ * Error text follows docs/design/COPY.md §9 (ticket-errors): each message is
+ * the COPY `title` then the filled-in COPY `message`.
+ *
+ * Firestore and the audit log load lazily inside executeOrder, so the pure fill
+ * math imports without initializing Firebase (unit tests never touch it).
  */
 
-import type { OrderRequest, Trade } from '@deca/shared';
-import { ORDER_FEE_BPS } from '@deca/shared';
-import { db } from '../firebase';
-import { shareValue, feeFor } from '../lib/money';
-import { auditLog } from '../lib/logger';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import {
+  CURRENCY,
+  MODEL,
+  feeFor,
+  intervalShareCap,
+  notionalFor,
+  type Holding,
+  type OrderRecord,
+  type OrderRequest,
+  type OrderSide,
+  type Phase,
+  type Team,
+  type Trade,
+} from '@deca/shared';
+import { formatMoney } from '../lib/money';
 import type { GameEngine } from '../engine/loop';
 
+export type TradeErrorCode =
+  | 'market_closed'
+  | 'trading_disabled'
+  | 'unknown_company'
+  | 'bad_quantity'
+  | 'price_moved'
+  | 'insufficient_funds'
+  | 'insufficient_shares'
+  | 'position_limit'
+  | 'interval_limit'
+  | 'no_team';
+
 export class TradeError extends Error {
-  constructor(public code: string, message: string) {
+  constructor(
+    public code: TradeErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = 'TradeError';
   }
 }
 
-export interface FillResult {
+// ---------------------------------------------------------------------------
+// Copy (COPY.md §9 ticket-errors, verbatim)
+// ---------------------------------------------------------------------------
+
+const COPY = {
+  insufficient_funds: {
+    title: 'Not enough cash',
+    message:
+      'This order is {shortfall} more than your cash available to trade ({cash}). Lower the shares or amount, or use the most you can afford.',
+  },
+  insufficient_shares: {
+    title: 'Not enough shares',
+    message: 'You own {owned} shares of {ticker}, so you can sell up to {owned}. Lower the number of shares or choose All.',
+    messageNoneOwned:
+      "You don't own any {ticker} shares, so there is nothing to sell. Switch to Buy or pick a company you own.",
+  },
+  position_limit: {
+    title: 'Over the position limit',
+    message: 'This would put more than {limitPct} of your account in {ticker}. You can buy up to {maxShares} more shares.',
+    messageAtLimit:
+      '{ticker} already makes up {limitPct} or more of your account, the most a buy can reach. You can buy more only if that share falls below the limit.',
+  },
+  interval_limit: {
+    title: 'Too many shares for one price update',
+    message:
+      'You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about {seconds} seconds.',
+  },
+  price_moved: {
+    title: 'Price moved',
+    message:
+      'The price of {ticker} moved more than 2% since your preview, from {quoted} to {last}. Review the updated estimate, then place the order again.',
+  },
+  market_closed: {
+    title: 'Market not open yet',
+    message: 'Trading opens when the host starts the game. You can research companies and preview orders now.',
+  },
+  market_closed_ended: {
+    title: 'Game ended',
+    message:
+      "The game has ended, so trading is closed. See how every crew finished and what drove each company's price.",
+  },
+  paused: {
+    title: 'Trading paused',
+    message:
+      'The host has paused trading. We kept your order details, so you can place it as soon as trading resumes.',
+  },
+  trading_disabled: {
+    title: 'Trading turned off for your crew',
+    message:
+      'The host has turned off trading for your crew. Ask your host to turn it back on; you can still research and view your account.',
+  },
+  bad_quantity: {
+    title: 'Check the number of shares',
+    message: 'Enter a whole number of shares that is 1 or more, like 10 or 250.',
+  },
+  unknown_company: {
+    title: 'Company not found',
+    message: "We couldn't find a company with that symbol. Pick one from the search list, like KRKN.",
+  },
+  no_team: {
+    title: 'Crew account not found',
+    message:
+      "We couldn't find your crew's account. Sign out, sign back in, and try again; if it keeps happening, tell your host.",
+  },
+  unknown_error: {
+    title: 'Something went wrong',
+    message: 'Your order could not be placed. Press Place order to try again; if it keeps failing, tell your host.',
+  },
+} as const;
+
+/** Fallback for `{ticker}` when a caller has no company context. */
+const NO_TICKER = 'this company';
+
+function fill(template: string, vars: Record<string, string>): string {
+  const text = template.replace(/\{(\w+)\}/g, (m, key: string) => vars[key] ?? m);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function text(title: string, message: string, vars: Record<string, string> = {}): string {
+  return `${title}. ${fill(message, vars)}`;
+}
+
+const shares = (n: number): string => n.toLocaleString('en-US');
+const pctLabel = (frac: number): string => `${Math.round(frac * 100)}%`;
+
+type StaticCode = 'bad_quantity' | 'unknown_company' | 'trading_disabled' | 'no_team';
+
+/** A TradeError whose message needs no numbers (COPY title + message). */
+export function tradeError(code: StaticCode): TradeError {
+  return new TradeError(code, text(COPY[code].title, COPY[code].message));
+}
+
+/** Message for a failure that is not a TradeError (HTTP 500). */
+export const UNKNOWN_ORDER_ERROR_MESSAGE = text(COPY.unknown_error.title, COPY.unknown_error.message);
+
+/** The server answers `market_closed` whenever the game is not live; the text follows the phase. */
+export function marketClosedError(phase: Phase): TradeError {
+  const c = phase === 'paused' ? COPY.paused : phase === 'ended' ? COPY.market_closed_ended : COPY.market_closed;
+  return new TradeError('market_closed', text(c.title, c.message));
+}
+
+// ---------------------------------------------------------------------------
+// Pure fill math
+// ---------------------------------------------------------------------------
+
+export interface FillInput {
+  side: OrderSide;
+  quantity: number;
+  /** Unrounded cents per share from engine.reserveFlow. */
+  fillPrice: number;
+  /** Last traded price in cents; values the position for the host limit. */
+  lastPrice: number;
+  feeBps: number;
+  cash: number;
+  sharesOwned: number;
+  avgCost: number;
+  /** Cash plus every holding at its last price, in cents. */
+  totalValue: number;
+  /** Host position limit as a fraction of account value (1 = off). */
+  maxPositionPct: number;
+  /** Optional context for error messages. */
+  ticker?: string;
+  currencySymbol?: string;
+}
+
+export interface FillOutcome {
+  /** round(fillPrice), for display. */
+  price: number;
+  /** round(quantity·fillPrice). */
   notional: number;
   fee: number;
   cashAfter: number;
   sharesAfter: number;
-  avgCost: number;
+  /** Average cost per share after the fill; excludes fees. */
+  avgCostAfter: number;
+  /** Sells: notional − round(avgCost·quantity) − fee. Buys: 0 (the fee counts in feesPaid). */
+  realizedPnl: number;
+}
+
+/** The limit applies only below 1, matching estimateOrder. */
+function limitApplies(pct: number): boolean {
+  return typeof pct === 'number' && pct < 1;
+}
+
+/** Position limit, valued at lastPrice: sharesAfter·last ≤ pct·(totalValue − fee). Same rule as estimateOrder. */
+function withinLimit(sharesAfter: number, lastPrice: number, pct: number, totalValue: number, fee: number): boolean {
+  return sharesAfter * lastPrice <= pct * (totalValue - fee);
+}
+
+/** Most more shares that pass the limit, pricing each candidate's fee at this fill price. */
+function maxSharesUnderLimit(i: FillInput): number {
+  const fits = (q: number): boolean =>
+    withinLimit(i.sharesOwned + q, i.lastPrice, i.maxPositionPct, i.totalValue, feeFor(notionalFor(q, i.fillPrice), i.feeBps));
+  if (!fits(0)) return 0;
+  // Fees are never negative, so this count always breaks the limit.
+  let hi = Math.floor((i.maxPositionPct * i.totalValue) / i.lastPrice) - i.sharesOwned + 1;
+  let lo = 0;
+  if (!(hi > 0)) return 0;
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function positionLimitError(i: FillInput): TradeError {
+  const vars = { ticker: i.ticker ?? NO_TICKER, limitPct: pctLabel(i.maxPositionPct) };
+  const atLimit = i.sharesOwned * i.lastPrice >= i.maxPositionPct * i.totalValue;
+  const message = atLimit
+    ? text(COPY.position_limit.title, COPY.position_limit.messageAtLimit, vars)
+    : text(COPY.position_limit.title, COPY.position_limit.message, { ...vars, maxShares: shares(maxSharesUnderLimit(i)) });
+  return new TradeError('position_limit', message);
 }
 
 /**
- * Pure trade-math (no IO) so it can be unit-tested. Throws TradeError on
- * insufficient funds/shares. All values are integer cents / whole shares.
+ * Applies one fill to a crew's cash and position. Pure; throws TradeError for a
+ * bad quantity, insufficient cash or shares, or a buy over the position limit.
  */
-export function computeFill(
-  side: OrderRequest['side'],
-  quantity: number,
-  price: number,
-  cash: number,
-  holdingShares: number,
-  holdingAvgCost: number,
-): FillResult {
-  const notional = shareValue(quantity, price);
-  const fee = feeFor(notional, ORDER_FEE_BPS);
+export function computeFill(i: FillInput): FillOutcome {
+  const { side, quantity, fillPrice, lastPrice, feeBps, cash, sharesOwned, avgCost, totalValue, maxPositionPct } = i;
+  if (!Number.isInteger(quantity) || quantity <= 0) throw tradeError('bad_quantity');
+  if (!(Number.isFinite(fillPrice) && fillPrice > 0 && Number.isFinite(lastPrice) && lastPrice > 0)) {
+    throw new Error(`computeFill: prices must be positive and finite (fill ${fillPrice}, last ${lastPrice})`);
+  }
+  const symbol = i.currencySymbol ?? CURRENCY.symbol;
+  const ticker = i.ticker ?? NO_TICKER;
+  const price = Math.max(1, Math.round(fillPrice));
+  const notional = notionalFor(quantity, fillPrice);
+  const fee = feeFor(notional, feeBps);
+
   if (side === 'buy') {
     const cost = notional + fee;
-    if (cash < cost) throw new TradeError('insufficient_funds', 'Not enough doubloons for that purchase');
-    const sharesAfter = holdingShares + quantity;
+    if (cost > cash) {
+      throw new TradeError(
+        'insufficient_funds',
+        text(COPY.insufficient_funds.title, COPY.insufficient_funds.message, {
+          shortfall: formatMoney(cost - cash, symbol),
+          cash: formatMoney(cash, symbol),
+        }),
+      );
+    }
+    const sharesAfter = sharesOwned + quantity;
+    if (limitApplies(maxPositionPct) && !withinLimit(sharesAfter, lastPrice, maxPositionPct, totalValue, fee)) {
+      throw positionLimitError(i);
+    }
     return {
+      price,
       notional,
       fee,
       cashAfter: cash - cost,
       sharesAfter,
-      avgCost: Math.round((holdingShares * holdingAvgCost + notional) / sharesAfter),
+      avgCostAfter: Math.round((sharesOwned * avgCost + notional) / sharesAfter),
+      realizedPnl: 0,
     };
   }
-  if (holdingShares < quantity) throw new TradeError('insufficient_shares', 'Not enough shares to sell');
-  const sharesAfter = holdingShares - quantity;
+
+  if (quantity > sharesOwned) {
+    // The "none owned" wording needs a real ticker to read well.
+    const message =
+      sharesOwned <= 0 && i.ticker
+        ? text(COPY.insufficient_shares.title, COPY.insufficient_shares.messageNoneOwned, { ticker })
+        : text(COPY.insufficient_shares.title, COPY.insufficient_shares.message, {
+            ticker,
+            owned: shares(Math.max(0, sharesOwned)),
+          });
+    throw new TradeError('insufficient_shares', message);
+  }
+  const sharesAfter = sharesOwned - quantity;
   return {
+    price,
     notional,
     fee,
-    cashAfter: cash + (notional - fee),
+    cashAfter: cash + notional - fee,
     sharesAfter,
-    avgCost: sharesAfter > 0 ? holdingAvgCost : 0,
+    avgCostAfter: sharesAfter > 0 ? avgCost : 0,
+    realizedPnl: notional - Math.round(avgCost * quantity) - fee,
   };
 }
 
-export async function executeOrder(
-  engine: GameEngine,
-  teamId: string,
-  order: OrderRequest,
-): Promise<Trade> {
-  if (engine.phase !== 'live') throw new TradeError('market_closed', 'The market is not open for trading');
-  const price = engine.getPrice(order.companyId);
-  if (!price || price <= 0) throw new TradeError('unknown_company', 'No such company');
-  if (!Number.isInteger(order.quantity) || order.quantity <= 0) {
-    throw new TradeError('bad_quantity', 'Quantity must be a positive whole number');
+/**
+ * Price protection: rejects with `price_moved` when the last price moved more
+ * than MODEL.priceProtection (2%) from the price the client quoted. No quote, no check.
+ */
+export function checkPriceProtection(
+  lastPrice: number,
+  quotedPrice: number | undefined,
+  ctx: { ticker?: string; symbol?: string } = {},
+): void {
+  if (quotedPrice === undefined || quotedPrice === null || !(quotedPrice > 0)) return;
+  if (Math.abs(lastPrice - quotedPrice) > MODEL.priceProtection * quotedPrice) {
+    const symbol = ctx.symbol ?? CURRENCY.symbol;
+    throw new TradeError(
+      'price_moved',
+      text(COPY.price_moved.title, COPY.price_moved.message, {
+        ticker: ctx.ticker ?? NO_TICKER,
+        quoted: formatMoney(quotedPrice, symbol),
+        last: formatMoney(lastPrice, symbol),
+      }),
+    );
   }
+}
 
-  const teamRef = db.doc(`teams/${teamId}`);
-  const holdingRef = db.doc(`teams/${teamId}/holdings/${order.companyId}`);
+// ---------------------------------------------------------------------------
+// Execution (IO)
+// ---------------------------------------------------------------------------
 
-  const trade = await db.runTransaction(async (tx) => {
-    const teamSnap = await tx.get(teamRef);
-    if (!teamSnap.exists) throw new TradeError('no_team', 'Team not found');
-    const team = teamSnap.data() as { cashBalance: number };
-    const holdingSnap = await tx.get(holdingRef);
-    const holding = holdingSnap.exists
-      ? (holdingSnap.data() as { shares: number; avgCost: number })
-      : { shares: 0, avgCost: 0 };
+/** The engine surface trading needs (GameEngine satisfies it). */
+export type TradingEngine = Pick<GameEngine, 'state' | 'getCompany' | 'getPrice' | 'reserveFlow'>;
 
-    const notional = shareValue(order.quantity, price);
-    const fee = feeFor(notional, ORDER_FEE_BPS);
-    let cashAfter: number;
-    let sharesAfter: number;
-    let avgCost = holding.avgCost;
+type EngineCompanyInfo = NonNullable<ReturnType<TradingEngine['getCompany']>>;
+type CompanyContext = Pick<EngineCompanyInfo, 'ticker' | 'sharesOutstanding'>;
 
-    if (order.side === 'buy') {
-      const cost = notional + fee;
-      if (team.cashBalance < cost) throw new TradeError('insufficient_funds', 'Not enough doubloons for that purchase');
-      cashAfter = team.cashBalance - cost;
-      sharesAfter = holding.shares + order.quantity;
-      avgCost = Math.round((holding.shares * holding.avgCost + notional) / sharesAfter);
-    } else {
-      if (holding.shares < order.quantity) throw new TradeError('insufficient_shares', 'Not enough shares to sell');
-      const proceeds = notional - fee;
-      cashAfter = team.cashBalance + proceeds;
-      sharesAfter = holding.shares - order.quantity;
-      avgCost = sharesAfter > 0 ? holding.avgCost : 0;
-    }
+const ENGINE_TRADE_CODES = new Set(['market_closed', 'unknown_company', 'interval_limit', 'bad_quantity']);
 
-    const tradeId = db.collection('trades').doc().id;
-    const t: Trade = {
-      id: tradeId,
-      teamId,
-      companyId: order.companyId,
-      side: order.side,
-      quantity: order.quantity,
-      price,
-      fee,
-      executedAt: Date.now(),
-      cashAfter,
-      sharesAfter,
-    };
+/**
+ * The engine's interval_limit message already follows COPY §9 and knows how many
+ * shares the crew used this interval (message / messageAfterTrades), so it is kept
+ * under the COPY title. Without one, the plain cap message is built here.
+ */
+function intervalLimitError(
+  engine: Pick<TradingEngine, 'state'>,
+  company: CompanyContext,
+  engineMessage: string,
+  now: number,
+): TradeError {
+  if (engineMessage.trim()) {
+    return new TradeError('interval_limit', text(COPY.interval_limit.title, engineMessage.trim()));
+  }
+  const s = engine.state;
+  const nextTickAt = s.startAt !== null ? s.startAt + (s.currentTick + 1) * s.tickIntervalMs : now + s.tickIntervalMs;
+  const seconds = Math.min(Math.ceil(s.tickIntervalMs / 1000), Math.max(2, Math.ceil((nextTickAt - now) / 1000)));
+  return new TradeError(
+    'interval_limit',
+    text(COPY.interval_limit.title, COPY.interval_limit.message, {
+      cap: shares(intervalShareCap(company.sharesOutstanding)),
+      ticker: company.ticker,
+      seconds: String(seconds),
+    }),
+  );
+}
 
-    tx.update(teamRef, { cashBalance: cashAfter });
-    if (sharesAfter > 0) {
-      tx.set(holdingRef, { companyId: order.companyId, shares: sharesAfter, avgCost });
-    } else {
-      tx.delete(holdingRef);
-    }
-    tx.set(db.doc(`trades/${tradeId}`), t);
-    return t;
-  });
+/**
+ * Maps an error thrown by `engine.reserveFlow` to the TradeError a crew sees. Returns
+ * undefined for anything that is not an order-level EngineError (a real failure, HTTP 500).
+ * EngineError is recognized by its code, so this module never loads the engine at runtime.
+ */
+export function tradeErrorFromEngine(
+  err: unknown,
+  engine: Pick<TradingEngine, 'state'>,
+  company: CompanyContext,
+  now: number = Date.now(),
+): TradeError | undefined {
+  if (err instanceof TradeError) return err;
+  if (!(err instanceof Error)) return undefined;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code !== 'string' || !ENGINE_TRADE_CODES.has(code)) return undefined;
+  if (code === 'market_closed') return marketClosedError(engine.state.phase);
+  if (code === 'unknown_company') return tradeError('unknown_company');
+  if (code === 'bad_quantity') return tradeError('bad_quantity');
+  return intervalLimitError(engine, company, err.message, now);
+}
 
-  engine.recordOrderFlow(order.companyId, order.side, order.quantity);
-  await auditLog('order.fill', teamId, {
+/**
+ * Per-crew in-process queue for order transactions and rejection records.
+ * Orders from one crew touch the same team doc, so concurrent transactions only
+ * contend (and can deadlock until a lock timeout) without buying anything; the
+ * engine is a single authority process, so a local queue serializes them. A
+ * duplicate clientOrderId then waits for the first fill and answers with it.
+ * Flow is still reserved before queueing, so pricing stays synchronous.
+ * Every crew-data write of executeOrder runs inside this queue.
+ */
+const teamQueues = new Map<string, Promise<void>>();
+
+async function serialByTeam<T>(teamId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = teamQueues.get(teamId) ?? Promise.resolve();
+  const run = prev.then(fn);
+  const tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  teamQueues.set(teamId, tail);
+  try {
+    return await run;
+  } finally {
+    if (teamQueues.get(teamId) === tail) teamQueues.delete(teamId);
+  }
+}
+
+/** Resolves once every order write already queued for the crew has finished (used before removing a crew). */
+export async function settleTeamOrders(teamId: string): Promise<void> {
+  await teamQueues.get(teamId);
+}
+
+/**
+ * Trading halt for a host rebuild (POST /admin/game/new). The engine keeps its
+ * in-memory phase until it reloads, so without a halt orders would keep filling
+ * while the market data is being deleted and rewritten. While halted, orders are
+ * rejected as market_closed (with no order doc), before pricing and again inside
+ * the transaction; `haltTrading` resolves once already-queued order writes finish.
+ */
+let halted = false;
+
+export async function haltTrading(): Promise<void> {
+  halted = true;
+  await Promise.all([...teamQueues.values()]);
+}
+
+export function resumeTrading(): void {
+  halted = false;
+}
+
+async function io(): Promise<{
+  db: Firestore;
+  auditLog: (action: string, actor: string, payload?: Record<string, unknown>) => Promise<void>;
+}> {
+  const [{ db }, { auditLog }] = await Promise.all([import('../firebase'), import('../lib/logger')]);
+  return { db, auditLog };
+}
+
+/** This crew's trade behind a filled order doc, or null. */
+async function filledTrade(db: Firestore, orderRef: DocumentReference, teamId: string): Promise<Trade | null> {
+  const rec = (await orderRef.get()).data() as OrderRecord | undefined;
+  if (rec?.status !== 'filled' || !rec.tradeId || rec.teamId !== teamId) return null;
+  const trade = (await db.doc(`trades/${rec.tradeId}`).get()).data() as Trade | undefined;
+  return trade?.teamId === teamId ? trade : null;
+}
+
+/** Codes that leave no order doc: there is no crew to own it (never recreate data for a removed crew). */
+const UNRECORDED: ReadonlySet<TradeErrorCode> = new Set(['no_team']);
+
+/**
+ * Best-effort rejection record. Never overwrites a filled order: if a duplicate
+ * of this order already filled, returns that trade so the caller can answer
+ * idempotently instead of rejecting.
+ */
+async function recordRejection(
+  db: Firestore,
+  orderRef: DocumentReference,
+  base: Omit<OrderRecord, 'status' | 'code' | 'reason' | 'tradeId'>,
+  err: TradeError,
+): Promise<Trade | null> {
+  try {
+    return await db.runTransaction(async (tx) => {
+      const rec = (await tx.get(orderRef)).data() as OrderRecord | undefined;
+      if (rec?.status === 'filled' && rec.teamId === base.teamId) {
+        if (!rec.tradeId) return null;
+        const trade = (await tx.get(db.doc(`trades/${rec.tradeId}`))).data() as Trade | undefined;
+        return trade?.teamId === base.teamId ? trade : null;
+      }
+      if (halted || UNRECORDED.has(err.code)) return null;
+      const record: OrderRecord = { ...base, status: 'rejected', code: err.code, reason: err.message };
+      tx.set(orderRef, record);
+      return null;
+    });
+  } catch (writeErr) {
+    console.error('[trading] failed to record rejected order', base.id, writeErr);
+    return null;
+  }
+}
+
+export async function executeOrder(engine: TradingEngine, teamId: string, order: OrderRequest): Promise<Trade> {
+  const { db, auditLog } = await io();
+  const orderId = `${teamId}_${order.clientOrderId}`;
+  const orderRef = db.doc(`orders/${orderId}`);
+
+  const prior = await filledTrade(db, orderRef, teamId);
+  if (prior) return prior;
+
+  const base = (): Omit<OrderRecord, 'status' | 'code' | 'reason' | 'tradeId'> => ({
+    id: orderId,
+    teamId,
+    clientOrderId: order.clientOrderId,
     companyId: order.companyId,
     side: order.side,
     quantity: order.quantity,
+    createdAt: Date.now(),
+    tick: engine.state.currentTick,
+  });
+  const reject = async (err: TradeError): Promise<Trade> => {
+    const record = base();
+    const duplicate = await serialByTeam(teamId, () => recordRejection(db, orderRef, record, err));
+    if (duplicate) return duplicate;
+    throw err;
+  };
+
+  // --- Validate and reserve flow. Everything from the phase check through reserveFlow is synchronous. ---
+  const company = engine.getCompany(order.companyId);
+  const symbol = engine.state.currency?.symbol ?? CURRENCY.symbol;
+  let reservation: ReturnType<TradingEngine['reserveFlow']>;
+  // The moment the order is priced: its trade's time and tick (what the engine's
+  // pending-flow rebuild compares with lastTickAt), however long the commit takes.
+  let pricedAt = 0;
+  let pricedTick = 0;
+  try {
+    if (halted) throw marketClosedError('lobby');
+    if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
+    if (!company) throw tradeError('unknown_company');
+    if (!Number.isInteger(order.quantity) || order.quantity <= 0) throw tradeError('bad_quantity');
+    checkPriceProtection(engine.getPrice(order.companyId), order.quotedPrice, { ticker: company.ticker, symbol });
+    pricedAt = Date.now();
+    pricedTick = engine.state.currentTick;
+    try {
+      reservation = engine.reserveFlow(teamId, order.companyId, order.side, order.quantity);
+    } catch (err) {
+      throw tradeErrorFromEngine(err, engine, company, pricedAt) ?? err;
+    }
+  } catch (err) {
+    if (err instanceof TradeError) return reject(err);
+    throw err;
+  }
+
+  // --- Transaction. Release the reservation if it fails or turns out to be a duplicate. ---
+  const r = reservation;
+  const teamRef = db.doc(`teams/${teamId}`);
+  const holdingRef = db.doc(`teams/${teamId}/holdings/${order.companyId}`);
+  let duplicate = false;
+  const fillTransaction = (): Promise<Trade> =>
+    db.runTransaction(async (tx) => {
+      duplicate = false;
+      const rec = (await tx.get(orderRef)).data() as OrderRecord | undefined;
+      if (rec?.status === 'filled' && rec.tradeId && rec.teamId === teamId) {
+        const existing = (await tx.get(db.doc(`trades/${rec.tradeId}`))).data() as Trade | undefined;
+        if (existing?.teamId === teamId) {
+          duplicate = true;
+          return existing;
+        }
+      }
+      // Re-checked at commit time: the host may have paused, ended or started rebuilding the
+      // market while this order waited behind the crew's earlier orders.
+      if (halted) throw marketClosedError('lobby');
+      if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
+
+      const teamSnap = await tx.get(teamRef);
+      if (!teamSnap.exists) throw tradeError('no_team');
+      const team = teamSnap.data() as Partial<Team>;
+      if (team.tradingDisabled) throw tradeError('trading_disabled');
+
+      const holdingsSnap = await tx.get(db.collection(`teams/${teamId}/holdings`));
+      const cash = team.cashBalance ?? 0;
+      let owned = 0;
+      let avgCost = 0;
+      let otherValue = 0;
+      let otherHoldings = 0;
+      for (const doc of holdingsSnap.docs) {
+        const h = doc.data() as Holding;
+        if (doc.id === order.companyId) {
+          owned = h.shares ?? 0;
+          avgCost = h.avgCost ?? 0;
+        } else if ((h.shares ?? 0) > 0) {
+          otherHoldings++;
+          otherValue += h.shares * engine.getPrice(doc.id);
+        }
+      }
+
+      const f = computeFill({
+        side: order.side,
+        quantity: order.quantity,
+        fillPrice: r.fillPrice,
+        lastPrice: r.lastPrice,
+        feeBps: engine.state.feeBps,
+        cash,
+        sharesOwned: owned,
+        avgCost,
+        totalValue: cash + otherValue + owned * r.lastPrice,
+        maxPositionPct: engine.state.maxPositionPct,
+        ticker: company.ticker,
+        currencySymbol: symbol,
+      });
+
+      const tradeId = db.collection('trades').doc().id;
+      const t: Trade = {
+        id: tradeId,
+        teamId,
+        companyId: order.companyId,
+        side: order.side,
+        quantity: order.quantity,
+        price: f.price,
+        lastPrice: r.lastPrice,
+        impactBps: r.impactBps,
+        fee: f.fee,
+        realizedPnl: f.realizedPnl,
+        executedAt: pricedAt,
+        tick: pricedTick,
+        cashAfter: f.cashAfter,
+        sharesAfter: f.sharesAfter,
+        clientOrderId: order.clientOrderId,
+      };
+      const filled: OrderRecord = {
+        id: orderId,
+        teamId,
+        clientOrderId: order.clientOrderId,
+        companyId: order.companyId,
+        side: order.side,
+        quantity: order.quantity,
+        status: 'filled',
+        tradeId,
+        createdAt: pricedAt,
+        tick: pricedTick,
+      };
+
+      tx.update(teamRef, {
+        cashBalance: f.cashAfter,
+        realizedPnl: (team.realizedPnl ?? 0) + f.realizedPnl,
+        feesPaid: (team.feesPaid ?? 0) + f.fee,
+        tradeCount: (team.tradeCount ?? 0) + 1,
+        holdingsCount: otherHoldings + (f.sharesAfter > 0 ? 1 : 0),
+      });
+      if (f.sharesAfter > 0) {
+        const holding: Holding = { companyId: order.companyId, shares: f.sharesAfter, avgCost: f.avgCostAfter };
+        tx.set(holdingRef, holding);
+      } else {
+        tx.delete(holdingRef);
+      }
+      tx.set(db.doc(`trades/${tradeId}`), t);
+      tx.set(orderRef, filled);
+      return t;
+    });
+
+  let trade: Trade;
+  try {
+    trade = await serialByTeam(teamId, fillTransaction);
+  } catch (err) {
+    r.release();
+    if (err instanceof TradeError) return reject(err);
+    throw err;
+  }
+
+  if (duplicate) {
+    r.release();
+    return trade;
+  }
+
+  await auditLog('order.fill', teamId, {
+    tradeId: trade.id,
+    clientOrderId: trade.clientOrderId,
+    companyId: trade.companyId,
+    side: trade.side,
+    quantity: trade.quantity,
     price: trade.price,
+    lastPrice: trade.lastPrice,
+    impactBps: trade.impactBps,
     fee: trade.fee,
+    realizedPnl: trade.realizedPnl,
   });
   return trade;
 }

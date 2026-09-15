@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spearman, GRADES, SECTORS } from '@deca/shared';
-import { generateMarket } from '../src/seed/generateMarket';
+import { analystRating, generateMarket } from '../src/seed/generateMarket';
 import { ROSTER } from '../src/seed/roster';
 const near = (a: number, b: number, tol = 0.011) => Math.abs(a - b) <= Math.max(2, Math.abs(b) * tol);
 describe('generateMarket', () => {
@@ -36,6 +36,41 @@ describe('generateMarket', () => {
     let rho = 0;
     for (let s = 0; s < 20; s++) { const m = generateMarket(`a${s}`).companies; rho += spearman(m.map((g) => g.quality.score), m.map((g) => g.fundamentals.analyst.priceTarget / g.company.startPrice)); }
     expect(rho / 20).toBeGreaterThan(0.2); expect(rho / 20).toBeLessThan(0.8);
+  });
+  it('analyst rating follows the implied upside of the price target', () => {
+    const seen = new Set<string>(); const ups: number[] = [];
+    for (let s = 0; s < 20; s++) for (const { company: c, fundamentals: { analyst } } of generateMarket(`a${s}`).companies) {
+      const { rating, priceTarget } = analyst; seen.add(rating);
+      const up = priceTarget / c.startPrice - 1; ups.push(up);
+      if (rating === 'Sell' || rating === 'Strong Sell') expect(priceTarget, `${rating} ${priceTarget} vs ${c.startPrice}`).toBeLessThan(c.startPrice);
+      if (rating === 'Buy' || rating === 'Strong Buy') expect(priceTarget, `${rating} ${priceTarget} vs ${c.startPrice}`).toBeGreaterThan(c.startPrice);
+      // Exact integer comparison (target·100 vs price·(100 + pct)): a target exactly 20% / 8% / −5% / −15% from the
+      // price is on the higher side, as the spec says (the float upside 1440/1200 − 1 = 0.19999999999999996 is not).
+      const atLeast = (pct: number) => 100 * priceTarget >= c.startPrice * (100 + pct);
+      const expected = atLeast(20) ? 'Strong Buy' : atLeast(8) ? 'Buy' : atLeast(-5) ? 'Hold' : atLeast(-15) ? 'Sell' : 'Strong Sell';
+      expect(rating, `upside ${up} (${priceTarget} vs ${c.startPrice})`).toBe(expected);
+    }
+    expect([...seen].sort()).toEqual(['Buy', 'Hold', 'Sell', 'Strong Buy', 'Strong Sell']);
+    // target = price·(1 + 0.04 + 0.12·analystZ), analystZ ≈ N(0, 1): mildly optimistic on average (500 companies, SE ≈ 0.005).
+    const meanUp = ups.reduce((a, b) => a + b, 0) / ups.length;
+    expect(meanUp).toBeGreaterThan(0.015); expect(meanUp).toBeLessThan(0.065);
+  });
+  it('analyst rating boundaries are exact: a target exactly +20% / +8% / −5% / −15% from the price takes the higher rating', () => {
+    expect(analystRating(1440, 1200)).toBe('Strong Buy'); expect(analystRating(1439, 1200)).toBe('Buy');
+    expect(analystRating(1296, 1200)).toBe('Buy'); expect(analystRating(1295, 1200)).toBe('Hold');
+    expect(analystRating(1200, 1200)).toBe('Hold');
+    expect(analystRating(1140, 1200)).toBe('Hold'); expect(analystRating(1139, 1200)).toBe('Sell');
+    expect(analystRating(1020, 1200)).toBe('Sell'); expect(analystRating(1019, 1200)).toBe('Strong Sell');
+    expect(analystRating(33_535, 35_300)).toBe('Hold'); // generateMarket('a10') PRRT: exactly −5%
+    const names = ['Strong Buy', 'Buy', 'Hold', 'Sell', 'Strong Sell'] as const;
+    for (let price = 1_200; price <= 52_000; price += 5) {
+      [20, 8, -5, -15].forEach((pct, i) => {
+        if ((price * (100 + pct)) % 100 !== 0) return;
+        const exact = (price * (100 + pct)) / 100;
+        expect(analystRating(exact, price), `${exact} vs ${price}`).toBe(names[i]);
+        expect(analystRating(exact - 1, price), `${exact - 1} vs ${price}`).toBe(names[i + 1]);
+      });
+    }
   });
   it('uses the renamed roster entry', () => {
     const m = generateMarket('r'); expect(m.companies.some((g) => g.company.ticker === 'BRTH')).toBe(true);

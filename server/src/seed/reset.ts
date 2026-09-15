@@ -1,36 +1,26 @@
 /**
- * Reset the game to a clean slate: clears all dynamic data (teams + their logins,
- * trades, orders, news, leaderboard, and every company's price history) but keeps
- * the admin login. Run `npm run seed` afterward to rebuild the lobby (companies,
- * fundamentals, initial prices, game state).
+ * Reset CLI: clears every piece of market data (companies, history, schedule,
+ * engine state, trades, orders, news, leaderboard, team stats) and deletes all
+ * crews and their logins. The admin login, `game/state` and the audit log are kept.
  *
  *   1. stop the server   2. npm run reset   3. npm run seed   4. start the server
  *
  * Run: `npm run reset -w @deca/server`
  */
 
+import type { GameSettings } from '@deca/shared';
 import { db } from '../firebase';
-import { ROSTER } from './roster';
+import { normalizeSettings } from '../engine/loopHelpers';
+import { clearDynamicData } from '../services/market';
 
 async function reset(): Promise<void> {
-  console.log('Clearing dynamic game data…');
-  await db.recursiveDelete(db.collection('teams'));
-  await db.recursiveDelete(db.collection('trades'));
-  await db.recursiveDelete(db.collection('orders'));
-  await db.recursiveDelete(db.collection('news'));
-  await db.recursiveDelete(db.collection('leaderboard'));
+  console.log('Clearing market data, crews and crew logins…');
+  const settings = normalizeSettings((await db.doc('game/state').get()).data() as Partial<GameSettings> | undefined);
+  await clearDynamicData({ keepCrews: false, startingCapital: settings.startingCapital });
 
-  // Team logins (keep the admin credential).
-  const authSnap = await db.collection('_auth').get();
-  await Promise.all(authSnap.docs.filter((d) => d.id !== '_admin').map((d) => d.ref.delete()));
-
-  // Per-company price history.
-  for (const r of ROSTER) {
-    await db.recursiveDelete(db.collection(`companies/${r.id}/priceHistory`));
-  }
-
-  console.log('✅ Reset complete. Cleared teams, logins, trades, orders, news, leaderboard, and price history.');
-  console.log('   Next: `npm run seed` to rebuild the lobby, then restart the server.');
+  console.log('Reset complete. Cleared companies, history, schedule, engine state, trades, orders, news, leaderboard, crews and crew logins.');
+  console.log('   The admin login was kept.');
+  console.log('   Next: `npm run seed` to create a new market in the lobby, then restart the server.');
 }
 
 reset()

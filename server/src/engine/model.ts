@@ -4,7 +4,8 @@
  * Quality-tilted single-index jump-diffusion in log space:
  *   - Sharpe single-index market factor with GARCH(1,1) variance
  *   - exact GBM idiosyncratic diffusion with per-company GARCH(1,1) variance
- *   - Kou-signed Poisson news jumps (scheduled up front in news.ts)
+ *   - Kou-signed Poisson news jumps (scheduled up front in news.ts), with the drift
+ *     compensated by their exact expected log jump
  *   - optional exact OU mispricing (off by default: MODEL.mispriceSd = 0)
  *   - linear transient impact with exponential resilience (Obizhaeva–Wang),
  *     arbitrage-free because impact is linear (Gatheral 2010)
@@ -55,9 +56,46 @@ export interface Derived {
   jumpMean: number;
   /** E[min(Exp(s), maxJump)]. */
   truncMean: number;
+  /** E[ln(1 + Y)], Y = min(maxJump, S), S ~ Exp(mean jumpMean): expected log jump of good news. */
+  eLogUp: number;
+  /** E[ln(max(MIN_JUMP_MULTIPLE, 1 − Y))]: expected log jump of bad news (negative). */
+  eLogDown: number;
   spread: number;
   /** Diffusion clamp: tickMoveSds·√dt. */
   moveCap: number;
+}
+
+/** Smallest price multiple a single jump may leave (guards ln of a non-positive number). */
+export const MIN_JUMP_MULTIPLE = 0.05;
+
+/**
+ * Log jump of a scheduled company event of relative size `size` ≥ 0:
+ * ln(1 + size) for good news, ln(max(MIN_JUMP_MULTIPLE, 1 − size)) for bad news.
+ * news.ts uses this exact form, and derive() compensates for its exact expectation.
+ */
+export function companyLogJump(up: boolean, size: number): number {
+  return up ? Math.log(1 + size) : Math.log(Math.max(MIN_JUMP_MULTIPLE, 1 - size));
+}
+
+/** Composite Simpson intervals for the jump compensator: error < 1e-12 for every game length. */
+const COMPENSATOR_INTERVALS = 2_000;
+
+/**
+ * E[g(min(cap, S))] for S ~ Exp(mean s) and g(0) = 0, from the survival form
+ * E[g(Y)] = ∫₀^cap g′(x)·P(S > x) dx = ∫₀^cap g′(x)·e^(−x/s) dx (composite Simpson).
+ * The survival form absorbs the probability atom at `cap`, and g′(x)·e^(−x/s) is smooth on
+ * [0, cap], so plain Simpson converges fast (checked against 400,000 intervals: < 1e-13).
+ */
+function expectedCapped(gPrime: (x: number) => number, s: number, cap: number): number {
+  if (!(cap > 0)) return 0;
+  const n = COMPENSATOR_INTERVALS;
+  const h = cap / n;
+  let acc = gPrime(0) + gPrime(cap) * Math.exp(-cap / s);
+  for (let i = 1; i < n; i++) {
+    const x = i * h;
+    acc += (i % 2 === 1 ? 4 : 2) * gPrime(x) * Math.exp(-x / s);
+  }
+  return (acc * h) / 3;
 }
 
 /** Scheduled news events per company for a game of `hours`: clamp(round(1.5·√hours), 2, 12). */
@@ -78,8 +116,12 @@ export function derive(clock: GameClock, spread: number): Derived {
   const K = jumpsPerCompany(clock.hours);
   const jumpMean = Math.sqrt(MODEL.jumpVarPerGame / (2 * K));
   const truncMean = jumpMean * (1 - Math.exp(-MODEL.maxJump / jumpMean));
+  // Exact expected log jumps for companyLogJump. ln(1+x)′ = 1/(1+x); ln(max(m, 1−x))′ = −1/(1−x)
+  // below x = 1 − m and 0 above it, so the down integral simply stops at min(maxJump, 1 − m).
+  const eLogUp = expectedCapped((x) => 1 / (1 + x), jumpMean, MODEL.maxJump);
+  const eLogDown = expectedCapped((x) => -1 / (1 - x), jumpMean, Math.min(MODEL.maxJump, 1 - MIN_JUMP_MULTIPLE));
   const moveCap = MODEL.tickMoveSds * Math.sqrt(dt);
-  return { dt, K, phi, alpha, beta, decay, ouSd, jumpMean, truncMean, spread, moveCap };
+  return { dt, K, phi, alpha, beta, decay, ouSd, jumpMean, truncMean, eLogUp, eLogDown, spread, moveCap };
 }
 
 /** GARCH(1,1) variance-ratio update with unit long-run mean, clamped to [garchHMin, garchHMax]. */
@@ -93,11 +135,23 @@ export function upProbability(qEff: number): number {
 }
 
 /**
- * Per-game log drift from quality, net of the expected signed jump size, so the
- * expected log return from quality is spread·qEff for any K.
+ * Per-game log drift from quality, net of the EXACT expected log jump of the scheduled
+ * company news (Poisson(K) events, each ln(1+Y) with probability pUp, else ln(max(0.05, 1−Y))):
+ *   drift = spread·qEff − K·(pUp·eLogUp + (1 − pUp)·eLogDown)
+ * so E[drift + company jumps] = spread·qEff exactly, for any K and any game length.
  */
 export function drift(c: ModelCompany, d: Derived): number {
-  return d.spread * c.qEff - d.K * (2 * upProbability(c.qEff) - 1) * d.truncMean;
+  const pUp = upProbability(c.qEff);
+  return d.spread * c.qEff - d.K * (pUp * d.eLogUp + (1 - pUp) * d.eLogDown);
+}
+
+/**
+ * Expected whole-game log return used by the reveal: spread·qEff + beta·mktDrift.
+ * Quality drift plus company news nets to spread·qEff (see drift); the market factor adds beta·mktDrift;
+ * idiosyncratic diffusion has zero mean. Macro news is not included.
+ */
+export function expectedLogReturn(c: Pick<ModelCompany, 'qEff' | 'beta'>, d: Derived, mktDrift: number = MODEL.mktDrift): number {
+  return d.spread * c.qEff + c.beta * mktDrift;
 }
 
 /** Market factor log return for tick t. Mutates mk.hM. */
