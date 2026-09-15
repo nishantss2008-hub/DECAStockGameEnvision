@@ -210,6 +210,12 @@ export interface Team {
   sessionOpenValue: number;
   holdingsCount: number;
   createdAt: number;
+  /**
+   * Rank at the start of the current session, stored when a session opens (or at the crew's first
+   * standings). Leaderboard `prevRank` is this value, so movement arrows show change since the session
+   * began. 0 or absent: not set yet.
+   */
+  sessionStartRank?: number;
 }
 
 /** Document at `teams/{id}/holdings/{companyId}`. */
@@ -285,6 +291,7 @@ export interface LeaderboardEntry {
   name: string;
   totalValue: number;
   rank: number;
+  /** Rank at the start of the current session (`Team.sessionStartRank`); movement = prevRank − rank. */
   prevRank: number;
   returnPct: number;
   sessionChangePct: number;
@@ -296,6 +303,17 @@ export interface LeaderboardEntry {
 export interface FinalEntry extends LeaderboardEntry {
   researchScore: number;
   researchGrade: Grade;
+  /**
+   * The invested value behind the research grade: holdings value in cents summed over every price update
+   * it was held for. A crew that bought only after the last update is graded on its closing holdings,
+   * counted as one update. Written by every final standings from this version on (absent on older ones).
+   */
+  researchWeight?: number;
+  /**
+   * True when the crew held shares at any price update or at the close. False means it has no research
+   * grade: show COPY §10 `researchGrade.noHoldings` instead of the grade.
+   */
+  heldAnyShares?: boolean;
 }
 
 /** Public document at `leaderboard/current`. */

@@ -49,7 +49,8 @@ service cloud.firestore {
     match /companies/{companyId} {
       allow read: if true;
 
-      // Research profile (fundamentals/data).
+      // Research profile (fundamentals/data). Also readable as a collection
+      // group, below.
       match /fundamentals/{fundDoc} {
         allow read: if true;
       }
@@ -59,6 +60,16 @@ service cloud.firestore {
       match /history/{chunk} {
         allow read: if true;
       }
+    }
+
+    // Fundamentals are public research data, so the web app may read every
+    // company's profile with ONE collection-group query
+    // (collectionGroup('fundamentals')) instead of 25 document reads.
+    // The server writes `fundamentals` only under companies/{id}; no private
+    // data is ever stored in a collection of that name. Holdings and history
+    // have no collection-group rule, so those sweeps stay denied.
+    match /{path=**}/fundamentals/{doc} {
+      allow read: if true;
     }
 
     // Market summary (composite index, sectors, breadth) and its composite

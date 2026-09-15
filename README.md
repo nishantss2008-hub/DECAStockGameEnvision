@@ -60,7 +60,9 @@ npm run dev:local
 
 `dev:local` starts the Firestore and Auth emulators, creates a market, and runs the server and the
 web app. Open <http://localhost:5173> and sign in with the crew name `admin` and the password
-`captain` (a development-only default; set `ADMIN_PASSWORD` to change it).
+`captain` (a development-only default; set `ADMIN_PASSWORD` to change it). `PORT_OFFSET=100 npm run
+dev:local` runs a second stack beside the first, and `LAN=1 npm run dev:local` lets phones on the same
+Wi-Fi open it (QUICKSTART A3 and A5).
 
 ## Tests
 
@@ -82,7 +84,7 @@ server/src/
   engine/          price model, news schedule, order flow, engine loop (ticks, reveal)
   services/        market creation, trading, crews, leaderboard
   routes/          /auth/login, /orders, /admin/*, /health
-  seed/            roster, market generator, `npm run seed` and `npm run reset`
+  seed/            roster, market generator, `npm run seed`, `npm run reset`, `npm run set-host-password`
   auth/ lib/       token checks, password hashing, PRNG, money, audit log
 server/test/       unit, calibration and engine-loop tests
   integration/     emulator scenario and security-rules tests (`npm run test:integration`)

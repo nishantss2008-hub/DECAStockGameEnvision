@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertFails,
   assertSucceeds,
@@ -128,6 +128,21 @@ describe('public reads', () => {
     await assertSucceeds(db.collection('news').orderBy('firedAt', 'desc').limit(20).get());
   });
 
+  it('fundamentals are public research data: one collection-group query reads every company profile, signed in or not', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await Promise.all(['y', 'z'].map((id) => db.doc(`companies/${id}/fundamentals/data`).set({ revenue: 2 })));
+    });
+    for (const db of [anon(), crew('t'), host()]) {
+      const snap = await assertSucceeds(db.collectionGroup('fundamentals').get());
+      expect(snap.docs.map((d) => d.ref.path).sort()).toEqual(['companies/x/fundamentals/data', 'companies/y/fundamentals/data', 'companies/z/fundamentals/data']);
+    }
+    // Still read-only for everyone.
+    for (const db of [anon(), crew('t'), host()]) {
+      await assertFails(db.doc('companies/x/fundamentals/data').set({ revenue: 1e12 }));
+    }
+  });
+
   it('the v1 per-tick priceHistory path is no longer readable', async () => {
     await assertFails(read(anon(), 'companies/x/priceHistory/1'));
   });
@@ -192,6 +207,11 @@ describe('crew-scoped reads', () => {
       await assertFails(db.collectionGroup('holdings').get());
       await assertFails(db.collectionGroup('history').get());
     }
+  });
+
+  it('the host cannot sweep holdings or history with a collection group from a client either', async () => {
+    await assertFails(host().collectionGroup('holdings').get());
+    await assertFails(host().collectionGroup('history').get());
   });
 
   it('a signed-in user without a team claim reads no crew data, even with a matching uid', async () => {

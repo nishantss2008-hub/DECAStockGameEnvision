@@ -70,7 +70,7 @@ import {
   appendChunk,
   appendValue,
   buildReveal,
-  commitInBatches,
+  commitWithTail,
   compositeValue,
   engineMessages,
   indexQuote,
@@ -149,6 +149,11 @@ export interface FlowReservation {
   /** Unrounded cents, pending flow included. */
   fillPrice: number;
   impactBps: number;
+  /**
+   * The tick the order was priced at (`state.currentTick` at reservation). Its flow is drained by the next
+   * tick, so after a restart at committed tick T every trade with `tick >= T` is still pending. Store it on the trade.
+   */
+  tick: number;
   /**
    * Undoes the reservation (idempotent). Before a tick drains it, the pending flow is removed; after, the
    * order's decayed impact is taken back out of the price state so a failed trade never moves the price
@@ -353,6 +358,7 @@ export class GameEngine {
       lastPrice: this.getPrice(companyId),
       fillPrice,
       impactBps: Math.round(((c.lambda * quantity) / 2) * 10_000),
+      tick: tickAtReserve,
       release,
     };
   }
@@ -500,7 +506,6 @@ export class GameEngine {
       ops.push((b) => b.set(db.doc('market/summary/history/0'), summaryChunk));
       ops.push((b) => b.set(db.doc('market/summary'), summary));
       ops.push((b) => b.set(db.doc('_schedule/_news'), { events: schedule, pending: [] }));
-      ops.push((b) => b.set(db.doc('_engine/state'), serializeState(es)));
       const capital = next.startingCapital;
       for (const doc of teamsSnap.docs) {
         const t = doc.data() as Partial<Team>;
@@ -512,8 +517,8 @@ export class GameEngine {
         const history: ValueChunk = { chunk: 0, startTick: 0, values: [capital] };
         ops.push((b) => b.set(doc.ref.collection('history').doc('0'), history));
       }
-      ops.push((b) => b.set(db.doc('game/state'), next));
-      await commitInBatches(db, ops);
+      const engineDoc = serializeState(es);
+      await commitWithTail(db, ops, [(b) => b.set(db.doc('_engine/state'), engineDoc), (b) => b.set(db.doc('game/state'), next)]);
 
       resetLeaderboardCache();
       this.state = next;
@@ -565,6 +570,49 @@ export class GameEngine {
       await db.doc('_schedule/_news').set({ pending }, { merge: true });
       this.pendingHost = pending;
     });
+  }
+
+  /**
+   * Recomputes the standings once, in the engine queue (never alongside a tick), for the current tick.
+   * Live or paused games only: the lobby has no standings yet, and an ended game's final standings are
+   * pruned by the crew service.
+   */
+  refreshStandings(): Promise<void> {
+    return this.exclusive(() => this.refreshStandingsLocked());
+  }
+
+  /**
+   * Removes a crew in the engine queue, so no tick, standings recompute or final standings runs alongside the
+   * removal: one that had already read the crew would write its value history, research stats and standings
+   * row back after they were deleted (and a re-created crew with that name would inherit them). A new game
+   * waits for it too (`stop()` settles the queue). Afterwards the in-memory standings are dropped and, in a
+   * live or paused game, recomputed once so the remaining ranks renumber at once.
+   *
+   * The removal's own error is thrown. A failed refresh never fails the removal: it goes to `onRefreshError`,
+   * and the next tick recomputes the standings anyway.
+   */
+  runCrewRemoval(
+    remove: () => Promise<void>,
+    onRefreshError: (err: unknown) => void = (err) => console.error('[engine] standings refresh after a crew removal failed', err),
+  ): Promise<void> {
+    return this.exclusive(async () => {
+      try {
+        await remove();
+      } finally {
+        resetLeaderboardCache(); // even after a partial removal: never keep the removed crew's series in memory
+      }
+      try {
+        await this.refreshStandingsLocked();
+      } catch (err) {
+        onRefreshError(err);
+      }
+    });
+  }
+
+  private async refreshStandingsLocked(): Promise<void> {
+    const { phase, currentTick } = this.state;
+    if ((phase !== 'live' && phase !== 'paused') || this.ids.length === 0) return;
+    await recomputeLeaderboard(this, currentTick);
   }
 
   // ─── Tick ───────────────────────────────────────────────────────────────────
@@ -694,31 +742,54 @@ export class GameEngine {
     if (gen === this.generation && this.shouldEnd(now)) await this.endGameLocked('engine');
   }
 
-  /** One logical commit (split at 450 ops): company docs first, engine state and game state last. */
+  /**
+   * One logical commit, split at 450 ops. Everything that says where the game is NOW goes in the LAST batch
+   * together: every company doc (price, session volume, lastTick), the market summary, `_engine/state` and
+   * `game/state`. Earlier batches hold only writes that are harmless when they land without it (history
+   * chunks, which a load truncates to the committed tick, and news docs with deterministic ids, preceded by
+   * the news schedule that fires them). So a crash part-way through a long catch-up leaves Firestore at the
+   * last committed tick, and the restart replays the same ticks without counting volume twice or
+   * publishing host news a second time. A failed commit is retried by the next tick.
+   */
   private async commitTick(now: number): Promise<void> {
     const es = this.es!;
     const ops: BatchOp[] = [];
+    this.pushPendingWrites(ops);
+    const tail: BatchOp[] = [];
     for (const id of this.ids) {
       const fields = snapshotFields(this.snaps.get(id)!);
       // update (not set): a market cleared mid-tick fails this batch instead of resurrecting docs
-      ops.push((b) => b.update(db.doc(`companies/${id}`), fields));
+      tail.push((b) => b.update(db.doc(`companies/${id}`), fields));
     }
-    for (const [path, chunk] of this.outChunks) {
-      const data = 'prices' in chunk ? { ...chunk, prices: [...chunk.prices], volumes: [...chunk.volumes] } : { ...chunk, values: [...chunk.values] };
-      ops.push((b) => b.set(db.doc(path), data));
-    }
-    for (const [id, news] of this.outNews) ops.push((b) => b.set(db.doc(`news/${id}`), news));
     const summary = this.summary(now);
-    ops.push((b) => b.set(db.doc('market/summary'), summary));
+    tail.push((b) => b.set(db.doc('market/summary'), summary));
+    const engineDoc = serializeState(es);
+    const { currentTick, serverTime, lastTickAt } = this.state;
+    tail.push((b) => b.set(db.doc('_engine/state'), engineDoc));
+    tail.push((b) => b.update(db.doc('game/state'), { currentTick, serverTime, lastTickAt }));
+    await commitWithTail(db, ops, tail);
+    this.clearPendingWrites();
+  }
+
+  /**
+   * The news schedule, news and chunks not yet committed (kept across a failed commit), skipping `skip` paths.
+   * The schedule comes first: once a news doc is public, the schedule that fired it (host news moved from
+   * pending to its tick) is already stored, so a restart re-fires it at the same tick under the same id.
+   */
+  private pushPendingWrites(ops: BatchOp[], skip: ReadonlySet<string> = new Set()): void {
     if (this.newsDocDirty) {
       const doc = { events: this.schedule.map((e) => ({ ...e })), pending: this.pendingHost.map((e) => ({ ...e })) };
       ops.push((b) => b.set(db.doc('_schedule/_news'), doc));
     }
-    const engineDoc = serializeState(es);
-    ops.push((b) => b.set(db.doc('_engine/state'), engineDoc));
-    const { currentTick, serverTime, lastTickAt } = this.state;
-    ops.push((b) => b.update(db.doc('game/state'), { currentTick, serverTime, lastTickAt }));
-    await commitInBatches(db, ops);
+    for (const [id, news] of this.outNews) ops.push((b) => b.set(db.doc(`news/${id}`), news));
+    for (const [path, chunk] of this.outChunks) {
+      if (skip.has(path)) continue;
+      const data = 'prices' in chunk ? { ...chunk, prices: [...chunk.prices], volumes: [...chunk.volumes] } : { ...chunk, values: [...chunk.values] };
+      ops.push((b) => b.set(db.doc(path), data));
+    }
+  }
+
+  private clearPendingWrites(): void {
     this.outChunks.clear();
     this.outNews.clear();
     this.newsDocDirty = false;
@@ -736,8 +807,14 @@ export class GameEngine {
 
     const gen = this.generation;
     const now = Date.now();
-    const ops: BatchOp[] = [];
+    const tick = this.state.currentTick;
+    // Like a tick commit: the company docs (closing prices and the reveal), the closing history points, the
+    // summary, engine state and game state (phase ended) all go in the last batch, so the reveal can never
+    // be public while the game is still running, and a failed end leaves no closing mark behind.
+    const tail: BatchOp[] = [];
     const closed = new Map<string, Snapshot>();
+    const closedChunks = new Map<string, HistoryChunk>();
+    const chunkPaths = new Set<string>();
     for (const id of this.ids) {
       const c = this.cos.get(id)!;
       const snap = { ...this.snaps.get(id)! };
@@ -767,20 +844,47 @@ export class GameEngine {
       snap.marketCap = close * snap.sharesOutstanding;
       closed.set(id, snap);
       const fields = { ...snapshotFields(snap), reveal };
-      ops.push((b) => b.update(db.doc(`companies/${id}`), fields));
+      tail.push((b) => b.update(db.doc(`companies/${id}`), fields));
+
+      // The closing mark is the last point of the price chart (it replaces the last traded price at this
+      // tick, as the final team values do); the volume traded in that interval stays.
+      const current = this.chunks.get(id);
+      if (current) {
+        const at = tick - current.startTick;
+        const volume = current.chunk === chunkOf(tick) ? (current.volumes[at] ?? 0) : 0;
+        const chunk = appendChunk({ ...current, prices: [...current.prices], volumes: [...current.volumes] }, tick, close, volume);
+        const path = `companies/${id}/history/${chunk.chunk}`;
+        closedChunks.set(id, chunk);
+        chunkPaths.add(path);
+        const data = { ...chunk, prices: [...chunk.prices], volumes: [...chunk.volumes] };
+        tail.push((b) => b.set(db.doc(path), data));
+      }
     }
     const indexNow = this.computeIndexes((id) => closed.get(id)?.currentPrice ?? 0);
+    const compositeChunk = appendValue({ ...this.compositeChunk, values: [...this.compositeChunk.values] }, tick, indexNow.composite);
+    const compositePath = `market/summary/history/${compositeChunk.chunk}`;
+    chunkPaths.add(compositePath);
+    const compositeData = { ...compositeChunk, values: [...compositeChunk.values] };
+    tail.push((b) => b.set(db.doc(compositePath), compositeData));
+    const ops: BatchOp[] = [];
+    this.pushPendingWrites(ops, chunkPaths); // anything a failed tick commit left behind (its chunks are superseded above)
     const next: GameState = { ...this.state, phase: 'ended', endedAt: now, pausedAt: null, serverTime: now };
     const summary = this.summary(now, closed, indexNow);
-    ops.push((b) => b.set(db.doc('market/summary'), summary));
+    tail.push((b) => b.set(db.doc('market/summary'), summary));
     if (this.es) {
       const engineDoc = serializeState(this.es);
-      ops.push((b) => b.set(db.doc('_engine/state'), engineDoc));
+      tail.push((b) => b.set(db.doc('_engine/state'), engineDoc));
     }
-    ops.push((b) => b.update(db.doc('game/state'), { phase: 'ended', endedAt: now, pausedAt: null, serverTime: now }));
+    const { lastTickAt } = this.state;
+    tail.push((b) =>
+      b.update(db.doc('game/state'), { phase: 'ended', endedAt: now, pausedAt: null, serverTime: now, currentTick: tick, lastTickAt }),
+    );
     if (gen !== this.generation) return;
-    await commitInBatches(db, ops);
+    await commitWithTail(db, ops, tail);
+    this.clearPendingWrites();
     for (const [id, snap] of closed) this.snaps.set(id, snap);
+    for (const [id, chunk] of closedChunks) this.chunks.set(id, chunk);
+    this.compositeChunk = compositeChunk;
     this.indexNow = indexNow;
     this.state = next;
 
@@ -999,10 +1103,11 @@ export class GameEngine {
       ),
     };
 
-    // Pending flow: trades executed since the last committed tick have not reached the impact term yet.
+    // Pending flow: a trade priced at tick k is drained by tick k + 1, so with tick T committed every trade
+    // priced at tick T or later has not reached the impact term yet. Ticks, not timestamps: a trade priced in
+    // the same millisecond as a drain is still on the right side of it.
     if (state.phase === 'live' || state.phase === 'paused') {
-      const since = state.lastTickAt ?? state.startAt ?? 0;
-      const trades = await db.collection('trades').where('executedAt', '>', since).get();
+      const trades = await db.collection('trades').where('tick', '>=', state.currentTick).get();
       for (const doc of trades.docs) {
         const t = doc.data() as Partial<Trade>;
         if (!t.teamId || !t.companyId || !this.cos.has(t.companyId) || !(Number(t.quantity) > 0)) continue;

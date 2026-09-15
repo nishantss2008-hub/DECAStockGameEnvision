@@ -273,9 +273,10 @@ Work down this list:
 6. **Crew missing from the Crews list?** It was never added, or it was removed. Add it again.
    A re-added crew starts over with the starting cash.
 
-Resetting a password **does not sign anyone out**. Phones already signed in stay signed in. If
-another crew learned a password, reset it, turn trading off for that crew while you sort it out,
-and ask everyone using the wrong crew to sign out (**Account › Sign out**).
+Resetting a password **signs that crew out on every device within about an hour**: phones already
+signed in keep working until their sign-in needs renewing, then ask for the new password. If another
+crew learned a password, reset it, turn trading off for that crew while you sort it out (that takes
+effect at once), and ask everyone using the wrong crew to sign out (**Account › Sign out**).
 
 ### 2.6 Turning trading off for one crew
 
@@ -290,14 +291,21 @@ Use this for a rules problem or a shared password.
 ### 2.7 Removing a crew
 
 **Crews ›** the crew **› Remove crew…**, then confirm. This deletes the crew's sign-in, holdings,
-history, trades and standings row. **It can't be undone.** Only use it for a crew created by
-mistake.
+history, trades and standings row, and signs the crew out on its devices within about an hour.
+**It can't be undone.**
+Only use it for a crew created by mistake.
+
+- The standings renumber straight away: the crews below it each move up one place.
+- Orders from a phone still showing the removed crew are refused at once with *"Crew account not
+  found."*
 
 ### 2.8 Projector tips
 
 - Project from a **laptop browser**, not your phone, and zoom to 125% to 150% so the back row can
   read it.
 - Good screens to project: **Standings**, **News** and **Markets**.
+- The up and down arrows in the standings show how far each crew has moved **since the current
+  session began**, so they stay put for the whole session and reset when the next one starts.
 - **Never project** the host **Market** tab (it shows hidden health scores and fair values), the
   **Scheduled** news list, **Crews**, **Tape** or **Audit**.
 - Keep your host console on a separate device or window from the projected one.
@@ -425,6 +433,8 @@ Turning **Keep crews and passwords** **off** instead deletes every crew and its 
 | A student's app looks out of date | An old version is cached | Close and reopen the app. On an installed app, use **Account › Reload app** |
 | You ended the game by mistake | Ending can't be undone | Start a **New game** with crews kept and replay |
 | "A new game is being prepared" | A new game is still being built | Wait a moment and try again |
+| Lost the host password | — | Your developer sets a new one without a new market or losing the game ([DEPLOY.md](DEPLOY.md) section 9.1). Crews, holdings and the clock are not touched |
+| Orders fail at random, "Trading paused" doesn't stop every order, or prices seem to jump between two sets of numbers | More than one copy of the server is running. The trading pause, each crew's order queue and orders waiting for the next price update live inside **one** server, so the server must run as a single instance | Pause trading and call your developer: keep the server at exactly one instance (`--max-instances 1`) and never deploy during a game ([DEPLOY.md](DEPLOY.md) sections 5.4 and 9) |
 
 <!-- VERIFY: "Account › Reload app" and the error wording come from MOBILE.md §7.15 and COPY.md §9 and §12; check them against the finished app. -->
 

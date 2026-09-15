@@ -335,8 +335,9 @@ export interface StandingRow {
 
 /**
  * Leaderboard entries ranked by total value (ties by name, then id). Percent
- * fields are signed fractions like `Company.sessionChange`. A crew with no
- * previous rank keeps its current rank as prevRank.
+ * fields are signed fractions like `Company.sessionChange`. `prevRanks` holds
+ * each crew's rank at the start of the current session (see sessionStartRank);
+ * a crew with none keeps its current rank as prevRank.
  */
 export function rankEntries(
   rows: StandingRow[],
@@ -364,6 +365,16 @@ export function rankEntries(
       spark: r.series.length > 0 ? sampleSpark(r.series) : [r.totalValue],
     };
   });
+}
+
+/**
+ * The rank a crew's movement arrow is measured from: its rank at the start of the
+ * current session. When a session has just opened, or no valid start rank is
+ * stored (a new crew or a new game stores 0), the current rank starts it.
+ */
+export function sessionStartRank(stored: number | undefined, rank: number, newSession: boolean): number {
+  const valid = typeof stored === 'number' && Number.isInteger(stored) && stored > 0;
+  return newSession || !valid ? rank : stored;
 }
 
 // ─── Settings and game state ─────────────────────────────────────────────────
@@ -480,10 +491,49 @@ export async function commitInBatches(db: Pick<Firestore, 'batch'>, ops: BatchOp
   return commits;
 }
 
+/**
+ * Commits `ops` in batches of at most `limit`, with every `tail` op in the LAST
+ * batch. The tail (engine state and game state) is then written only after every
+ * earlier batch has succeeded, and always in the same batch as each other, so a
+ * failure part-way through a long catch-up can never leave `_engine/state` ahead
+ * of `game/state`. Returns the number of commits.
+ */
+export async function commitWithTail(
+  db: Pick<Firestore, 'batch'>,
+  ops: BatchOp[],
+  tail: BatchOp[],
+  limit: number = BATCH_LIMIT,
+): Promise<number> {
+  if (tail.length > limit) throw new Error(`commitWithTail: a tail of ${tail.length} ops does not fit in one batch of ${limit}`);
+  const groups: BatchOp[][] = [];
+  for (let i = 0; i < ops.length; i += limit) groups.push(ops.slice(i, i + limit));
+  const last = groups.pop() ?? [];
+  if (last.length + tail.length <= limit) {
+    groups.push([...last, ...tail]);
+  } else {
+    groups.push(last, tail);
+  }
+  let commits = 0;
+  for (const group of groups) {
+    if (group.length === 0) continue;
+    const batch = db.batch();
+    for (const op of group) op(batch);
+    await batch.commit();
+    commits++;
+  }
+  return commits;
+}
+
 // ─── User-facing engine messages (docs/design/COPY.md wording) ────────────────
 
 function fmtInt(n: number): string {
   return Math.max(0, Math.floor(n)).toLocaleString('en-US');
+}
+
+/** COPY §9 interval_limit: "about 1 second" (messageOneSecond) or "about {seconds} seconds" (message). */
+export function aboutSeconds(seconds: number): string {
+  const n = Math.max(1, Math.floor(seconds));
+  return n === 1 ? 'about 1 second' : `about ${fmtInt(n)} seconds`;
 }
 
 export const engineMessages = {
@@ -497,12 +547,12 @@ export const engineMessages = {
   unknownCompany: "We couldn't find a company with that symbol. Pick one from the search list, like KRKN.",
   /** COPY §9 ticket-errors: bad_quantity. */
   badQuantity: 'Enter a whole number of shares that is 1 or more, like 10 or 250.',
-  /** COPY §9 ticket-errors: interval_limit (message / messageAfterTrades). */
+  /** COPY §9 ticket-errors: interval_limit (message / messageOneSecond / messageAfterTrades). */
   intervalLimit(i: { cap: number; used: number; ticker: string; seconds: number }): string {
     if (i.used > 0) {
       return `You already traded ${fmtInt(i.used)} shares of ${i.ticker} in this price update. You can trade ${fmtInt(i.cap - i.used)} more now, or the rest after the next update.`;
     }
-    return `You can trade up to ${fmtInt(i.cap)} shares of ${i.ticker} per price update. Lower the shares, or place the rest after the next update in about ${fmtInt(i.seconds)} seconds.`;
+    return `You can trade up to ${fmtInt(i.cap)} shares of ${i.ticker} per price update. Lower the shares, or place the rest after the next update in ${aboutSeconds(i.seconds)}.`;
   },
   /** COPY §11 host-settings: lockedNote. */
   notLobby: 'Locked while the game is running. You can change settings only in the lobby.',

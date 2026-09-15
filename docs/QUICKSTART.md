@@ -65,10 +65,12 @@ npm run dev:local
 
 This one command (`scripts/dev-local.sh`):
 
-1. checks that Java is installed, `npm install` has run, and ports 8080, 9099, 8081 and 5173 are
-   free (it stops with a plain message if not),
+1. checks that Java is installed, `npm install` has run, and its ports are free: 8080 (Firestore),
+   9099 (Auth), 8081 (server), 5173 (web app), plus 4400, 4450 and 9150 for the emulators' helpers
+   (it stops with a plain message if not),
 2. rebuilds the shared package if its source changed,
-3. starts the Firestore and Auth emulators for a local project called `demo-deca`,
+3. starts the Firestore and Auth emulators for a local project called `demo-deca`, from a temporary
+   Firebase config with those ports (the repo's `firebase.json` is not changed),
 4. creates a fresh market in the lobby (`npm run seed`),
 5. starts the server (price engine and trade API) on port 8081,
 6. starts the web app on port 5173, pointed at the emulators,
@@ -76,8 +78,19 @@ This one command (`scripts/dev-local.sh`):
 
 Leave this terminal open. Press **Ctrl+C** to stop everything, emulators included. If Java 21 isn't
 on your PATH, set `JAVA_HOME` to it first. To get the same market every run, set `GAME_SEED`
-(for example `GAME_SEED=practice npm run dev:local`). The Firebase Emulator UI at
-<http://127.0.0.1:4000> lets you look inside the fake database.
+(for example `GAME_SEED=practice npm run dev:local`). The Firebase Emulator UI is turned off in
+this stack, so two stacks never fight over its port.
+
+**Two stacks at once.** Set `PORT_OFFSET` to move every port up by that amount. Each stack has its
+own emulators, market and host password:
+
+```bash
+npm run dev:local                     # web 5173, server 8081, Firestore 8080, Auth 9099
+PORT_OFFSET=100 npm run dev:local     # web 5273, server 8181, Firestore 8180, Auth 9199
+```
+
+Use offsets 100 apart (100, 200, …). The web app finds its own server and emulators through
+`VITE_API_BASE`, `VITE_FIRESTORE_EMULATOR_PORT` and `VITE_AUTH_EMULATOR_PORT`, which the script sets.
 
 **Safety:** when either emulator variable is set, the server never loads a service account, so a
 local run can't reach the real project (`server/src/firebase.ts`, tested in
@@ -109,15 +122,32 @@ local run can't reach the real project (`server/src/firebase.ts`, tested in
 
 Emulator data lives only while the emulators run. Stopping `dev:local` throws the game away.
 
-### A5. Phones and Home Screen install
+### A5. Try it on a phone on the same Wi-Fi (`LAN=1`)
 
-The local stack works only in a browser **on this computer**. The web app connects to the emulators
-at `127.0.0.1`, which on a phone means the phone itself. To try the game on a phone, use Path B
-(section B6) or a deployed site.
+```bash
+LAN=1 npm run dev:local
+```
 
-Installing the app on a Home Screen also needs a deployed **HTTPS** site. See [DEPLOY.md](DEPLOY.md)
-section 7.
-<!-- VERIFY: the install setup (manifest, icons, service worker, update prompt) is still being built: web/vite.config.ts does not register vite-plugin-pwa yet and web/index.html has no manifest link yet (MOBILE.md §9.2–9.5). -->
+`LAN=1` makes the local stack reachable from phones on the same Wi-Fi:
+
+- it finds your computer's Wi-Fi address (on macOS, `ipconfig getifaddr en0`, then `en1`),
+- the emulators, the server and the web app listen on every network address,
+- the web app talks to the server and emulators through that address, and the server accepts
+  requests from it (`CORS_ORIGIN`),
+- when everything is ready it prints a banner such as
+  `Open http://192.168.1.23:5173 on phones on this Wi-Fi`. If the `qrcode-terminal` package happens
+  to be installed, a QR code for that address follows. It is not a dependency of this repo.
+
+On the phone, join the same Wi-Fi and open the address from the banner. `LAN=1` works with
+`PORT_OFFSET` too.
+
+- If your computer asks whether `node` or `java` may accept incoming connections, click **Allow**.
+- School and guest Wi-Fi often block traffic between devices. A home network or a phone hotspot
+  works better.
+- Anyone on the same network can reach the emulators, which have no passwords. Use `LAN=1` only on
+  a network you trust, and stop the stack when you're done.
+- Installing the app on a Home Screen needs a deployed **HTTPS** site. See [DEPLOY.md](DEPLOY.md)
+  section 7.
 
 ### A6. Run the tests
 
@@ -278,6 +308,9 @@ If you set `CORS_ORIGIN` in the server terminal, add `http://192.168.1.23:5173` 
   then restart the server.
 - **Wipe crews and market:** stop the server, run `npm run reset`, then `npm run seed`, then
   start the server again. `reset` keeps the admin login, the settings and the audit log.
+- **Forgot the host password:** run `npm run set-host-password` (it asks for the new password
+  twice), or `ADMIN_PASSWORD='new-password' npm run set-host-password`. The market, crews and game
+  are untouched, and the new password works at once.
 
 ---
 
@@ -298,7 +331,7 @@ The server reads only real environment variables (it does not load `.env` files)
 | `FIREBASE_SERVICE_ACCOUNT_FILE` | server | Path only | A path to a service-account file, if it isn't `server/service-account.json`. Relative paths start from `server/` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | server | Path only | Google's default credentials. Used only when none of the service-account options above is found |
 | `GCLOUD_PROJECT` | server | No | The Firebase project ID. Defaults to `decastockenvision` (or `demo-deca` in emulator mode) |
-| `ADMIN_PASSWORD` | `npm run seed`, `dev:local` | **Yes** | Sets the host password. If unset, the first seed generates one (`dev:local` uses `captain`). The running server does not read it |
+| `ADMIN_PASSWORD` | server, `npm run seed`, `npm run set-host-password`, `dev:local` | **Yes** | Sets the host password. The server applies it at every start and logs only `host password set from ADMIN_PASSWORD`. If unset, the first seed generates one (`dev:local` uses `captain`) |
 | `GAME_SEED` | `npm run seed`, `dev:local` | **Yes** | Fixes the market seed. Leave unset for a random seed. The server uses it only if the stored seed is missing |
 | `CORS_ORIGIN` | server | No | Web address(es) allowed to call the server, comma-separated. Defaults to any origin |
 | `PORT` | server | No | Server port. Default `8081` |
@@ -306,6 +339,10 @@ The server reads only real environment variables (it does not load `.env` files)
 | `VITE_FIREBASE_*` | web | No (public) | The Firebase web config from the console |
 | `VITE_API_BASE` | web | No | The server's address, for example `http://localhost:8081` |
 | `VITE_USE_EMULATORS` | web | No | `1` connects the dev web app to the local emulators. Ignored in production builds |
+| `VITE_EMULATOR_HOST` | web | No | Where the dev web app finds the emulators. Default `127.0.0.1`; `LAN=1` sets your Wi-Fi address |
+| `VITE_FIRESTORE_EMULATOR_PORT`, `VITE_AUTH_EMULATOR_PORT` | web | No | Emulator ports for the dev web app. Default `8080` and `9099`; `dev:local` adds `PORT_OFFSET` |
+| `PORT_OFFSET` | `dev:local` | No | Moves every port of the local stack up by this amount, so stacks can run side by side. Default `0` |
+| `LAN` | `dev:local` | No | `1` lets phones on the same Wi-Fi open the local stack (A5) |
 
 ## Security checklist
 

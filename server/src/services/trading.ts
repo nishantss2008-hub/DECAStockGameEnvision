@@ -7,6 +7,8 @@
  * splitting an order costs the same as placing it whole.
  *
  * Ordering matters:
+ *   0. A duplicate of an order still in flight in this process shares that
+ *      order's outcome and reserves nothing (see inFlightOrders).
  *   1. A retry of an already-filled `orders/{teamId}_{clientOrderId}` returns
  *      the original trade, whatever the market is doing now.
  *   2. Phase, company, quantity and price protection are checked.
@@ -19,7 +21,8 @@
  *      and tick are the moment it was priced. If the transaction fails for any
  *      reason (or finds a duplicate that already filled) the reservation is released.
  *   5. Rejections are recorded best-effort as `status: 'rejected'` order docs,
- *      never over a filled one, and never for a crew that does not exist or
+ *      never over a filled one, never for a crew whose team doc does not exist
+ *      (checked in the recording transaction, whatever the rejection), and never
  *      while a host rebuild has halted trading (see haltTrading).
  *
  * Error text follows docs/design/COPY.md §9 (ticket-errors): each message is
@@ -95,6 +98,8 @@ const COPY = {
     title: 'Too many shares for one price update',
     message:
       'You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about {seconds} seconds.',
+    messageOneSecond:
+      'You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about 1 second.',
   },
   price_moved: {
     title: 'Price moved',
@@ -360,10 +365,11 @@ function intervalLimitError(
   }
   const s = engine.state;
   const nextTickAt = s.startAt !== null ? s.startAt + (s.currentTick + 1) * s.tickIntervalMs : now + s.tickIntervalMs;
-  const seconds = Math.min(Math.ceil(s.tickIntervalMs / 1000), Math.max(2, Math.ceil((nextTickAt - now) / 1000)));
+  const seconds = Math.min(Math.ceil(s.tickIntervalMs / 1000), Math.max(1, Math.ceil((nextTickAt - now) / 1000)));
+  const template = seconds === 1 ? COPY.interval_limit.messageOneSecond : COPY.interval_limit.message;
   return new TradeError(
     'interval_limit',
-    text(COPY.interval_limit.title, COPY.interval_limit.message, {
+    text(COPY.interval_limit.title, template, {
       cap: shares(intervalShareCap(company.sharesOutstanding)),
       ticker: company.ticker,
       seconds: String(seconds),
@@ -463,7 +469,10 @@ const UNRECORDED: ReadonlySet<TradeErrorCode> = new Set(['no_team']);
 /**
  * Best-effort rejection record. Never overwrites a filled order: if a duplicate
  * of this order already filled, returns that trade so the caller can answer
- * idempotently instead of rejecting.
+ * idempotently instead of rejecting. Writes nothing for a crew whose account does
+ * not exist, whatever the rejection: a removed crew's device can keep sending
+ * orders until its sign-in expires, and each one would otherwise leave an order
+ * doc behind the removal (shown to a crew re-created under that name).
  */
 async function recordRejection(
   db: Firestore,
@@ -480,6 +489,7 @@ async function recordRejection(
         return trade?.teamId === base.teamId ? trade : null;
       }
       if (halted || UNRECORDED.has(err.code)) return null;
+      if (!(await tx.get(db.doc(`teams/${base.teamId}`))).exists) return null;
       const record: OrderRecord = { ...base, status: 'rejected', code: err.code, reason: err.message };
       tx.set(orderRef, record);
       return null;
@@ -490,7 +500,30 @@ async function recordRejection(
   }
 }
 
-export async function executeOrder(engine: TradingEngine, teamId: string, order: OrderRequest): Promise<Trade> {
+/**
+ * Orders executing right now, by order id (`{teamId}_{clientOrderId}`). The engine is one process, so this is
+ * the whole picture: a duplicate that arrives while the first is still in flight (a double tap, a client retry
+ * after a timeout) shares its outcome, the same trade or the same rejection, instead of running again. Running
+ * again would reserve the flow a second time until the duplicate was found inside the transaction, which prices
+ * phantom shares into every other crew's fills meanwhile and can reject the duplicate for the first one's own
+ * interval use.
+ */
+const inFlightOrders = new Map<string, Promise<Trade>>();
+
+export function executeOrder(engine: TradingEngine, teamId: string, order: OrderRequest): Promise<Trade> {
+  const key = `${teamId}_${order.clientOrderId}`;
+  const running = inFlightOrders.get(key);
+  if (running) return running;
+  const run = executeOrderOnce(engine, teamId, order);
+  inFlightOrders.set(key, run);
+  const forget = (): void => {
+    if (inFlightOrders.get(key) === run) inFlightOrders.delete(key);
+  };
+  run.then(forget, forget); // registered first, so a retry right after the outcome starts afresh
+  return run;
+}
+
+async function executeOrderOnce(engine: TradingEngine, teamId: string, order: OrderRequest): Promise<Trade> {
   const { db, auditLog } = await io();
   const orderId = `${teamId}_${order.clientOrderId}`;
   const orderRef = db.doc(`orders/${orderId}`);
@@ -519,10 +552,9 @@ export async function executeOrder(engine: TradingEngine, teamId: string, order:
   const company = engine.getCompany(order.companyId);
   const symbol = engine.state.currency?.symbol ?? CURRENCY.symbol;
   let reservation: ReturnType<TradingEngine['reserveFlow']>;
-  // The moment the order is priced: its trade's time and tick (what the engine's
-  // pending-flow rebuild compares with lastTickAt), however long the commit takes.
+  // The moment the order is priced: its trade's time and tick, however long the commit takes. The tick
+  // comes from the reservation; the engine's pending-flow rebuild reads it after a restart.
   let pricedAt = 0;
-  let pricedTick = 0;
   try {
     if (halted) throw marketClosedError('lobby');
     if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
@@ -530,7 +562,6 @@ export async function executeOrder(engine: TradingEngine, teamId: string, order:
     if (!Number.isInteger(order.quantity) || order.quantity <= 0) throw tradeError('bad_quantity');
     checkPriceProtection(engine.getPrice(order.companyId), order.quotedPrice, { ticker: company.ticker, symbol });
     pricedAt = Date.now();
-    pricedTick = engine.state.currentTick;
     try {
       reservation = engine.reserveFlow(teamId, order.companyId, order.side, order.quantity);
     } catch (err) {
@@ -612,7 +643,7 @@ export async function executeOrder(engine: TradingEngine, teamId: string, order:
         fee: f.fee,
         realizedPnl: f.realizedPnl,
         executedAt: pricedAt,
-        tick: pricedTick,
+        tick: r.tick,
         cashAfter: f.cashAfter,
         sharesAfter: f.sharesAfter,
         clientOrderId: order.clientOrderId,
@@ -627,7 +658,7 @@ export async function executeOrder(engine: TradingEngine, teamId: string, order:
         status: 'filled',
         tradeId,
         createdAt: pricedAt,
-        tick: pricedTick,
+        tick: r.tick,
       };
 
       tx.update(teamRef, {

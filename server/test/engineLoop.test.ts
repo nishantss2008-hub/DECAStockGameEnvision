@@ -23,6 +23,7 @@ import {
   HISTORY_CHUNK,
   HOUR_MS,
   MODEL,
+  chunkOf,
   deriveClock,
   impactLambda,
   intervalShareCap,
@@ -182,11 +183,14 @@ async function tickTo(e: GameEngine, t: number): Promise<void> {
   await e.tickOnce(now);
 }
 
-/** Reserves flow like executeOrder, then records the trade doc (executedAt after the reservation). */
-async function trade(e: GameEngine, teamId: string, companyId: string, side: 'buy' | 'sell', quantity: number): Promise<void> {
+/**
+ * Reserves flow like executeOrder, then records the trade doc: executedAt is `advanceMs` after the
+ * reservation, and tick is the tick the order was priced at (what the pending-flow rebuild reads).
+ */
+async function trade(e: GameEngine, teamId: string, companyId: string, side: 'buy' | 'sell', quantity: number, advanceMs = 1): Promise<void> {
   const r = e.reserveFlow(teamId, companyId, side, quantity);
-  vi.setSystemTime(Date.now() + 1);
-  await db.collection('trades').add({ teamId, companyId, side, quantity, price: Math.round(r.fillPrice), executedAt: Date.now() });
+  vi.setSystemTime(Date.now() + advanceMs);
+  await db.collection('trades').add({ teamId, companyId, side, quantity, price: Math.round(r.fillPrice), executedAt: Date.now(), tick: r.tick });
 }
 
 function scheduleEvents(): ScheduledEvent[] {
@@ -390,6 +394,47 @@ describe('engine loop: resume after a crash', () => {
     expect(get('_engine/state')).toEqual(expectedEngine);
   });
 
+  it('pending flow is rebuilt by tick, not time: trades priced in the same millisecond as a drain land on the right side of it', async () => {
+    const e = await newMarket();
+    await addCrew('alpha', 100_000_000);
+    await e.startGame();
+    const cos = scheduleCompanies();
+    const [a, b] = [cos[2]!, cos[4]!];
+    for (let t = 1; t <= 4; t++) await tickTo(e, t);
+    const drainAt = e.state.startAt! + 5 * e.state.tickIntervalMs;
+    vi.setSystemTime(drainAt);
+    await trade(e, 'alpha', b.id, 'sell', 7_000, 0); // priced at drainAt just BEFORE tick 5 drains: part of tick 5
+    await e.tickOnce(drainAt);
+    expect(e.state.lastTickAt).toBe(drainAt);
+    await trade(e, 'alpha', a.id, 'buy', 25_000, 0); // priced at drainAt just AFTER the drain: waits for tick 6
+    expect(Date.now()).toBe(drainAt);
+    const trades = [...db.docs.entries()].filter(([p]) => p.startsWith('trades/')).map(([, d]) => d);
+    expect(trades.map((t) => [t.companyId, t.executedAt, t.tick])).toEqual([[b.id, drainAt, 4], [a.id, drainAt, 5]]);
+    expect(get<GameState>('game/state')).toMatchObject({ currentTick: 5, lastTickAt: drainAt });
+    const quoteA = e.quote(a.id, 'buy', 1_000, 'alpha');
+    const quoteB = e.quote(b.id, 'sell', 1_000, 'alpha');
+    const snapshot = db.dump();
+
+    for (let t = 6; t <= 9; t++) await tickTo(e, t);
+    const expectedHistory = historyDocs();
+    const expectedEngine = get('_engine/state');
+    const ref = reference(HOUR_MS, cos, scheduleEvents(), 9, { 5: { [b.id]: -7_000 }, 6: { [a.id]: 25_000 } });
+    for (const c of cos) expect(expectedHistory[`companies/${c.id}/history/0`]!.prices).toEqual(ref.prices[c.id]);
+
+    // Restart from the snapshot taken in that same millisecond.
+    db.restore(snapshot);
+    resetLeaderboardCache();
+    vi.setSystemTime(drainAt);
+    const e2 = new GameEngine();
+    await e2.load();
+    expect(e2.state.currentTick).toBe(5);
+    expect(e2.quote(a.id, 'buy', 1_000, 'alpha')).toEqual(quoteA); // the post-drain buy is pending again (and counts toward the cap)
+    expect(e2.quote(b.id, 'sell', 1_000, 'alpha')).toEqual(quoteB); // the pre-drain sell is not pending twice
+    for (let t = 6; t <= 9; t++) await tickTo(e2, t);
+    expect(historyDocs()).toEqual(expectedHistory);
+    expect(get('_engine/state')).toEqual(expectedEngine);
+  });
+
   it('without _engine/state it replays fair value and recovers impact from prices', async () => {
     const e = await newMarket();
     await e.startGame();
@@ -441,6 +486,107 @@ describe('engine loop: resilience', () => {
     for (const c of cos) expect(get<HistoryChunk>(`companies/${c.id}/history/0`).prices).toEqual(ref.prices[c.id]);
     expect([...db.docs.keys()].filter((p) => p.startsWith('news/'))).toHaveLength(events.filter((x) => x.tick <= 5).length);
     expect(get<{ lastTick: number }>('_engine/state').lastTick).toBe(5);
+  });
+
+  it('a catch-up over 450 writes commits _engine/state only in its last batch, so a failed batch never leaves it ahead of game/state', async () => {
+    const e = await newMarket(48 * HOUR_MS);
+    await e.startGame();
+    const cos = scheduleCompanies();
+    const events = scheduleEvents();
+    // Writes of one commit for ticks 1..L with H host news firing at L: 25 company docs, 26 chunk docs per chunk
+    // touched (25 companies + the composite), one doc per fired news, the market summary, the news schedule (when
+    // host news fired), then the engine state and the game state.
+    const opsFor = (L: number, H: number) =>
+      25 + 26 * (chunkOf(L) + 1) + events.filter((x) => x.tick >= 1 && x.tick <= L).length + H + 1 + (H > 0 ? 1 : 0) + 2;
+    // Pick the catch-up that needs the fewest host news to make the total one past a multiple of 450: splitting every
+    // 450 writes would then end one batch with _engine/state and send game/state alone in the next.
+    let best = { L: 0, H: 451 };
+    for (let L = 2_600; L < 5_700; L++) {
+      const H = (((1 - (opsFor(L, 1) - 1)) % 450) + 450) % 450 || 450;
+      if (H < best.H) best = { L, H };
+    }
+    for (let i = 0; i < best.H; i++) {
+      await e.queueHostNews({ companyIds: [cos[i % cos.length]!.id], type: 'earnings', magnitude: i % 2 ? 0.001 : -0.001, headline: `Host ${i}`, body: '' });
+    }
+
+    // 1. The batch holding game/state fails.
+    db.attemptedBatches = [];
+    db.failNextCommitMatching = /^game\/state$/;
+    await expect(tickTo(e, best.L)).rejects.toThrow(/injected/);
+    const attempted = db.attemptedBatches;
+    expect(attempted.flat()).toHaveLength(opsFor(best.L, best.H));
+    expect(attempted.flat().length % 450).toBe(1);
+    expect(attempted.at(-1)).toEqual(expect.arrayContaining(['_engine/state', 'game/state', 'market/summary', ...cos.map((c) => `companies/${c.id}`)]));
+    expect(attempted.slice(0, -1).flat()).not.toContain('_engine/state');
+    expect(attempted.slice(0, -1).flat().filter((p) => /^companies\/[^/]+$/.test(p) || p === 'market/summary')).toEqual([]);
+    expect(get<{ lastTick: number }>('_engine/state').lastTick).toBe(0);
+    expect(get<GameState>('game/state').currentTick).toBe(0);
+
+    // 2. A batch in the middle (a history chunk) fails: nothing after it is written either.
+    db.attemptedBatches = [];
+    db.failNextCommitMatching = /^companies\/[^/]+\/history\/20$/;
+    await expect(tickTo(e, best.L + 1)).rejects.toThrow(/injected/);
+    expect(db.attemptedBatches.length).toBeGreaterThan(1);
+    expect(db.attemptedBatches.at(-1)).not.toContain('_engine/state');
+    expect(get<{ lastTick: number }>('_engine/state').lastTick).toBe(0);
+    expect(get<GameState>('game/state').currentTick).toBe(0);
+
+    // 3. The next tick commits everything, engine and game state together in the final batch.
+    db.batches = [];
+    await tickTo(e, best.L + 2);
+    expect(get<{ lastTick: number }>('_engine/state').lastTick).toBe(best.L + 2);
+    expect(get<GameState>('game/state').currentTick).toBe(best.L + 2);
+    const engineBatch = db.batches.find((b) => b.includes('_engine/state'))!;
+    expect(engineBatch).toContain('game/state');
+    expect(engineBatch.slice(-2)).toEqual(['_engine/state', 'game/state']);
+    for (const c of cos) expect(get<HistoryChunk>(`companies/${c.id}/history/${chunkOf(best.L + 2)}`).prices.at(-1)).toBe(e.getPrice(c.id));
+    expect([...db.docs.keys()].filter((p) => p.startsWith('news/host-'))).toHaveLength(best.H);
+  });
+
+  it('a crash in the last batch of a long catch-up leaves company docs and the summary at the committed tick; the restart publishes each host news once and counts volume once', async () => {
+    const e = await newMarket();
+    await addCrew('alpha', 100_000_000);
+    await e.startGame();
+    const cos = scheduleCompanies();
+    const a = cos[0]!;
+    await trade(e, 'alpha', a.id, 'buy', 5_000);
+    for (let i = 0; i < 460; i++) {
+      await e.queueHostNews({ companyIds: [cos[i % cos.length]!.id], type: 'earnings', magnitude: i % 2 ? 0.001 : -0.001, headline: `Host ${i}`, body: '' });
+    }
+
+    db.attemptedBatches = [];
+    db.failNextCommitMatching = /^game\/state$/;
+    await expect(tickTo(e, 10)).rejects.toThrow(/injected/);
+    const attempted = db.attemptedBatches;
+    expect(attempted.length).toBeGreaterThan(1);
+    const last = attempted.at(-1)!;
+    const earlier = attempted.slice(0, -1).flat();
+    // Everything that says where the game is now is in the batch that failed, and only there.
+    for (const path of [...cos.map((c) => `companies/${c.id}`), 'market/summary', '_engine/state', 'game/state']) {
+      expect(last, path).toContain(path);
+      expect(earlier, path).not.toContain(path);
+    }
+    // The news schedule is written before any news doc it fires.
+    const flat = attempted.flat();
+    expect(flat.indexOf('_schedule/_news')).toBeLessThan(flat.findIndex((p) => p.startsWith('news/host-')));
+    expect(earlier).toContain('_schedule/_news');
+    for (const c of cos) expect(get<Company>(`companies/${c.id}`)).toMatchObject({ lastTick: 0, currentPrice: c.startPriceCents, sessionVolume: 0 });
+    expect(get<MarketSummary>('market/summary').lastTick).toBe(0);
+    expect([...db.docs.keys()].filter((p) => p.startsWith('news/host-')).length).toBeGreaterThan(0); // an earlier batch landed
+
+    resetLeaderboardCache();
+    const e2 = new GameEngine();
+    await e2.load();
+    expect(e2.state.currentTick).toBe(0);
+    await tickTo(e2, 13);
+    const host = [...db.docs.entries()].filter(([p]) => p.startsWith('news/host-')).map(([, d]) => d as unknown as NewsEvent);
+    expect(host).toHaveLength(460);
+    expect(new Set(host.map((n) => n.tick))).toEqual(new Set([10]));
+    expect(get<Company>(`companies/${a.id}`).sessionVolume).toBe(5_000);
+    const chunk = get<HistoryChunk>(`companies/${a.id}/history/0`);
+    expect(chunk.volumes.reduce((x, v) => x + v, 0)).toBe(5_000);
+    expect(chunk.prices).toHaveLength(14);
+    for (const c of cos) expect(get<Company>(`companies/${c.id}`).currentPrice).toBe(get<HistoryChunk>(`companies/${c.id}/history/0`).prices[13]);
   });
 
   it('releasing a reservation after a tick drained it takes its (decayed) impact back out of the price', async () => {
@@ -657,6 +803,7 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
     const exposure: Record<string, number> = { alpha: 0, bravo: 0, 'cash-only': 0 };
     const weight: Record<string, number> = { alpha: 0, bravo: 0, 'cash-only': 0 };
     let prevRanks: Record<string, number> | null = null;
+    let startRanks: Record<string, number> | null = null;
 
     for (let t = 1; t <= 4; t++) {
       if (t === 4) {
@@ -677,7 +824,9 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
         expect(entry.totalValue).toBe(value);
         expect(entry.returnPct).toBeCloseTo(value / startingCapital - 1, 12);
         expect(entry.cashPct).toBeCloseTo(h.cash / value, 12);
-        expect(entry.prevRank).toBe(prevRanks?.[teamId] ?? entry.rank);
+        // Movement is measured from the start of the session (here: the first standings, tick 1), not the last tick.
+        expect(entry.prevRank).toBe(startRanks?.[teamId] ?? entry.rank);
+        expect(get<Team>(`teams/${teamId}`).sessionStartRank).toBe(startRanks?.[teamId] ?? entry.rank);
         // Series starts at the chunk start (tick 0 takes the first value).
         expect(entry.spark).toEqual(sampleSpark([series[teamId]![0]!, ...series[teamId]!]));
         const stats = get<{ exposure: number; weight: number }>(`_teamStats/${teamId}`);
@@ -688,12 +837,20 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
       expect(lb.entries.map((x) => x.teamId)).toEqual(sorted.map((x) => x.teamId));
       expect(lb.entries.map((x) => x.rank)).toEqual([1, 2, 3]);
       prevRanks = Object.fromEntries(lb.entries.map((x) => [x.teamId, x.rank]));
+      startRanks ??= prevRanks;
     }
 
     const es = get<{ companies: Record<string, CompanyState> }>('_engine/state');
     const lastTraded = e.getPrice(hi.id);
     const closeHi = Math.max(1, Math.round(Math.exp(es.companies[hi.id]!.v + es.companies[hi.id]!.m)));
     expect(lastTraded).toBeGreaterThan(closeHi); // impact is in the last price, not in the close
+
+    // A crew that bought only after the last price update holds shares at the close but has no time-weighted exposure.
+    const mid = byQ[12]!;
+    await addCrew('late', 90_000_000, { [mid.id]: 5_000 });
+    const chunkBefore = get<HistoryChunk>(`companies/${hi.id}/history/0`);
+    expect(chunkBefore.prices).toHaveLength(5);
+    expect(chunkBefore.volumes[4]).toBe(intervalShareCap(hi.sharesOutstanding));
 
     vi.setSystemTime(Date.now() + 1_500);
     await e.endGame();
@@ -720,16 +877,35 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
       expect(r.label).toBe(revealLabel(c.q, r.luck));
     }
 
+    // The closing mark is the last point of every price chart and of the composite, like the final team values.
+    for (const c of cos) {
+      const chunk = get<HistoryChunk>(`companies/${c.id}/history/0`);
+      expect(chunk.prices, c.id).toHaveLength(5);
+      expect(chunk.prices[4], c.id).toBe(e.closePrice(c.id));
+      expect(chunk.prices.slice(0, 4)).toEqual((c.id === hi.id ? chunkBefore : chunk).prices.slice(0, 4));
+    }
+    expect(get<HistoryChunk>(`companies/${hi.id}/history/0`).volumes).toEqual(chunkBefore.volumes); // volumes kept
+    const summaryHistory = get<ValueChunk>('market/summary/history/0');
+    expect(summaryHistory.values).toHaveLength(5);
+    expect(summaryHistory.values[4]).toBe(get<MarketSummary>('market/summary').composite.value);
+
     const lb = get<Leaderboard>('leaderboard/current');
     expect(lb.final!.endedAt).toBe(state.endedAt);
+    const late = lb.final!.entries.find((x) => x.teamId === 'late')!;
+    const lateInvested = Math.round(5_000 * e.closePrice(mid.id));
+    expect(late).toMatchObject({ heldAnyShares: true, researchWeight: lateInvested });
+    expect(late.researchScore).toBeCloseTo(mid.q, 12); // graded on its closing holdings
     for (const [teamId, h] of Object.entries(holdings)) {
       const value = h.cash + Math.round(h.shares * e.closePrice(h.id));
       expect(get<Team>(`teams/${teamId}`).totalValue).toBe(value);
       const fin = lb.final!.entries.find((x) => x.teamId === teamId)!;
       expect(fin.totalValue).toBe(value);
-      expect(fin.prevRank).toBe(prevRanks![teamId]);
+      expect(fin.prevRank).toBe(startRanks![teamId]);
       const score = weight[teamId]! > 0 ? exposure[teamId]! / weight[teamId]! : 0;
       expect(fin.researchScore).toBeCloseTo(score, 9);
+      // COPY §10 noHoldings can rely on these: the time-summed invested value behind the grade, and whether shares were held.
+      expect(fin.researchWeight).toBe(weight[teamId]);
+      expect(fin.heldAnyShares).toBe(weight[teamId]! > 0);
       expect(fin.researchGrade).toBe(researchGrade(fin.researchScore));
       expect(fin.spark.at(-1)).toBe(value);
     }
@@ -740,6 +916,48 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
     await e.endGame();
     await e.tickOnce(Date.now() + 60_000);
     expect(db.writes.length).toBe(writes);
+  });
+
+  it('prevRank is the rank at the start of the current session, so movement arrows persist until the next session', async () => {
+    const e = await newMarket(); // 1 hour: sessions of 90 ticks
+    await addCrew('alpha', 100_000_000);
+    await addCrew('bravo', 90_000_000);
+    await e.startGame();
+    await db.doc('teams/bravo').update({ cashBalance: 90_000_000 }); // startGame gave every crew the starting cash
+    const standings = () => Object.fromEntries(get<Leaderboard>('leaderboard/current').entries.map((x) => [x.teamId, [x.rank, x.prevRank]]));
+    const startRank = (id: string) => get<Team>(`teams/${id}`).sessionStartRank;
+
+    await tickTo(e, 1);
+    expect(standings()).toEqual({ alpha: [1, 1], bravo: [2, 2] }); // first standings start the session
+    await db.doc('teams/bravo').update({ cashBalance: 110_000_000 });
+    await tickTo(e, 2);
+    expect(standings()).toEqual({ bravo: [1, 2], alpha: [2, 1] });
+    await tickTo(e, 3);
+    expect(standings()).toEqual({ bravo: [1, 2], alpha: [2, 1] }); // still measured from the session start, not tick 2
+    expect([startRank('alpha'), startRank('bravo')]).toEqual([1, 2]);
+
+    await tickTo(e, 90); // a new session opens: movement restarts from here
+    expect(standings()).toEqual({ bravo: [1, 1], alpha: [2, 2] });
+    expect([startRank('alpha'), startRank('bravo')]).toEqual([2, 1]);
+    await db.doc('teams/alpha').update({ cashBalance: 200_000_000 });
+    await tickTo(e, 91);
+    expect(standings()).toEqual({ alpha: [1, 2], bravo: [2, 1] });
+
+    // The session start ranks survive a restart (they are stored on the crew docs).
+    resetLeaderboardCache();
+    const e2 = new GameEngine();
+    await e2.load();
+    await tickTo(e2, 92);
+    expect(standings()).toEqual({ alpha: [1, 2], bravo: [2, 1] });
+
+    // A catch-up across the next boundary (180) restarts movement at the tick it lands on.
+    await tickTo(e2, 185);
+    expect(standings()).toEqual({ alpha: [1, 1], bravo: [2, 2] });
+    await db.doc('teams/bravo').update({ cashBalance: 300_000_000 });
+    await tickTo(e2, 186);
+    await e2.endGame();
+    const final = get<Leaderboard>('leaderboard/current').final!.entries;
+    expect(final.map((x) => [x.teamId, x.rank, x.prevRank])).toEqual([['bravo', 1, 2], ['alpha', 2, 1]]);
   });
 });
 

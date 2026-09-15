@@ -160,7 +160,6 @@ gcloud run deploy deca-engine \
   --no-cpu-throttling \
   --cpu 1 \
   --memory 1Gi \
-  --set-build-env-vars "GOOGLE_NODE_RUN_SCRIPTS=build:shared,GOOGLE_ENTRYPOINT=npm run start -w @deca/server" \
   --set-secrets "FIREBASE_SERVICE_ACCOUNT=firebase-service-account:latest,ADMIN_PASSWORD=admin-password:latest" \
   --set-env-vars "GCLOUD_PROJECT=YOUR-PROJECT,CORS_ORIGIN=https://YOUR-PROJECT.web.app"
 ```
@@ -174,9 +173,19 @@ What each part does:
 | `--min-instances 1` | Keeps one server running so prices keep updating |
 | `--max-instances 1` | **Exactly one engine.** Two instances would each run the tick loop and keep separate in-memory order books |
 | `--no-cpu-throttling` | "CPU always allocated." The tick timer runs between requests; without this, Cloud Run limits the CPU when no request is active and price updates stall |
-| `GOOGLE_NODE_RUN_SCRIPTS=build:shared` | Builds only the shared contracts. The root `build` script also builds the web app, which the server doesn't need |
-| `GOOGLE_ENTRYPOINT` | Starts the server workspace (`tsx src/index.ts`) |
-| `--set-secrets` | Exposes the two secrets as environment variables |
+| `--set-secrets` | Exposes the two secrets as environment variables. The server applies `ADMIN_PASSWORD` to the host login each time it starts |
+
+**How the build knows what to do.** The repo's root `package.json` has the two scripts Google's
+Node.js buildpack looks for, so no build settings are needed:
+
+| Script | Runs | When |
+|---|---|---|
+| `gcp-build` | `npm run build:shared` | During the build. It compiles only the shared contracts; the web app is not built into the server image |
+| `start` | `npm run start -w @deca/server` (`tsx src/index.ts`) | When the container starts |
+
+The server starts from its production dependencies (`tsx`, Fastify, the Firebase Admin SDK) and its
+own `server/src` files only. Tests, dev tools and `service-account.json` are not needed
+(`server/test/deployScripts.test.ts` checks this).
 
 When it finishes, gcloud prints a **Service URL** like `https://deca-engine-abc123-uc.a.run.app`.
 Copy it.
@@ -198,7 +207,7 @@ If you get an error, see Troubleshooting (section 10).
 | Variable | Set it? | Secret? | What it does |
 |---|---|---|---|
 | `FIREBASE_SERVICE_ACCOUNT` | **Yes** (from Secret Manager) | **Yes** | The service-account JSON. The server uses it to write data and sign crews' sign-in tokens |
-| `ADMIN_PASSWORD` | Optional (from Secret Manager) | **Yes** | The host password. Only `npm run seed` reads it; the running server ignores it and keeps the host password the seed stored. Keeping it here gives you one safe place to look it up |
+| `ADMIN_PASSWORD` | Recommended (from Secret Manager) | **Yes** | The host password. At every start the server saves its hash to the host login and logs only `host password set from ADMIN_PASSWORD`, never the value. It is also one safe place to look the password up. See section 9.1 to change it |
 | `CORS_ORIGIN` | **Yes** | No | The exact web address(es) allowed to call the server, comma-separated, no trailing slash. If unset, any site may call it |
 | `GCLOUD_PROJECT` | **Yes** | No | Your project ID. The server defaults to `decastockenvision` when it's empty |
 | `PORT` | No | No | Cloud Run sets it (8080) and the server listens on it |
@@ -385,6 +394,27 @@ gcloud run services update deca-engine --region us-central1 --min-instances 1
 one, which means two engines. If you must deploy a fix: have the host **Pause trading**, deploy,
 check `/health`, then have the host **Resume trading**.
 
+### 9.1 Changing or recovering the host password
+
+You don't need a new market. The market, crews and a running game are not touched, and the new
+password works at the next sign-in. Hosts already signed in are signed out within an hour.
+
+- **With the `admin-password` secret (section 5.3):** add a new version of the secret, then make the
+  server restart so it applies it. Do this between games, or while the game is paused:
+  ```bash
+  printf '%s' 'the-new-host-password' | gcloud secrets versions add admin-password --data-file=-
+  gcloud run services update deca-engine --region us-central1 --update-env-vars "HOST_PASSWORD_UPDATED=$(date +%s)"
+  ```
+  That variable does nothing itself: changing it makes Cloud Run start a new copy of the server,
+  which reads the latest secret. A new copy briefly runs next to the old one (section 9), so pause
+  first if a game is running. Check `/health` afterwards.
+- **Without the secret:** from your laptop (it uses `server/service-account.json`):
+  ```bash
+  GCLOUD_PROJECT=YOUR-PROJECT npm run set-host-password      # asks for the new password twice
+  ```
+  If the server does have `ADMIN_PASSWORD` set, update the secret as well, or the next restart puts
+  the old password back.
+
 **After the game** (once the reveal is done):
 
 ```bash
@@ -407,8 +437,8 @@ Server logs are in **Google Cloud Console › Cloud Run › deca-engine › Logs
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Build fails with `Missing script: "build"` | The buildpack ran the root `build` script | Keep `GOOGLE_NODE_RUN_SCRIPTS=build:shared` in `--set-build-env-vars` |
-| Container starts, then exits; logs mention `index.js` or `npm start` | Wrong start command | Keep `GOOGLE_ENTRYPOINT=npm run start -w @deca/server` |
+| Build fails in the web app, or with `Missing script: "build"` | The buildpack ran the root `build` script instead of `gcp-build` | Check that the root `package.json` still has `"gcp-build": "npm run build:shared"`. As a fallback, add `--set-build-env-vars "GOOGLE_NODE_RUN_SCRIPTS=build:shared"` |
+| Container starts, then exits; logs mention `index.js`, `npm start` or `Cannot find module '@deca/shared'` | No root `start` script, or the shared package wasn't built | Check the root `package.json` has `"start": "npm run start -w @deca/server"` and `gcp-build` (above) |
 | Logs show `Fatal:` with a credentials or permission error | Secret not readable, or the wrong project | Check the secret IAM binding (5.3) and that `GCLOUD_PROJECT` is your project ID |
 | `/health` works but `ticksBehind` keeps growing during a live game | CPU throttled or the instance scaled to zero | Redeploy with `--no-cpu-throttling` and `--min-instances 1` |
 | Browser console shows a CORS error; sign-in or orders fail | `CORS_ORIGIN` doesn't match the address students use | Set both Hosting addresses exactly, no trailing slash (6.3) |
@@ -417,7 +447,9 @@ Server logs are in **Google Cloud Console › Cloud Run › deca-engine › Logs
 | Charts, the market index or value history are empty | Rules not deployed, or old rules | `npm run deploy:rules` (section 3) |
 | **Start game** fails with "There is no market yet" | The market was never created | Use **New game** in the host console. If you run `npm run seed` instead, restart the server afterwards (run the 5.4 deploy command again) so it loads the new market |
 | Log warning `_schedule/_meta has no seed` | The market was created by an old version | Use **New game** in the host console |
-| Host password lost | Only `npm run seed` sets it | Not during a game. From your laptop: `ADMIN_PASSWORD='new' GCLOUD_PROJECT=YOUR-PROJECT npm run seed`. This also makes a new market and resets crews' cash. The running server still holds the old market in memory, so then sign in with the new password and press **New game** (Keep crews on), or restart the server by running the 5.4 deploy command again |
+| Host password lost | — | Set a new one without a new market (section 9.1). Never run `npm run seed` for this: it makes a new market |
+| Log line `host password set from ADMIN_PASSWORD` at every start | Normal: the server applies the `admin-password` secret when it starts | Nothing. The value itself is never logged |
+| Orders fail at random, the trading halt doesn't hold, or prices jump between two sets of values | More than one server instance is running (the order queue and pending order flow live inside one server) | Keep `--max-instances 1`, and don't deploy during a game (section 9) |
 | Costs higher than expected | The instance was left at min 1, or many phones stayed open | Section 9; check **Billing › Reports** |
 
 For running the game itself, see [RUNBOOK.md](RUNBOOK.md). For local development, see

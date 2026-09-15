@@ -77,6 +77,7 @@ export async function clearDynamicData(opts: { keepCrews: boolean; startingCapit
           tradeCount: 0,
           sessionOpenValue: capital,
           holdingsCount: 0,
+          sessionStartRank: 0,
         }),
       ),
     );

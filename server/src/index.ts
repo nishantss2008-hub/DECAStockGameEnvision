@@ -1,6 +1,10 @@
 /**
- * Authority-service bootstrap. Registers CORS + rate limiting + routes, loads the
- * hidden market into the engine, starts the tick loop, and listens.
+ * Authority-service bootstrap. Registers CORS + rate limiting + routes, applies
+ * ADMIN_PASSWORD to the host login when it is set, loads the hidden market into the
+ * engine, starts the tick loop, and listens.
+ *
+ * Run as ONE instance: the trading halt, the per-crew order queue and pending order
+ * flow live in this process (docs/RUNBOOK.md, docs/DEPLOY.md).
  */
 
 import Fastify from 'fastify';
@@ -12,6 +16,7 @@ import { healthRoutes } from './routes/health';
 import { authRoutes } from './routes/auth';
 import { orderRoutes } from './routes/orders';
 import { adminRoutes } from './routes/admin';
+import { applyAdminPasswordFromEnv } from './services/hostPassword';
 
 async function main(): Promise<void> {
   const app = Fastify({ logger: true });
@@ -43,6 +48,9 @@ async function main(): Promise<void> {
   await app.register(authRoutes);
   await app.register(orderRoutes);
   await app.register(adminRoutes);
+
+  // Logs only "host password set from ADMIN_PASSWORD", never the value.
+  await applyAdminPasswordFromEnv(config.adminPassword, { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) });
 
   await engine.load();
   engine.start();

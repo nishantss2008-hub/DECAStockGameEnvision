@@ -29,7 +29,9 @@ import {
   seriesChunks,
   seriesFromChunks,
   commitInBatches,
+  commitWithTail,
   engineMessages,
+  sessionStartRank,
   type Snapshot,
 } from '../src/engine/loopHelpers';
 
@@ -212,6 +214,14 @@ describe('loop helpers: reveal and standings', () => {
     expect(e[1]!.returnPct).toBeCloseTo(-0.1, 12);
     expect(e[2]).toMatchObject({ sessionChangePct: 0, cashPct: 0, spark: [900] });
   });
+  it('movement is measured from the rank at the start of the session: a new session or a crew with no stored start uses its current rank', () => {
+    expect(sessionStartRank(3, 1, false)).toBe(3); // same session: the stored start rank stays, so the arrow persists
+    expect(sessionStartRank(3, 1, true)).toBe(1); // a session just opened: movement restarts from here
+    expect(sessionStartRank(undefined, 2, false)).toBe(2); // first standings for this crew
+    expect(sessionStartRank(0, 2, false)).toBe(2); // 0 = not set (new crew, new game)
+    expect(sessionStartRank(Number.NaN, 4, false)).toBe(4);
+    expect(sessionStartRank(1.5, 4, false)).toBe(4);
+  });
 });
 
 describe('loop helpers: batching and messages', () => {
@@ -224,12 +234,53 @@ describe('loop helpers: batching and messages', () => {
     commits.length = 0; await commitInBatches(fakeDb as never, []);
     expect(commits).toEqual([]);
   });
+  it('commitWithTail keeps every tail op in the last batch, after every other batch, for any op count', async () => {
+    for (const n of [0, 1, 2, 447, 448, 449, 450, 451, 898, 899, 900, 901, 1349]) {
+      const commits: string[][] = [];
+      const fakeDb = { batch: () => { const paths: string[] = []; return { set: (p: string) => { paths.push(p); }, commit: async () => { commits.push(paths); } }; } };
+      const ops = Array.from({ length: n }, (_, i) => (b: { set: (p: string) => void }) => b.set(`op${i}`));
+      const tail = ['_engine/state', 'game/state'].map((p) => (b: { set: (p: string) => void }) => b.set(p));
+      const count = await commitWithTail(fakeDb as never, ops as never, tail as never);
+      expect(count, `n=${n}`).toBe(commits.length);
+      expect(commits.every((c) => c.length <= 450), `n=${n}`).toBe(true);
+      expect(commits.flat(), `n=${n}`).toEqual([...Array.from({ length: n }, (_, i) => `op${i}`), '_engine/state', 'game/state']);
+      expect(commits.at(-1)!.slice(-2), `n=${n}`).toEqual(['_engine/state', 'game/state']);
+      expect(commits.slice(0, -1).flat().some((p) => !p.startsWith('op')), `n=${n}`).toBe(false);
+    }
+  });
+  it('commitWithTail: a batch that fails mid-way commits no tail op', async () => {
+    const committed: string[] = [];
+    let commitNo = 0;
+    const fakeDb = {
+      batch: () => {
+        const paths: string[] = [];
+        return {
+          set: (p: string) => { paths.push(p); },
+          commit: async () => {
+            if (++commitNo === 2) throw new Error('injected');
+            committed.push(...paths);
+          },
+        };
+      },
+    };
+    const ops = Array.from({ length: 1000 }, (_, i) => (b: { set: (p: string) => void }) => b.set(`op${i}`));
+    const tail = ['_engine/state', 'game/state'].map((p) => (b: { set: (p: string) => void }) => b.set(p));
+    await expect(commitWithTail(fakeDb as never, ops as never, tail as never)).rejects.toThrow('injected');
+    expect(committed).toHaveLength(450);
+    expect(committed).not.toContain('_engine/state');
+    expect(committed).not.toContain('game/state');
+    // A tail too big for one batch is a programming error, never a silent split.
+    await expect(commitWithTail(fakeDb as never, [], Array.from({ length: 451 }, () => tail[0]!) as never)).rejects.toThrow(/tail/);
+  });
   it('uses the COPY.md wording for engine errors', () => {
     expect(engineMessages.marketClosed('lobby')).toBe('Trading opens when the host starts the game. You can research companies and preview orders now.');
     expect(engineMessages.marketClosed('paused')).toBe('The host has paused trading. We kept your order details, so you can place it as soon as trading resumes.');
     expect(engineMessages.marketClosed('ended')).toBe("The game has ended, so trading is closed. See how every crew finished and what drove each company's price.");
     expect(engineMessages.unknownCompany).toBe("We couldn't find a company with that symbol. Pick one from the search list, like KRKN.");
     expect(engineMessages.intervalLimit({ cap: 1_613_333, used: 0, ticker: 'KRKN', seconds: 30 })).toBe('You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 30 seconds.');
+    // COPY §9 interval_limit.messageOneSecond: "about 1 second", never "about 1 seconds".
+    expect(engineMessages.intervalLimit({ cap: 1_613_333, used: 0, ticker: 'KRKN', seconds: 1 })).toBe('You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 1 second.');
+    expect(engineMessages.intervalLimit({ cap: 1_613_333, used: 0, ticker: 'KRKN', seconds: 2 })).toMatch(/in about 2 seconds\.$/);
     expect(engineMessages.intervalLimit({ cap: 1_613_333, used: 13_333, ticker: 'KRKN', seconds: 30 })).toBe('You already traded 13,333 shares of KRKN in this price update. You can trade 1,600,000 more now, or the rest after the next update.');
     expect(engineMessages.notLobby).toBe('Locked while the game is running. You can change settings only in the lobby.');
   });

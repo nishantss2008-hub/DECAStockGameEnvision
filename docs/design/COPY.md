@@ -37,6 +37,7 @@ Companion documents: `docs/design/BRIEF.md` §5 Voice and §9 Beginner-first com
 | `ticket-errors` | file (1) | error map keyed by error code |
 | `reveal` | file (1) | `LABEL_COPY`, `PILLAR_COPY` and Results copy in `web/src/components/standings/reveal.ts` |
 | `host-settings` | file (1) | host console copy |
+| `host-errors` | file (1) | host console error map keyed by error code (the server sends `message`) |
 | `states` | file (1) | empty, loading, error and phase states |
 
 ### 0.2 Placeholders
@@ -2045,6 +2046,8 @@ label, or `null` when the only fix is waiting). `example` shows the message fill
 figures.
 
 Keys match the codes from `estimateOrder()` and `POST /orders`. Oversell is `insufficient_shares`.
+For `interval_limit`, use `messageOneSecond` instead of `message` when `{seconds}` is 1, so the text
+never says "1 seconds".
 The server sends `market_closed` whenever the game is not live, so the ticket chooses
 `market_closed` (lobby), `paused` or `market_closed_ended` by reading the game phase. Codes with
 no server equivalent (`amount_too_small`, `network`, `unknown_error`) are ticket-only.
@@ -2074,6 +2077,7 @@ position_limit:
 interval_limit:
   title: "Too many shares for one price update"
   message: "You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about {seconds} seconds."
+  messageOneSecond: "You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about 1 second."
   messageAfterTrades: "You already traded {used} shares of {ticker} in this price update. You can trade {remaining} more now, or the rest after the next update."
   fix: "Use {cap}"
   example: "You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 30 seconds."
@@ -2330,6 +2334,34 @@ control:
     warn: "Engine running slow"
     bad: "Engine not responding"
     idle: "Engine idle"
+```
+
+### 11.1 Host console errors
+
+The server answers a failed host action with `{ error: <code>, message }`, where `message` is the
+`message` below. The host console shows `title` above it. Crew codes come from the Crews screen
+(add, reset password, trading switch, remove). `busy` answers any change made while a new game is
+being built. `internal` is the fallback for anything unexpected.
+
+```yaml host-errors
+exists:
+  title: "Name already taken"
+  message: "A crew with this name already exists. Names ignore capitals and punctuation, so pick a clearly different name."
+bad_name:
+  title: "Check the crew name"
+  message: "Use at least one letter or number. The name admin is kept for the host."
+not_found:
+  title: "Crew not found"
+  message: "We couldn't find that crew. It may have been removed. Refresh the crew list and try again."
+busy:
+  title: "New game in progress"
+  message: "A new game is being prepared. Wait a moment, then try again."
+bad_request:
+  title: "Check your entry"
+  message: "Something in that request isn't valid. Check the fields and try again."
+internal:
+  title: "Something went wrong"
+  message: "The server couldn't finish that. Try again. If it keeps failing, ask your developer to check the server logs."
 ```
 
 ---

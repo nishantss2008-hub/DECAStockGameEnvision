@@ -235,6 +235,9 @@ describe('engine error mapping (review)', () => {
     // Next tick at 1,000,000 + 3·10,000 = 1,030,000; now is 7 s before it.
     const built = tradeErrorFromEngine(engineError('interval_limit', '  '), state(), company, 1_023_000)!;
     expect(built.message).toBe('Too many shares for one price update. You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 7 seconds.');
+    // 0.5 s before the next tick: COPY §9 messageOneSecond ("about 1 second").
+    const oneSecond = tradeErrorFromEngine(engineError('interval_limit', ''), state(), company, 1_029_500)!;
+    expect(oneSecond.message).toBe('Too many shares for one price update. You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 1 second.');
   });
 
   it('anything that is not an order-level engine error stays unmapped (HTTP 500); a TradeError passes through', () => {

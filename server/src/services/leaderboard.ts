@@ -8,6 +8,10 @@
  *   - `_teamStats/{id}` exposure += Σ value·q, weight += Σ value (holdings only, per elapsed tick)
  *   - `leaderboard/current` entries with prevRank and a ≤40-point spark
  *
+ * prevRank is the crew's rank at the start of the current session (`teams/{id}.sessionStartRank`,
+ * stored when a session opens or at the crew's first standings), so a movement arrow stays up for the
+ * whole session instead of flickering back after one tick.
+ *
  * The research grade uses the visible-fundamentals `q`, not `qEff`, so it rewards
  * reading the statements rather than the hidden surprise.
  *
@@ -31,6 +35,7 @@ import {
   researchGrade,
   seriesChunks,
   seriesFromChunks,
+  sessionStartRank,
   type BatchOp,
   type StandingRow,
   type TeamSeries,
@@ -41,12 +46,10 @@ interface LeaderboardCache {
   series: Map<string, TeamSeries>;
   /** Last tick recorded per team (session crossings and time weights). */
   lastTick: Map<string, number>;
-  /** Ranks from the previous leaderboard doc; null until read. */
-  prevRanks: Record<string, number> | null;
 }
 
 function freshCache(): LeaderboardCache {
-  return { series: new Map(), lastTick: new Map(), prevRanks: null };
+  return { series: new Map(), lastTick: new Map() };
 }
 
 let cache = freshCache();
@@ -87,6 +90,7 @@ async function readTeams(): Promise<TeamRead[]> {
       sessionOpenValue: Number(t.sessionOpenValue) || 0,
       holdingsCount: Number(t.holdingsCount) || 0,
       createdAt: Number(t.createdAt) || 0,
+      sessionStartRank: Number(t.sessionStartRank) || 0,
     };
     return { team, holdings: byTeam.get(doc.id) ?? [] };
   });
@@ -107,12 +111,19 @@ async function ensureSeries(teamIds: string[]): Promise<void> {
   );
 }
 
-async function previousRanks(): Promise<Record<string, number>> {
-  if (cache.prevRanks) return cache.prevRanks;
-  const snap = await db.doc('leaderboard/current').get();
-  const entries = (snap.data()?.entries ?? []) as LeaderboardEntry[];
-  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
-  return cache.prevRanks;
+/**
+ * Ranks the rows, then sets each entry's prevRank to the crew's session start rank: its current rank when
+ * `newSession(teamId)` is true or none is stored, else the stored one. Returns the entries and the start ranks.
+ */
+function rankWithSessionStart(
+  rows: StandingRow[],
+  startingCapital: number,
+  stored: (teamId: string) => number | undefined,
+  newSession: (teamId: string) => boolean,
+): { entries: LeaderboardEntry[]; startRanks: Map<string, number> } {
+  const ranked = rankEntries(rows, {}, startingCapital);
+  const startRanks = new Map(ranked.map((e) => [e.teamId, sessionStartRank(stored(e.teamId), e.rank, newSession(e.teamId))]));
+  return { entries: ranked.map((e) => ({ ...e, prevRank: startRanks.get(e.teamId)! })), startRanks };
 }
 
 /**
@@ -163,7 +174,7 @@ export async function recomputeLeaderboard(engine: GameEngine, tick: number): Pr
   const { startingCapital, sessionTicks } = engine.state;
   const reads = await readTeams();
   await ensureSeries(reads.map((r) => r.team.id));
-  const prevRanks = await previousRanks();
+  const sessionStarts = new Set<string>();
 
   const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
   const rows: StandingRow[] = [];
@@ -179,6 +190,7 @@ export async function recomputeLeaderboard(engine: GameEngine, tick: number): Pr
     cache.lastTick.set(id, tick);
 
     const newSession = crossedSession(prev, tick, sessionTicks);
+    if (newSession) sessionStarts.add(id);
     const sessionOpenValue = newSession ? v.totalValue : read.team.sessionOpenValue || startingCapital;
     rows.push({
       teamId: id,
@@ -215,22 +227,32 @@ export async function recomputeLeaderboard(engine: GameEngine, tick: number): Pr
     }
   }
 
-  const entries = rankEntries(rows, prevRanks, startingCapital);
+  const storedStart = new Map(reads.map((r) => [r.team.id, r.team.sessionStartRank]));
+  const { entries, startRanks } = rankWithSessionStart(rows, startingCapital, (id) => storedStart.get(id), (id) => sessionStarts.has(id));
   const rankOf = new Map(entries.map((e) => [e.teamId, e.rank]));
-  for (const u of updates) u.data.rank = rankOf.get(u.id) ?? 0;
+  for (const u of updates) {
+    u.data.rank = rankOf.get(u.id) ?? 0;
+    const start = startRanks.get(u.id);
+    if (start !== undefined && start !== storedStart.get(u.id)) u.data.sessionStartRank = start;
+  }
 
   ops.push((b) => b.set(db.doc('leaderboard/current'), { updatedAt: Date.now(), tick, entries }));
   await commitInBatches(db, ops);
   await commitTeamUpdates(updates);
-  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
 }
 
+/**
+ * Final standings at the closing marks. Each final entry carries the research grade and what it rests on:
+ * `researchWeight` (holdings value summed over the price updates it was held for) and `heldAnyShares`.
+ * A crew that bought only after the last price update has no time-summed weight, so it is graded on its
+ * closing holdings (counted as one update) rather than shown as holding nothing.
+ */
 export async function finalizeLeaderboard(engine: GameEngine): Promise<void> {
   const { startingCapital, currentTick: tick } = engine.state;
   const [reads, statsSnap] = await Promise.all([readTeams(), db.collection('_teamStats').get()]);
   await ensureSeries(reads.map((r) => r.team.id));
-  const prevRanks = await previousRanks();
   const stats = new Map(statsSnap.docs.map((d) => [d.id, d.data() as { exposure?: number; weight?: number }]));
+  const closing = new Map<string, Valued>();
 
   const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
   const rows: StandingRow[] = [];
@@ -240,6 +262,7 @@ export async function finalizeLeaderboard(engine: GameEngine): Promise<void> {
   for (const read of reads) {
     const id = read.team.id;
     const v = valueTeam(read, (cid) => engine.closePrice(cid), qOf);
+    closing.set(id, v);
     const series = putSeriesValue(cache.series.get(id), tick, v.totalValue);
     cache.series.set(id, series);
     cache.lastTick.set(id, tick);
@@ -258,15 +281,28 @@ export async function finalizeLeaderboard(engine: GameEngine): Promise<void> {
     }
   }
 
-  const entries = rankEntries(rows, prevRanks, startingCapital);
+  const storedStart = new Map(reads.map((r) => [r.team.id, r.team.sessionStartRank]));
+  const { entries } = rankWithSessionStart(rows, startingCapital, (id) => storedStart.get(id), () => false);
   const rankOf = new Map(entries.map((e) => [e.teamId, e.rank]));
   for (const u of updates) u.data.rank = rankOf.get(u.id) ?? 0;
 
   const finalEntries: FinalEntry[] = entries.map((e) => {
     const s = stats.get(e.teamId);
-    const weight = Number(s?.weight) || 0;
-    const researchScore = weight > 0 ? (Number(s?.exposure) || 0) / weight : 0;
-    return { ...e, researchScore, researchGrade: researchGrade(researchScore) };
+    const close = closing.get(e.teamId);
+    let researchWeight = Number(s?.weight) || 0;
+    let exposure = Number(s?.exposure) || 0;
+    if (researchWeight <= 0 && close && close.invested > 0) {
+      researchWeight = close.invested;
+      exposure = close.exposure;
+    }
+    const researchScore = researchWeight > 0 ? exposure / researchWeight : 0;
+    return {
+      ...e,
+      researchScore,
+      researchGrade: researchGrade(researchScore),
+      researchWeight,
+      heldAnyShares: researchWeight > 0 || (close?.holdingsCount ?? 0) > 0,
+    };
   });
 
   const now = Date.now();
@@ -280,5 +316,4 @@ export async function finalizeLeaderboard(engine: GameEngine): Promise<void> {
   );
   await commitInBatches(db, ops);
   await commitTeamUpdates(updates);
-  cache.prevRanks = Object.fromEntries(entries.map((e) => [e.teamId, e.rank]));
 }

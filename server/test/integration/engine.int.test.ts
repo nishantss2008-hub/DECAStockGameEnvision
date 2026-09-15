@@ -35,10 +35,10 @@ import {
   type ValueChunk,
 } from '@deca/shared';
 import type { QuerySnapshot } from 'firebase-admin/firestore';
-import { db, emulatorMode } from '../../src/firebase';
+import { adminAuth, db, emulatorMode } from '../../src/firebase';
 import { engine } from '../../src/engine/loop';
 import { createMarket } from '../../src/services/market';
-import { createCrew } from '../../src/services/crews';
+import { createCrew, removeCrew, resetCrewPassword } from '../../src/services/crews';
 import { executeOrder, TradeError } from '../../src/services/trading';
 import { finalizeLeaderboard, resetLeaderboardCache } from '../../src/services/leaderboard';
 
@@ -412,6 +412,55 @@ describe('engine scenario on the emulator', () => {
     expect(await data<GameState>('game/state')).toMatchObject({ phase: 'live', startAt: engine.state.startAt, pausedAt: null });
   });
 
+  it('8b. removing a crew: its sessions are revoked, the standings renumber at once, and its orders fail with no_team', async () => {
+    await createCrew('Second Crew', 'pass2', CAPITAL);
+    await createCrew('Third Crew', 'pass3', CAPITAL);
+    // Second Crew signs in through the Auth emulator, so it has a session to revoke. Third Crew never signs in.
+    const token = await adminAuth.createCustomToken('second-crew', { role: 'team', teamId: 'second-crew' });
+    const signIn = await fetch(
+      `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=demo-api-key`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, returnSecureToken: true }) },
+    );
+    expect(signIn.ok).toBe(true);
+    // A user that was never revoked has no tokensValidAfterTime yet.
+    const validAfter = async () => Date.parse((await adminAuth.getUser('second-crew')).tokensValidAfterTime ?? '') || 0;
+    const validBefore = await validAfter();
+    const signedInAt = Date.now();
+
+    await engine.tickOnce(engine.state.startAt! + 4 * engine.state.tickIntervalMs + 10);
+    const board = (await data<Leaderboard>('leaderboard/current'))!;
+    expect(board.entries.map((e) => e.rank)).toEqual([1, 2, 3]);
+    const order = board.entries.map((e) => e.teamId);
+
+    await sleep(1_100); // tokensValidAfterTime has one-second resolution
+    await removeCrew('second-crew');
+    resetLeaderboardCache();
+    await engine.refreshStandings();
+    // Revoked: refresh tokens issued before now (the sign-in above) no longer renew a session.
+    expect(await validAfter()).toBeGreaterThan(validBefore);
+    expect(await validAfter()).toBeGreaterThanOrEqual(Math.floor(signedInAt / 1000) * 1000);
+
+    const after = (await data<Leaderboard>('leaderboard/current'))!;
+    expect(after.entries.map((e) => e.teamId)).toEqual(order.filter((id) => id !== 'second-crew'));
+    expect(after.entries.map((e) => e.rank)).toEqual([1, 2]);
+    for (const e of after.entries) expect((await data<Team>(`teams/${e.teamId}`))?.rank, e.teamId).toBe(e.rank);
+
+    await expect(
+      executeOrder(engine, 'second-crew', { companyId: first, side: 'buy', quantity: 1, clientOrderId: 'int-removed-1' }),
+    ).rejects.toMatchObject({
+      code: 'no_team',
+      message: "Crew account not found. We couldn't find your crew's account. Sign out, sign back in, and try again; if it keeps happening, tell your host.",
+    });
+    expect((await db.doc('orders/second-crew_int-removed-1').get()).exists).toBe(false);
+
+    // A crew that never signed in has no Auth user: a reset and a removal still succeed.
+    await expect(resetCrewPassword('third-crew', 'pass3-new')).resolves.toBeUndefined();
+    await removeCrew('third-crew');
+    resetLeaderboardCache();
+    await engine.refreshStandings();
+    expect((await data<Leaderboard>('leaderboard/current'))!.entries.map((e) => [e.teamId, e.rank])).toEqual([[CREW, 1]]);
+  });
+
   it('9. endGame: closing marks from the engine state, a reveal per company, final standings with a research grade', async () => {
     await engine.endGame();
     expect(engine.state.phase).toBe('ended');
@@ -451,6 +500,17 @@ describe('engine scenario on the emulator', () => {
     expect(team?.totalValue).toBe(entry?.totalValue);
     const stats = (await data<{ exposure: number; weight: number }>(`_teamStats/${CREW}`))!;
     expect(entry?.researchScore).toBeCloseTo(stats.weight > 0 ? stats.exposure / stats.weight : 0, 12);
+    expect(stats.weight).toBeGreaterThan(0);
+    expect(entry).toMatchObject({ researchWeight: stats.weight, heldAnyShares: true });
+
+    // The closing mark is the last point of each price chart and of the composite history.
+    const tick = engine.state.currentTick;
+    const chunk = (await data<HistoryChunk>(`companies/${first}/history/0`))!;
+    expect(chunk.prices).toHaveLength(tick + 1);
+    expect(chunk.prices[tick]).toBe(closeOf(first));
+    const composite = (await data<ValueChunk>('market/summary/history/0'))!;
+    expect(composite.values).toHaveLength(tick + 1);
+    expect(composite.values[tick]).toBe((await data<MarketSummary>('market/summary'))!.composite.value);
 
     // Trading is closed once the game has ended.
     await expect(

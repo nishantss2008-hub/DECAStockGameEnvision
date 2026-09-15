@@ -26,7 +26,10 @@ const h = vi.hoisted(() => {
     executeOrder: null as any,
     auditLog: null as any,
     resetLeaderboardCache: null as any,
+    removeCrew: null as any,
+    resetCrewPassword: null as any,
     gate: null as null | Promise<void>,
+    removalRunning: false,
   };
 });
 
@@ -71,6 +74,22 @@ vi.mock('../src/engine/loop', () => {
     resumeGame: vi.fn(async () => {}),
     endGame: vi.fn(async () => {}),
     queueHostNews: vi.fn(async () => {}),
+    refreshStandings: vi.fn(async () => {}),
+    // Same contract as GameEngine.runCrewRemoval: run the removal (its error is thrown), then refresh the standings,
+    // passing a refresh failure to the callback. The real queueing is covered in crews.test.ts and on the emulator.
+    runCrewRemoval: vi.fn(async (remove: () => Promise<void>, onRefreshError: (err: unknown) => void) => {
+      h.removalRunning = true;
+      try {
+        await remove();
+      } finally {
+        h.removalRunning = false;
+      }
+      try {
+        await h.engine.refreshStandings();
+      } catch (err) {
+        onRefreshError(err);
+      }
+    }),
     getCompany: vi.fn((id: string) => (id === 'kraken' ? { id, ticker: 'KRKN', sharesOutstanding: 242_000_000 } : undefined)),
     adminMarket: vi.fn(() => [{ companyId: 'kraken', q: 0.4, quality: 0.7 }]),
     scheduledNews: vi.fn(() => [{ tick: 9, headline: 'Upcoming' }]),
@@ -92,6 +111,13 @@ vi.mock('../src/services/leaderboard', () => {
   return { resetLeaderboardCache: h.resetLeaderboardCache };
 });
 
+vi.mock('../src/services/crews', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/services/crews')>();
+  h.removeCrew = vi.fn(async () => {});
+  h.resetCrewPassword = vi.fn(async () => {});
+  return { ...real, removeCrew: h.removeCrew, resetCrewPassword: h.resetCrewPassword };
+});
+
 vi.mock('../src/lib/logger', () => {
   h.auditLog = vi.fn(async () => {});
   return { auditLog: h.auditLog };
@@ -108,6 +134,8 @@ import { adminRoutes } from '../src/routes/admin';
 import { orderRoutes } from '../src/routes/orders';
 import { healthRoutes } from '../src/routes/health';
 import { TradeError, tradeError, UNKNOWN_ORDER_ERROR_MESSAGE } from '../src/services/trading';
+import { crewError } from '../src/services/crews';
+import { HOST_ERRORS } from '../src/lib/hostCopy';
 
 const ADMIN = { authorization: 'Bearer admin-token' };
 const TEAM = { authorization: 'Bearer team-token' };
@@ -270,7 +298,7 @@ describe('host routes', () => {
     for (const r of mutations) {
       const res = await app.inject({ ...r, headers: ADMIN });
       expect(res.statusCode, `${r.method} ${r.url}`).toBe(409);
-      expect(res.json().error).toBe('busy');
+      expect(res.json()).toEqual({ error: 'busy', message: HOST_ERRORS.busy.message });
     }
     for (const fn of ['applySettings', 'startGame', 'pauseGame', 'resumeGame', 'endGame', 'queueHostNews']) {
       expect(h.engine[fn], fn).not.toHaveBeenCalled();
@@ -307,6 +335,68 @@ describe('host routes', () => {
 
     expect((await app.inject({ method: 'POST', url: '/admin/game/launch', headers: ADMIN })).statusCode).toBe(400);
     expect((await app.inject({ method: 'POST', url: '/admin/settings', headers: ADMIN, payload: { maxPositionPct: 0.3 } })).statusCode).toBe(400);
+  });
+
+  it('removing a crew runs the removal through the engine queue, which refreshes the standings once afterwards', async () => {
+    h.removeCrew.mockImplementationOnce(async () => {
+      expect(h.removalRunning).toBe(true); // the crew service runs inside engine.runCrewRemoval, never beside it
+    });
+    const res = await app.inject({ method: 'DELETE', url: '/admin/teams/saltwind', headers: ADMIN });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    expect(h.engine.runCrewRemoval).toHaveBeenCalledTimes(1);
+    expect(h.removeCrew).toHaveBeenCalledWith('saltwind');
+    expect(h.engine.refreshStandings).toHaveBeenCalledTimes(1);
+    expect(h.removeCrew.mock.invocationCallOrder[0]).toBeLessThan(h.engine.refreshStandings.mock.invocationCallOrder[0]);
+    // The route no longer drops the standings cache itself (outside the queue it could race a running recompute).
+    expect(h.resetLeaderboardCache).not.toHaveBeenCalled();
+
+    // The crew is gone even if the refresh fails; the failure is logged and the next tick renumbers the standings.
+    h.engine.refreshStandings.mockRejectedValueOnce(new Error('firestore down'));
+    const stillOk = await app.inject({ method: 'DELETE', url: '/admin/teams/saltwind', headers: ADMIN });
+    expect(stillOk.statusCode).toBe(200);
+    expect(h.auditLog).toHaveBeenCalledWith('team.remove', 'admin', { teamId: 'saltwind' });
+  });
+
+  it('a new game waits for a crew change that was already running before it clears anything', async () => {
+    let finishReset!: () => void;
+    h.resetCrewPassword.mockImplementationOnce(() => new Promise<void>((r) => (finishReset = r)));
+    const reset = app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abcd' } });
+    await vi.waitFor(() => expect(h.resetCrewPassword).toHaveBeenCalled());
+
+    const building = app.inject({ method: 'POST', url: '/admin/game/new', headers: ADMIN, payload: { keepCrews: false } });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(h.createMarket).not.toHaveBeenCalled();
+    expect(h.engine.stop).not.toHaveBeenCalled();
+    // Meanwhile further changes are refused as usual.
+    expect((await app.inject({ method: 'POST', url: '/admin/teams', headers: ADMIN, payload: { name: 'Late Crew', password: 'pass' } })).statusCode).toBe(409);
+
+    finishReset();
+    expect((await reset).statusCode).toBe(200);
+    expect((await building).statusCode).toBe(200);
+    expect(h.createMarket).toHaveBeenCalledTimes(1);
+    expect(h.resetCrewPassword.mock.invocationCallOrder[0]).toBeLessThan(h.createMarket.mock.invocationCallOrder[0]);
+  });
+
+  it('crew errors, invalid bodies and unexpected failures answer with the COPY.md host-errors wording', async () => {
+    h.removeCrew.mockRejectedValueOnce(crewError('not_found'));
+    const missing = await app.inject({ method: 'DELETE', url: '/admin/teams/ghost', headers: ADMIN });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ error: 'not_found', message: HOST_ERRORS.not_found.message });
+    expect(h.engine.refreshStandings).not.toHaveBeenCalled();
+
+    h.resetCrewPassword.mockRejectedValueOnce(new Error('auth/internal-error: backend unavailable'));
+    const boom = await app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abcd' } });
+    expect(boom.statusCode).toBe(500);
+    expect(boom.json()).toEqual({ error: 'internal', message: HOST_ERRORS.internal.message });
+    expect(boom.body).not.toContain('backend');
+
+    const short = await app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abc' } });
+    expect(short.statusCode).toBe(400);
+    expect(short.json()).toEqual({ error: 'bad_request', message: HOST_ERRORS.bad_request.message });
+
+    const action = await app.inject({ method: 'POST', url: '/admin/game/launch', headers: ADMIN });
+    expect(action.json()).toEqual({ error: 'bad_action', message: HOST_ERRORS.bad_request.message });
   });
 
   it('host market and schedule views are served only to the host', async () => {

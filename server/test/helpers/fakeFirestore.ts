@@ -6,6 +6,10 @@
  *   - undefined, non-finite numbers, functions, nested arrays and class instances are rejected
  *   - update() on a missing doc fails with code 5 (NOT_FOUND); a failing batch writes nothing
  *   - a batch may hold at most 500 writes
+ *   - create() on an existing doc fails with code 6 (ALREADY_EXISTS)
+ *
+ * runTransaction runs the callback once against current data and applies its
+ * writes atomically when it resolves (no contention is simulated).
  *
  * FieldValue.increment is recognised as `{ __fake: 'increment', operand }` (mock
  * `firebase-admin/firestore` in the test file to produce that shape).
@@ -59,6 +63,10 @@ function segments(path: string): string[] {
 
 function notFound(path: string): Error {
   return Object.assign(new Error(`5 NOT_FOUND: No document to update: ${path}`), { code: 5 });
+}
+
+function alreadyExists(path: string): Error {
+  return Object.assign(new Error(`6 ALREADY_EXISTS: Document already exists: ${path}`), { code: 6 });
 }
 
 export class FakeDocSnapshot {
@@ -197,7 +205,7 @@ export class FakeDocRef {
 }
 
 type WriteOp =
-  | { kind: 'set' | 'update'; path: string; data: Data; merge: boolean }
+  | { kind: 'set' | 'update' | 'create'; path: string; data: Data; merge: boolean }
   | { kind: 'delete'; path: string };
 
 export class FakeBatch {
@@ -220,8 +228,36 @@ export class FakeBatch {
     if (this.committed) throw new Error('fake firestore: batch already committed');
     this.committed = true;
     if (this.ops.length > 500) throw new Error(`fake firestore: batch of ${this.ops.length} writes exceeds 500`);
-    this.db.batchSizes.push(this.ops.length);
+    this.db.attemptedBatches.push(this.ops.map((o) => o.path));
     this.db.commitOps(this.ops);
+    this.db.batchSizes.push(this.ops.length);
+    this.db.batches.push(this.ops.map((o) => o.path));
+  }
+}
+
+export class FakeTransaction {
+  readonly ops: WriteOp[] = [];
+  constructor(private readonly db: FakeFirestore) {}
+  get(ref: FakeDocRef): Promise<FakeDocSnapshot>;
+  get(query: FakeQuery): Promise<FakeQuerySnapshot>;
+  async get(target: FakeDocRef | FakeQuery): Promise<FakeDocSnapshot | FakeQuerySnapshot> {
+    return target.get();
+  }
+  set(ref: FakeDocRef, data: Data, opts?: { merge?: boolean }): FakeTransaction {
+    this.ops.push({ kind: 'set', path: ref.path, data: clone(data), merge: Boolean(opts?.merge) });
+    return this;
+  }
+  create(ref: FakeDocRef, data: Data): FakeTransaction {
+    this.ops.push({ kind: 'create', path: ref.path, data: clone(data), merge: false });
+    return this;
+  }
+  update(ref: FakeDocRef, data: Data): FakeTransaction {
+    this.ops.push({ kind: 'update', path: ref.path, data: clone(data), merge: true });
+    return this;
+  }
+  delete(ref: FakeDocRef): FakeTransaction {
+    this.ops.push({ kind: 'delete', path: ref.path });
+    return this;
   }
 }
 
@@ -231,6 +267,10 @@ export class FakeFirestore {
   writes: { kind: WriteOp['kind']; path: string }[] = [];
   /** Size of every committed batch. */
   batchSizes: number[] = [];
+  /** Paths written by every committed batch, in order. */
+  batches: string[][] = [];
+  /** Paths of every batch commit attempted, including one that failed. */
+  attemptedBatches: string[][] = [];
   /** When set, the next commit touching a path matching it throws (and writes nothing). */
   failNextCommitMatching: RegExp | null = null;
   private seq = 0;
@@ -239,6 +279,8 @@ export class FakeFirestore {
     this.docs = new Map();
     this.writes = [];
     this.batchSizes = [];
+    this.batches = [];
+    this.attemptedBatches = [];
     this.failNextCommitMatching = null;
   }
 
@@ -271,6 +313,13 @@ export class FakeFirestore {
     return new FakeBatch(this);
   }
 
+  async runTransaction<T>(fn: (tx: FakeTransaction) => Promise<T>): Promise<T> {
+    const tx = new FakeTransaction(this);
+    const result = await fn(tx);
+    if (tx.ops.length > 0) this.commitOps(tx.ops);
+    return result;
+  }
+
   async recursiveDelete(ref: FakeDocRef | FakeCollectionRef): Promise<void> {
     const prefix = `${ref.path}/`;
     const ops: WriteOp[] = [];
@@ -295,6 +344,7 @@ export class FakeFirestore {
         continue;
       }
       validate(op.data, '');
+      if (op.kind === 'create' && has(op.path)) throw alreadyExists(op.path);
       if (op.kind === 'update') {
         if (!has(op.path)) throw notFound(op.path);
         if (Object.keys(op.data).some((k) => k.includes('.'))) throw new Error('fake firestore: dotted update paths are not supported');

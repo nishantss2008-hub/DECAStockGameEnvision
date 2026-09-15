@@ -19,6 +19,7 @@ import type { ZodError } from 'zod';
 import { requireAdmin } from '../auth/middleware';
 import { db } from '../firebase';
 import { engine, EngineError } from '../engine/loop';
+import { HOST_ERRORS } from '../lib/hostCopy';
 import { auditLog } from '../lib/logger';
 import { createMarket } from '../services/market';
 import { resetLeaderboardCache } from '../services/leaderboard';
@@ -29,8 +30,10 @@ import { haltTrading, resumeTrading } from '../services/trading';
 const SETTINGS_LOCKED = 'Locked while the game is running. You can change settings only in the lobby.';
 const SETTINGS_SAVED = 'Settings saved.';
 const NEW_GAME_DONE = 'New game ready. The game is back in the lobby.';
-const INTERNAL = 'Something went wrong on the server. Try again; if it keeps failing, check the server logs.';
-const BUSY = 'A new game is being prepared. Wait a moment, then try again.';
+/** COPY.md §11.1 host-errors wording. */
+const INTERNAL = HOST_ERRORS.internal.message;
+const BUSY = HOST_ERRORS.busy.message;
+const BAD_REQUEST = HOST_ERRORS.bad_request.message;
 
 const GAME_ACTIONS = ['start', 'pause', 'resume', 'end'] as const;
 type GameAction = (typeof GAME_ACTIONS)[number];
@@ -39,8 +42,10 @@ function actor(req: FastifyRequest): string {
   return req.user?.uid ?? 'admin';
 }
 
-function badRequest(reply: FastifyReply, error: ZodError): FastifyReply {
-  return reply.code(400).send({ error: 'bad_request', message: error.issues[0]?.message ?? 'Invalid request' });
+/** A body that fails its schema. The host console validates fields first, so this is the plain COPY fallback. */
+function badRequest(req: FastifyRequest, reply: FastifyReply, error: ZodError): FastifyReply {
+  req.log.warn({ issues: error.issues.map((i) => ({ path: i.path, code: i.code })) }, 'host request failed validation');
+  return reply.code(400).send({ error: 'bad_request', message: BAD_REQUEST });
 }
 
 /** EngineError → 400 (unknown company) or 409 (wrong phase); anything else → 500. */
@@ -79,11 +84,26 @@ function busy(reply: FastifyReply): FastifyReply {
   return reply.code(409).send({ error: 'busy', message: BUSY });
 }
 
+/**
+ * Crew changes that write outside the engine queue (add a crew, reset a password, switch trading) and were
+ * already running when a new game began. The new game waits for them before it clears anything: otherwise a
+ * crew added a moment before "New game" without keeping crews could be written after the crews were deleted.
+ * (Engine actions and crew removals run in the engine queue, which `engine.stop()` settles.)
+ */
+const crewChanges = new Set<Promise<unknown>>();
+
+function trackCrewChange<T>(change: Promise<T>): Promise<T> {
+  crewChanges.add(change);
+  const done = (): void => void crewChanges.delete(change);
+  change.then(done, done);
+  return change;
+}
+
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ----- Settings (lobby only) -----------------------------------------------------------------
   app.post('/admin/settings', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = settingsSchema.safeParse(req.body ?? {});
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     try {
       const state = await engine.applySettings(parsed.data);
@@ -98,13 +118,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // Registered before /admin/game/:action; find-my-way matches the static path first either way.
   app.post('/admin/game/new', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = newGameSchema.safeParse(req.body ?? {});
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     newGameInProgress = true;
     const { keepCrews } = parsed.data;
     try {
-      // No order may fill while the data is cleared: halt trading and wait for queued order writes,
-      // then wait for queued engine work to settle.
+      // Crew changes already running finish first. No order may fill while the data is cleared: halt trading
+      // and wait for queued order writes, then wait for queued engine work (including crew removals) to settle.
+      await Promise.allSettled([...crewChanges]);
       await haltTrading();
       await engine.stop();
       await createMarket({ keepCrews });
@@ -134,7 +155,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.post('/admin/game/:action', { preHandler: requireAdmin }, async (req, reply) => {
     const action = (req.params as { action: string }).action as GameAction;
     if (!GAME_ACTIONS.includes(action)) {
-      return reply.code(400).send({ error: 'bad_action', message: 'Unknown game action' });
+      return reply.code(400).send({ error: 'bad_action', message: BAD_REQUEST });
     }
     if (newGameInProgress) return busy(reply);
     try {
@@ -152,10 +173,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ----- Crews --------------------------------------------------------------------------------
   app.post('/admin/teams', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = createTeamSchema.safeParse(req.body);
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     try {
-      const team = await createCrew(parsed.data.name, parsed.data.password, engine.state.startingCapital);
+      const team = await trackCrewChange(createCrew(parsed.data.name, parsed.data.password, engine.state.startingCapital));
       await auditLog('team.create', actor(req), { teamId: team.id, name: team.name });
       return { team };
     } catch (err) {
@@ -166,10 +187,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.post('/admin/teams/:id/password', { preHandler: requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = resetPasswordSchema.safeParse(req.body);
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     try {
-      await resetCrewPassword(id, parsed.data.password);
+      await trackCrewChange(resetCrewPassword(id, parsed.data.password));
       await auditLog('team.password_reset', actor(req), { teamId: id });
       return { ok: true };
     } catch (err) {
@@ -180,10 +201,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.post('/admin/teams/:id/trading', { preHandler: requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = tradingToggleSchema.safeParse(req.body);
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     try {
-      await setCrewTrading(id, parsed.data.enabled);
+      await trackCrewChange(setCrewTrading(id, parsed.data.enabled));
       await auditLog('team.trading', actor(req), { teamId: id, enabled: parsed.data.enabled });
       return { ok: true, enabled: parsed.data.enabled };
     } catch (err) {
@@ -195,14 +216,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
     if (newGameInProgress) return busy(reply);
     try {
-      await removeCrew(id);
-      // The leaderboard keeps per-crew value series in memory; a crew re-created with this name must start fresh.
-      resetLeaderboardCache();
-      await auditLog('team.remove', actor(req), { teamId: id });
-      return { ok: true };
+      // In the engine queue: no tick or standings recompute runs alongside (one could write the crew's history
+      // and stats back), a new game waits for it, and the standings refresh right after so the remaining ranks
+      // renumber at once. A failed refresh is only logged: the crew is gone and the next tick recomputes anyway.
+      await engine.runCrewRemoval(
+        () => removeCrew(id),
+        (refreshErr) => req.log.error(refreshErr),
+      );
     } catch (err) {
       return crewFailure(req, reply, err);
     }
+    await auditLog('team.remove', actor(req), { teamId: id });
+    return { ok: true };
   });
 
   app.get('/admin/teams', { preHandler: requireAdmin }, async () => {
@@ -217,7 +242,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/admin/news', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = fireNewsSchema.safeParse(req.body);
-    if (!parsed.success) return badRequest(reply, parsed.error);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
     const unknown = parsed.data.companyIds.filter((id) => !engine.getCompany(id));
     if (unknown.length > 0) {

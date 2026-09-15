@@ -14,6 +14,10 @@ export const config = {
    * every future tick + news event, so it must never be guessable or committed.
    */
   seed: process.env.GAME_SEED ?? '',
-  /** Optional override for the admin/host password (else a random one is generated at seed time). */
+  /**
+   * Host password. When set, the server applies it to the host login at every start (logging only
+   * "host password set from ADMIN_PASSWORD"), and `npm run seed` / `npm run set-host-password` use it.
+   * When unset, the first seed generates one.
+   */
   adminPassword: process.env.ADMIN_PASSWORD ?? '',
 } as const;

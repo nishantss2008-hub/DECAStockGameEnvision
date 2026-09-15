@@ -9,6 +9,8 @@
     "web"
   ],
   "scripts": {
+    "start": "npm run start -w @deca/server",
+    "gcp-build": "npm run build:shared",
     "build": "npm run build -w @deca/shared && npm run build -w @deca/server && npm run build -w @deca/web",
     "build:shared": "npm run build -w @deca/shared",
     "dev:server": "npm run dev -w @deca/server",
@@ -16,6 +18,7 @@
     "dev:local": "bash scripts/dev-local.sh",
     "seed": "npm run seed -w @deca/server",
     "reset": "npm run reset -w @deca/server",
+    "set-host-password": "npm run set-host-password -w @deca/server",
     "test": "npm run test -w @deca/server",
     "test:integration": "firebase emulators:exec --only firestore,auth --project demo-deca \"npm run test:int -w @deca/server\"",
     "emulators": "firebase emulators:start --only firestore,auth --project demo-deca",
