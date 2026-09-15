@@ -1,17 +1,19 @@
 rules_version = '2';
 
-// DECA Pirate Stock Game — Firestore Security Rules
+// DECA Stock Game (Buccaneer Exchange v2) — Firestore Security Rules
 // ---------------------------------------------------------------------------
-// Security model (spec §9 / plan Task 5.1):
+// Security model (spec §7):
 //   * The authority service is the ONLY writer of real data. It uses the
 //     Firebase Admin SDK, which BYPASSES these rules entirely. Therefore every
 //     rule below denies client writes — there is intentionally no `allow write`.
-//   * Clients (web app) may READ public data and their OWN team-scoped data
-//     only. They can never read another team's private data, the hidden
-//     "future" (`_schedule`), or the audit `logs`.
+//   * Clients (web app) may READ public data and their OWN crew's data only.
+//     They can never read another crew's private data, the hidden future
+//     (`_schedule`, `_engine`, `_teamStats`), logins (`_auth`) or the audit `logs`.
 //   * Custom claims set by the server bind each signed-in user to a role and a
-//     team:  request.auth.token.role  ('admin' | 'team')
-//          request.auth.token.teamId  (the team this user belongs to)
+//     team:  request.auth.token.role    ('admin' | 'team')
+//            request.auth.token.teamId  (the crew this user belongs to)
+//
+// Tests: server/test/integration/rules.int.test.ts (`npm run test:integration`).
 // ---------------------------------------------------------------------------
 
 service cloud.firestore {
@@ -28,86 +30,108 @@ service cloud.firestore {
     function ownsTeam(teamId) {
       return isSignedIn() && request.auth.token.teamId == teamId;
     }
+    // Top-level docs that carry a teamId field (trades, orders).
+    function ownsDoc() {
+      return isSignedIn() &&
+        (request.auth.token.role == 'admin' ||
+         resource.data.teamId == request.auth.token.teamId);
+    }
 
     // -- Public (anyone) read ------------------------------------------------
-    // Game clock/phase. Public read; client writes denied (no allow write).
+    // Game clock, phase and settings.
     match /game/{doc} {
       allow read: if true;
     }
 
-    // Companies and their public subcollections.
+    // Companies and their public subcollections. The quality score and fair
+    // value live only in server-only `_schedule` until the reveal is written
+    // onto the company doc after the game ends.
     match /companies/{companyId} {
       allow read: if true;
 
-      // Full research profile (fundamentals/data).
+      // Research profile (fundamentals/data).
       match /fundamentals/{fundDoc} {
         allow read: if true;
       }
 
-      // Price history — past + present ticks only (the engine never writes the
-      // future here). Public read.
-      match /priceHistory/{tick} {
+      // Price history chunks {chunk, startTick, prices[], volumes[]}: past and
+      // present ticks only (the engine never writes the future here).
+      match /history/{chunk} {
         allow read: if true;
       }
     }
 
-    // Public news feed (only published after an event fires).
+    // Market summary (composite index, sectors, breadth) and its composite
+    // history chunks at market/summary/history/{chunk}.
+    match /market/{doc=**} {
+      allow read: if true;
+    }
+
+    // News feed (only published after an event fires; never the magnitude).
     match /news/{newsId} {
       allow read: if true;
     }
 
-    // Public leaderboard (ranked totals only; no private holdings).
-    match /leaderboard/{entryId} {
+    // Standings (ranked totals, sparks, final research grades after the end).
+    match /leaderboard/{doc} {
       allow read: if true;
     }
 
-    // -- Team-scoped read ----------------------------------------------------
-    // A team doc is readable by an admin or by the team it belongs to.
+    // -- Crew-scoped read ----------------------------------------------------
+    // A crew doc is readable by the host or by the crew it belongs to.
     match /teams/{teamId} {
       allow read: if isAdmin() || ownsTeam(teamId);
 
-      // Holdings inherit the same team-scoped read rule.
       match /holdings/{companyId} {
+        allow read: if isAdmin() || ownsTeam(teamId);
+      }
+
+      // Total account value per tick, in chunks.
+      match /history/{chunk} {
         allow read: if isAdmin() || ownsTeam(teamId);
       }
     }
 
-    // -- Per-document team-scoped read (server-written) ----------------------
-    // Trades: readable by an admin or by the team that owns the trade.
-    // (isSignedIn() guard ensures request.auth.token is safe to read.)
+    // Trades and orders: the host, or the crew named in the doc. Crew queries
+    // must filter on teamId == their own id.
     match /trades/{tradeId} {
-      allow read: if isSignedIn() &&
-        (request.auth.token.role == 'admin' ||
-         resource.data.teamId == request.auth.token.teamId);
+      allow read: if ownsDoc();
     }
-
-    // Orders: same ownership rule as trades.
     match /orders/{orderId} {
-      allow read: if isSignedIn() &&
-        (request.auth.token.role == 'admin' ||
-         resource.data.teamId == request.auth.token.teamId);
+      allow read: if ownsDoc();
     }
 
     // -- Server-only collections (no client access) --------------------------
-    // The hidden "future": archetypes, intrinsic-path params, scheduled news.
-    match /_schedule/{scheduleId} {
+    // The hidden future: per-company quality, volatility and the news schedule
+    // (with jump sizes), plus the game seed in _schedule/_meta.
+    match /_schedule/{doc=**} {
       allow read, write: if false;
     }
 
-    // Credentials: team/admin password hashes. Server-only (custom-token auth).
-    match /_auth/{authId} {
+    // Engine state {v, m, f, h} per company: fair value and impact.
+    match /_engine/{doc=**} {
       allow read, write: if false;
     }
 
-    // Append-only audit log. Readable only via the Admin SDK (admin dashboard).
-    match /logs/{logId} {
+    // Research-grade accumulators (quality exposure per crew).
+    match /_teamStats/{doc=**} {
+      allow read, write: if false;
+    }
+
+    // Logins: crew and host password hashes (custom-token auth).
+    match /_auth/{doc=**} {
+      allow read, write: if false;
+    }
+
+    // Append-only audit log. Readable only through the Admin SDK (host console API).
+    match /logs/{doc=**} {
       allow read, write: if false;
     }
 
     // -- Default deny --------------------------------------------------------
-    // Any path not matched above (and all client writes everywhere) is denied
-    // by default. Firestore denies unmatched access implicitly; this explicit
-    // rule documents that intent and guards against accidental future paths.
+    // Any path not matched above (including the v1 per-tick
+    // companies/{id}/priceHistory) and every client write is denied.
+    // Firestore denies unmatched access implicitly; this rule documents it.
     match /{document=**} {
       allow read, write: if false;
     }

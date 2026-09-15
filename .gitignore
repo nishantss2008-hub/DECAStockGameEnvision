@@ -47,3 +47,6 @@ coverage/
 /admin.png
 /terminal-live.png
 /portfolio-live.png
+
+# Dev-only component gallery build (vite build --mode kit)
+dist-kit/

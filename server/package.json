@@ -9,7 +9,8 @@
     "seed": "tsx src/seed/seedFirestore.ts",
     "reset": "tsx src/seed/reset.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:int": "vitest run -c vitest.int.config.ts"
   },
   "dependencies": {
     "@deca/shared": "*",
