@@ -24,11 +24,14 @@ FCF = operatingCashFlow − capex. Typical net margin ~10%, P/E ~22, P/S ~2.5, R
 ## Per-sector profiles
 Captured in `server/src/seed/research.json` → `sectorProfiles` (P/E, P/S, net margin,
 revenue growth, dividend yield, EV/EBITDA per sector), mapped from real analogs:
-Shipping→Industrials, Rum→Consumer Staples, Naval Arms→Defense, Cartography→Info-Tech,
+Shipping→Industrials, Provisions & Spice→Consumer Staples, Naval Arms→Defense, Cartography→Info-Tech,
 Treasure Banking→Banks, Cursed Relics & Tortuga→Discretionary, Parrot & Maps→Materials,
 Letters of Marque→Insurance.
 
 ## Price-engine tuning (market microstructure)
+*(v1 engine. Superseded by "v2 engine and quality score" below, which replaced the
+square-root impact and scripted mean reversion.)*
+
 Order-flow impact follows Kyle's lambda / the square-root law `I(Q) = Y·σ·√(Q/V)`:
 impact must be **normalized by a reference volume**, has a permanent (~2/3) + temporary
 (~1/3, decaying) split, and price mean-reverts (OU process) toward intrinsic value with a
@@ -41,3 +44,170 @@ game-tuned values (faster reversion, normalized impact) that preserve the *quali
 real-market behavior while ensuring good research is rewarded by game end. Final values
 are verified by the simulation harness (compounders beat decliners; short-run
 autocorrelation stays low).
+
+---
+
+## v2 engine and quality score (2026-09-14)
+
+v2 replaced the scripted archetype paths with a **weighted-random** market built from textbook
+models. Prices are random, but each company's odds are tilted by a quality score measured from
+its own published fundamentals. Research pays off on average and is never a guarantee.
+
+Code: `shared/src/quality.ts` (score), `shared/src/estimate.ts` (impact and fills),
+`shared/src/clock.ts` (time scaling), `server/src/engine/model.ts` (per-tick math),
+`server/src/engine/news.ts` (jump schedule), `server/src/seed/generateMarket.ts` (fundamentals).
+Parameters live in `MODEL` in `shared/src/constants.ts`. Design: spec §3–§6.
+
+### Time scaling
+
+One game stands for one simulated trading year (252 days), whatever its length.
+`tickIntervalMs = clamp(round(gameLength/720), 5 s, 30 s)`, `N = floor(gameLength/tickIntervalMs)`,
+`dt = 1/N`. So a 1-hour game (720 ticks of 5 s) and a 48-hour game (5,760 ticks of 30 s) have the
+same whole-game volatility, quality spread and jump variance.
+
+### The per-tick model
+
+State per company: `v` (log fair value), `h` (GARCH variance), `m` (optional mispricing),
+`f` (transient impact). Market state: `hM`.
+
+| Layer | Model | Game form and parameters | Source |
+|---|---|---|---|
+| Market factor | Sharpe single-index model | `rM = 0.06·dt + 0.18·√(hM·dt)·zM`; company exposure `beta ∈ [0.7, 1.4]` (public) | Sharpe 1963 |
+| Fair value | Exact GBM step in log space | `dv = alpha·dt + beta·rM + idioVol·√(h·dt)·z`, clamped to `±3·√dt`; `idioVol = 0.30 − 0.05·q ± U(0.04)` | Sigman notes |
+| News jumps | Merton jump-diffusion with Kou's asymmetric up/down jumps | Poisson number of jumps per company with mean `K = clamp(round(1.5·√hours), 2, 12)`, each at a uniform tick; up-probability `0.5 + 0.30·qEff`; size `Y ~ Exp(mean s)`, `s = √(0.15²/(2K))`, capped at 25%; log jump `ln(1+Y)` up or `ln(max(0.05, 1−Y))` down. Plus 1–2 market-wide jumps of ±2–8% scaled by beta | Merton 1976; Kou 2002; Bollerslev–Law–Tauchen 2008 (jumps ≈ 12% of variation) |
+| Drift offset | Exact expected log jump | `alpha = QS·qEff − K·(pUp·E[ln up] + (1−pUp)·E[ln down])`, expectations by Simpson quadrature, so `E[drift + company jumps] = QS·qEff` for any mean K. (This keeps the expected **log** return, which is not Merton's arithmetic compensator.) | Merton 1976; Kou 2002 |
+| Volatility clustering | GARCH(1,1) | Daily α = 0.12, α + β = 0.97; per tick `φ = e^(−c·dt)`, `α_t = min(0.3, a·√dt)`, `β_t = φ − α_t` with `c = −ln(0.97)·252`, `a = 0.12·√252`; `h ∈ [0.1, 10]`; fed only by the seeded shock `z` | Engle 2001 (fit α = 0.0772, β = 0.9046); Nelson 1990 (diffusion-limit scaling) |
+| Mispricing (optional) | Exact Ornstein–Uhlenbeck step | Half-life 5% of the game; **off by default** (`mispriceSd = 0`). With it off, Spearman(q, return) and volatility scaling were unchanged and clustering was easier to see | Gillespie 1996 |
+| Market impact | Linear transient impact | `λ = Y·σD/ADV`, `Y = 1.10 = 0.314·150^(1/4)`, `ADV = shares/150`, `σD = √(beta²·0.18² + 0.30²)/√252`; `f ← dec·(f + λ·Q)`, half-life 5% of the game. One ADV moves a beta-1 stock about 2.42% | Almgren et al. 2005 (linear coefficient); Obizhaeva–Wang 2013 (resilience); Gatheral 2010 |
+| Fill price | Path-exact average over the order's own impact | `exp(v+m+f)·e^(λ·Qpending)·(e^(λσ) − 1)/(λσ)`, `σ` = signed quantity; unrounded cents; fee 10 bps | Almgren et al. 2005 (realized ≈ I/2) |
+
+Displayed price: `max(1, round(exp(v + m + f)))` cents. Rounded prices are never fed back into state.
+News headlines follow the jump size relative to `s`: small moves are earnings beats or misses (≈ 55%),
+medium moves management or regulatory news (≈ 20%), large moves mergers, discoveries, scandals or
+storms (≈ 25%), so the mix is the same at every game length. Host news applies the chosen move
+`ln(1+m)` to every chosen company at the next tick.
+
+### The quality score (AQR Quality-Minus-Junk style)
+
+Every item is **rank-z normalized** across the N companies:
+`rz(x_i) = (rank_i − (N+1)/2) / √((N²−1)/12)` (range ±1.664 at N = 25; ties take the average rank;
+missing data scores 0; "worst" values rank below everything). Each pillar is the rank-z of the sum
+of its items' rank-z.
+
+| Pillar | Items | Evidence |
+|---|---|---|
+| **PROF** profitability | gross profit / assets · net income / assets (ROA) · operating cash flow / assets · low accruals `(OCF − NI)/assets` | Novy-Marx 2013 (gross profitability); Piotroski 2000 (ROA, cash flow, accruals) |
+| **GROW** growth | 3-year revenue growth rate · change in net income / assets · industry growth | Asness–Frazzini–Pedersen QMJ |
+| **SAFE** safety | − debt/equity · min(current ratio, 3) · − volatility of EPS growth | QMJ; Piotroski 2000 (leverage, liquidity) |
+| **VAL** value, sector-relative at the opening bell | `ln(sector P/E ÷ P/E)` · `ln(sector EV/EBITDA ÷ EV/EBITDA)`; "worst" when there is no profit | Quality at a reasonable price |
+
+`Q = rz(PROF + GROW + SAFE)`, `s = rz(0.70·Q + 0.30·VAL)` (AQR's 70/30 quality-at-a-reasonable-price
+blend). Engine input `q = −1 + 2·(rank(s) − 0.5)/N ∈ (−1, 1)`. Grade A–F is the quintile of `s`.
+
+Deliberately left out: ROE (leverage distorts it), an Altman-style score (its market-cap term mixes
+valuation into safety), P/S (double-penalizes low margins), analyst ratings, management text and
+52-week ranges. ROE and P/S still appear in the UI.
+
+Research edge (host setting) sets the whole-game quality spread `QS`: low 0.20, normal 0.30, high 0.40.
+
+**Evidence anchors** (as summarized by the research workflow): in QMJ (US 1956–2012) monthly
+excess returns rise from 0.15% in the lowest quality decile to 0.61% in the highest, and quality
+stocks are priced higher "but not by a large margin." Piotroski's high F-score cheap stocks beat
+low scorers by 23.0% over one year (1976–1996). Novy-Marx's top-minus-bottom gross-profitability
+quintile earned 0.31% a month (1963–2010).
+
+**Generator.** Latent quality is stratified across companies (Latin hypercube with Acklam's inverse
+normal) and mapped to each item through a one-factor Gaussian copula `x = 0.8·ql + 0.6·e`. Every
+accounting identity holds (for example `TA = equity + liabilities`, `FCF = OCF − capex`,
+`P/E = marketCap/NI`). A cheapness latent `c = −0.32·ql + 0.95·v` with `P/E = sector P/E·e^(−0.35c)`
+makes quality stocks cost a little more, so "cheap junk" and "pricey quality" are both real choices.
+Analyst targets are a noisy, optimistic hint (`0.5·s + 0.87·noise`) and are not part of the score.
+The engine drifts on the score **measured** from the generated numbers, so the visible part of each
+company's odds comes only from numbers players can read.
+
+### The hidden surprise
+
+`qEff = 0.75·q + 0.25·ξ`, with `ξ ~ U[−1, 1]` seeded per company and never shown until the end.
+
+Why: `q` is a pure function of visible fundamentals. Without a surprise, sorting by a screen was
+close to a dominant strategy: an equal-weight top-quintile portfolio beat the bottom quintile in
+96–99% of simulated games. With weight 0.75 the research review measured Spearman(q, return)
+0.33–0.40, random top-vs-bottom company pairs won 74–81% of the time, and 21–28% of top-quintile
+stocks still lost money.
+
+The reveal puts the surprise inside the expectation: `expectedReturn = QS·qEff + beta·0.06`,
+`actualReturn = ln(close/start)`, `luck = actual − expected` (news, market swings and chance; host
+news counts as luck). Labels come from the signs of `q` and `luck`: Compounder, Unlucky gem, Lucky
+turnaround, Decliner.
+
+### Calibration results
+
+Measured on 2026-09-14 with `npx vitest run test/calibration.test.ts` (in `server/`): 25 companies
+with rank-uniform `q`, normal research edge, the hidden surprise on, no player flow; 30 seeds at 1 h
+and 12 seeds at 48 h. Bands are the assertions in `server/test/calibration.test.ts`.
+
+| Metric | Band | 1 h | 48 h | All 42 seeds |
+|---|---|---|---|---|
+| Per-game realized volatility | 0.34–0.42 at each length, and within 0.03 of each other | **0.384** | **0.378** | 0.382 |
+| Mean lag-1 autocorrelation of tick returns | ≤ 0.03 in size | −0.002 | −0.001 | −0.002 |
+| Mean pairwise tick-return correlation | 0.15–0.32 | 0.262 | 0.237 | 0.255 |
+| Share of seeds where the top quality quintile beats the bottom | ≥ 0.85 | 0.967 | 0.917 | **0.952** |
+| Top-minus-bottom quintile log-return spread | 0.25–0.50 | 0.40 | 0.33 | 0.38 |
+| Spearman(q, whole-game return) | 0.25–0.48 | 0.382 | 0.293 | **0.357** |
+
+In words: volatility is about 0.38 per game at both lengths, tick returns carry no linear
+predictability (ACF1 ≈ 0), the healthiest fifth beats the least healthy fifth in about 95% of games,
+and quality explains only part of the ranking (Spearman ≈ 0.36).
+
+### Anti-manipulation guarantees
+
+The first proposal used the square-root impact law with per-order slippage. The research review
+showed it could be gamed: splitting a round trip into 50 orders earned +2.16%, and buying for 10
+ticks then dumping earned +10.5%, after fees. Theory agrees: exponentially decaying impact is free
+of dynamic arbitrage only when impact is linear (Gatheral 2010), and permanent impact must be linear
+to rule out quasi-arbitrage (Huberman–Stanzl 2004). v2 therefore uses:
+
+1. **Linear transient impact with decay after adding flow,** `f ← dec·(f + λQ)`. The cost kernel
+   `dec^|j−k|` is positive definite, so expected impact cost is ≥ 0 for **any** trade sequence. The
+   review's 300,000 random long-only sequences (≤ 1 ADV per interval) found a maximum profit before
+   fees of 0 at 1 h, 12 h and 48 h. Tests: `server/test/model.test.ts` and `model-edge.test.ts`
+   (round trips and accumulate-then-dump lose money; the wrong update order is shown to admit a
+   profit).
+2. **Split-neutral, path-exact fills.** Splitting an order costs exactly the same as one order, and
+   a round trip inside one interval breaks even before fees (`server/test/estimate.test.ts`).
+3. **Same-interval flow is priced in and reserved synchronously** before the database transaction
+   (released if it fails), so simultaneous orders can't all fill at a stale quote.
+4. **Quantity cap, not an impact cap:** at most 1 ADV (`shares/150`) per crew, per company, per tick.
+   An impact cap would add concavity that makes large dumps cheap.
+5. **Closing mark excludes impact.** Final standings value holdings at `round(exp(v + m))`, like a
+   closing auction, so buying in the last interval can't lift a crew's own marks (the review measured
+   +2.7% to +3.8% without this).
+6. **Price protection and idempotency.** An order is refused if the price moved more than 2% since
+   the quote, and a repeated client order ID returns the original fill instead of charging twice.
+7. **Fees on every trade** (10 bps by default).
+8. **No leaks of the hidden future.** Impact uses only public inputs (beta, shares and the public
+   0.30 reference volatility). Quality, the surprise, the news schedule, the seed and engine state
+   stay in server-only collections, and a test walks lobby → start → host news → ticks → pause →
+   resume checking that none of them is written to a public document
+   (`server/test/engineLoop.test.ts`). The size of host news is never published.
+9. **Deterministic and resume-safe.** All randomness is seeded by label (`mkt:t`, `co:id:t`,
+   `jumps:id`, `surprise:id`); a JSON round trip of engine state continues with byte-identical prices.
+
+### Sources
+
+- Sharpe, W. F. (1963). A Simplified Model for Portfolio Analysis. *Management Science* 9(2), 277–293. <https://ideas.repec.org/a/inm/ormnsc/v9y1963i2p277-293.html>
+- Sigman, K. Notes on simulating Brownian motion and geometric Brownian motion (Columbia University). <http://www.columbia.edu/~ks20/4404-Sigman/4404-Notes-sim-BM.pdf>
+- Merton, R. C. (1976). Option pricing when underlying stock returns are discontinuous. *Journal of Financial Economics* 3(1–2), 125–144. <https://doi.org/10.1016/0304-405X(76)90022-2> (1975 working paper: <https://dspace.mit.edu/handle/1721.1/1899>)
+- Kou, S. G. (2002). A Jump-Diffusion Model for Option Pricing. *Management Science* 48(8), 1086–1101. <https://www.columbia.edu/~sk75/MagSci02.pdf>
+- Bollerslev, T., Law, T. H. and Tauchen, G. (2008). Risk, jumps, and diversification. *Journal of Econometrics* 144(1), 234–256. <https://public.econ.duke.edu/~get/wpapers/jmpdiv.pdf>
+- Engle, R. (2001). GARCH 101: The Use of ARCH/GARCH Models in Applied Econometrics. *Journal of Economic Perspectives* 15(4), 157–168. <https://www.cmat.edu.uy/~mordecki/hk/engle.pdf>
+- Nelson, D. B. (1990). ARCH models as diffusion approximations. *Journal of Econometrics* 45(1–2), 7–38. <https://ideas.repec.org/a/eee/econom/v45y1990i1-2p7-38.html>
+- Gillespie, D. T. (1996). Exact numerical simulation of the Ornstein–Uhlenbeck process and its integral. *Physical Review E* 54, 2084. <https://link.aps.org/doi/10.1103/PhysRevE.54.2084>
+- Almgren, R., Thum, C., Hauptmann, E. and Li, H. (2005). Direct Estimation of Equity Market Impact. *Risk* 18(7). <https://www.cis.upenn.edu/~mkearns/finread/costestim.pdf>
+- Gatheral, J. (2010). No-dynamic-arbitrage and market impact. *Quantitative Finance* 10(7), 749–759. <https://ideas.repec.org/a/taf/quantf/v10y2010i7p749-759.html>
+- Huberman, G. and Stanzl, W. (2004). Price Manipulation and Quasi-Arbitrage. *Econometrica* 72(4), 1247–1275. <https://econpapers.repec.org/RePEc:ecm:emetrp:v:72:y:2004:i:4:p:1247-1275>
+- Obizhaeva, A. A. and Wang, J. (2013). Optimal trading strategy and supply/demand dynamics. *Journal of Financial Markets* 16(1), 1–32. <https://web.mit.edu/wangj/www/pap/ObizhaevaWang13.pdf>
+- Tóth, B. et al. (2011). Anomalous price impact and the critical nature of liquidity in financial markets (the square-root law, considered and rejected). *Physical Review X* 1, 021006. <https://arxiv.org/abs/1105.1694>
+- Asness, C. S., Frazzini, A. and Pedersen, L. H. (2019). Quality minus junk. *Review of Accounting Studies* 24(1), 34–112. <https://ideas.repec.org/a/spr/reaccs/v24y2019i1d10.1007_s11142-018-9470-2.html>
+- Piotroski, J. D. (2000). Value Investing: The Use of Historical Financial Statement Information to Separate Winners from Losers. *Journal of Accounting Research* 38 (Supplement), 1–41. <https://doi.org/10.2307/2672906>
+- Novy-Marx, R. (2013). The other side of value: The gross profitability premium. *Journal of Financial Economics* 108(1), 1–28. <https://doi.org/10.1016/j.jfineco.2013.01.003>

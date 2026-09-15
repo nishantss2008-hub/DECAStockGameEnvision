@@ -1,407 +1,424 @@
-# 🏴‍☠️ DEPLOY.md — Deploying the DECA Pirate Stock Game
+# Deploy Buccaneer Exchange for a live event
 
-A click-by-click guide to take this repo from "downloaded" to "live on the internet,
-ready to run a 48-hour game." **You do not need to be an expert.** Follow the steps in
-order, top to bottom. Copy/paste the commands exactly.
+This guide is for a **student developer**. It takes the repo from "runs on my laptop" to "students
+play from their phones." Plan about an hour the first time. Follow the steps in order.
 
-Total time: about **45–60 minutes** the first time.
+When you're done, hand the host three things: the **game address**, the **host password** and the
+**health page address** (your server address with `/health` on the end). The host then follows
+[RUNBOOK.md](RUNBOOK.md).
 
 ---
 
-## 0. What you're deploying (the 30-second picture)
+## 0. The big picture
 
-There are three moving parts:
-
-| Part | What it is | Where it lives |
+| Part | What it does | Where it runs |
 |---|---|---|
-| **Web app** | The pirate trading terminal players use in their browser | Firebase Hosting |
-| **Authority service** | The "engine" — runs prices, validates trades, fires news. The only thing allowed to write real data. Must run 24/7. | Cloud Run **or** Render |
-| **Firestore + Auth** | The database + login system. Pushes live data to players. | Firebase (managed for you) |
+| **Web app** | The iPhone-style app students and the host use | Firebase Hosting (HTTPS) |
+| **Server ("engine")** | Moves prices every tick, fills orders, runs the host API. The only thing allowed to write game data | Google Cloud Run, one always-on instance |
+| **Firestore + Auth** | Stores the game and pushes live updates to phones. Auth turns the server's sign-in tokens into sessions | Firebase |
 
-The deploy order below is deliberate: set up Firebase → build the code → deploy the
-database rules → seed the market → deploy the engine → deploy the web app.
-
-### What you need before starting
-
-- A Google account.
-- This repository downloaded to your computer.
-- **Node.js 20 or newer** installed. Check with:
-  ```bash
-  node --version
-  ```
-  If it prints `v20.x` or higher, you're good. If not, install it from <https://nodejs.org>.
-- The **Firebase CLI** installed and logged in:
-  ```bash
-  npm install -g firebase-tools
-  firebase login
-  ```
-  This opens a browser window — sign in with the same Google account you'll use for the project.
-
-> **About the project ID:** This repo is pre-wired to a Firebase project named
-> **`decastockenvision`** (see `.firebaserc` and `web/.env`). The steps below assume you
-> are the owner of that project. If you are creating a brand-new project under a different
-> ID, you must (a) update `.firebaserc`, (b) replace all the `VITE_FIREBASE_*` values in
-> `web/.env`, and (c) use your new project ID everywhere `decastockenvision` appears below.
+Order of work: Blaze plan → security rules → market → server → web app → check.
 
 ---
 
-## 1. Enable the Firebase Blaze (pay-as-you-go) plan
+## 1. Before you start
 
-The always-on engine and Firestore usage require the **Blaze** plan. **Don't worry about
-cost** — a 48-hour game with ~12 teams costs on the order of a few cents to a dollar. You
-are simply required to have a billing account attached.
+1. **Finish Path B in [QUICKSTART.md](QUICKSTART.md).** You should have:
+   - a Firebase project with Authentication started and a Firestore database created,
+   - `server/service-account.json` downloaded (and git-ignored),
+   - `web/.env` filled in, and a successful `npm run seed`.
+2. **Node.js 20 or newer:** `node --version`.
+3. **Firebase CLI:** it's already in the repo. Use `npx firebase …`, and sign in once with
+   `npx firebase login`.
+4. **Google Cloud CLI (`gcloud`):** install from <https://cloud.google.com/sdk/docs/install>.
 
-1. Go to <https://console.firebase.google.com> and open (or create) the project
-   **`decastockenvision`**.
-2. In the bottom-left corner, find the plan indicator (it will say **"Spark"**). Click
-   **Upgrade**.
-3. Choose the **Blaze — Pay as you go** plan.
-4. Select or create a billing account (you'll enter a credit card). Confirm.
-5. *(Optional but recommended)* Click **Set a budget alert** and set something like
-   **$5/month** so you're emailed if anything is unexpectedly high.
-
-You should now see **"Blaze"** in the bottom-left corner.
+In the commands below, replace `YOUR-PROJECT` with your Firebase project ID (for example
+`decastockenvision`).
 
 ---
 
-## 2. Turn on Email/Password login
+## 2. Turn on the Blaze plan
 
-Players and the host all log in with a password, so you must enable that sign-in method.
+Cloud Run and Secret Manager need a billing account. A class game costs cents to a few dollars
+(section 8).
 
-1. In the Firebase Console, open **Build → Authentication** (left sidebar).
-2. Click **Get started** (only appears the first time).
-3. Go to the **Sign-in method** tab.
-4. Click **Email/Password** in the providers list.
-5. Toggle the first switch (**Email/Password**) to **Enabled**. Leave "Email link
-   (passwordless)" **off**.
-6. Click **Save**.
-
-That's it — you do **not** create any users by hand here. The host creates teams later
-through the app, and the seed script creates the admin/Captain account for you.
+1. Open <https://console.firebase.google.com> and your project.
+2. Click **Upgrade** next to the plan name (bottom left) and choose **Blaze (pay as you go)**.
+3. Pick or create a billing account.
+4. **Set a budget alert.** In Google Cloud Console, open **Billing › Budgets & alerts › Create
+   budget**, set **$10**, and keep the email alerts. A budget only warns you; it doesn't stop
+   spending.
 
 ---
 
-## 3. Create a service account key (the engine's master password)
+## 3. Deploy the Firestore security rules
 
-The authority service uses the Firebase **Admin SDK** to read and write data on the
-server. It authenticates with a **service-account JSON key**.
-
-1. In the Firebase Console, click the **⚙️ gear icon** (top-left) → **Project settings**.
-2. Open the **Service accounts** tab.
-3. Make sure **Firebase Admin SDK** is selected, then click **Generate new private key**.
-4. Confirm **Generate key**. A `.json` file downloads to your computer. **Treat this file
-   like a password** — anyone with it has full write access to your game database. Never
-   commit it to git, never paste it in chat, never put it in the `web/` folder.
-
-### Turn the JSON into a single-line environment variable
-
-The server reads the key from an environment variable called **`FIREBASE_SERVICE_ACCOUNT`**,
-which must be the **entire JSON on one line**. Run the command for your platform, pointing
-it at the file you just downloaded:
-
-**macOS / Linux:**
-```bash
-# Replace the path with wherever the key downloaded:
-cat ~/Downloads/decastockenvision-firebase-adminsdk-XXXXX.json | tr -d '\n' | pbcopy
-# (macOS) The single-line JSON is now on your clipboard.
-# On Linux without pbcopy, just print it and copy it manually:
-cat ~/Downloads/decastockenvision-firebase-adminsdk-XXXXX.json | tr -d '\n' ; echo
-```
-
-**Windows (PowerShell):**
-```powershell
-(Get-Content "$HOME\Downloads\decastockenvision-firebase-adminsdk-XXXXX.json" -Raw) -replace "`r`n","" -replace "`n","" | Set-Clipboard
-# The single-line JSON is now on your clipboard.
-```
-
-You now have one long line that starts with `{"type":"service_account",...}`. You'll paste
-this as the value of `FIREBASE_SERVICE_ACCOUNT` in two places: your **local `.env`** (for
-seeding) and your **Cloud Run / Render service** (for the live engine).
-
-### Create your local `.env` for seeding
-
-From the **repo root**, copy the example and fill it in:
+The rules let phones **read** public and own-crew data only. Nobody but the server can write.
 
 ```bash
-cp .env.example .env
+npx firebase use YOUR-PROJECT
+npm run deploy:rules            # firestore.rules + firestore.indexes.json
 ```
 
-Open the new `.env` and set at least these:
-
-```
-PORT=8081
-CORS_ORIGIN=http://localhost:5173
-GAME_SEED=blackbeard-2026
-ADMIN_PASSWORD=captain
-FIREBASE_SERVICE_ACCOUNT={"type":"service_account", ... the single line you copied ... }
-```
-
-> - **`GAME_SEED`** controls the entire hidden future (price paths + news). The same seed
->   always produces the same game. Pick any string; keep it secret from players. **It must
->   be identical in your local `.env` and on the deployed engine** so they generate the
->   same market.
-> - **`ADMIN_PASSWORD`** is the password for the Captain (admin) account the seed creates.
->   It defaults to `captain` if you leave it out — **change it** to something only you know.
-> - The real `.env` is gitignored, so your secret stays out of git.
+You should see **Deploy complete!**
 
 ---
 
-## 4. Install dependencies
+## 4. Create the market in the real project
 
-From the **repo root** (the folder with the top-level `package.json`):
+Run this from your laptop. It uses `server/service-account.json`.
 
 ```bash
 npm install
+npm run build:shared
+ADMIN_PASSWORD='a-long-host-password' GCLOUD_PROJECT=YOUR-PROJECT npm run seed
 ```
 
-This installs everything for all three workspaces (`shared`, `server`, `web`) at once.
-It can take a couple of minutes the first time. Run it from the root — **not** inside a
-subfolder.
+- It prints `Seeded 25 companies. The game is in the lobby.` and the host login name `admin`.
+- If you leave out `ADMIN_PASSWORD` on the very first seed, it generates one and prints it once.
+- **Leave `GAME_SEED` unset.** The seed is then random and stored only on the server.
+- Make sure `FIRESTORE_EMULATOR_HOST` and `FIREBASE_AUTH_EMULATOR_HOST` are **not** set in this
+  terminal, or the seed goes to the emulator instead.
+- The output shows the game seed (and a generated password, if any). Don't share or screenshot it.
+
+If you already ran the seed in QUICKSTART Path B, you can skip this step.
 
 ---
 
-## 5. Build the shared package
+## 5. Deploy the server to Cloud Run
 
-The `shared` package holds the data types and constants that the server and web app both
-import. Build it once so the other workspaces can use the compiled output:
+### 5.1 Set up gcloud
+
+```bash
+gcloud auth login
+gcloud config set project YOUR-PROJECT
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com
+```
+
+Use the **same region as your Firestore database**. This guide uses `us-central1`.
+
+### 5.2 Keep the key file out of the upload
+
+`gcloud run deploy --source .` uploads your folder to Google Cloud Build. Create a file named
+`.gcloudignore` in the repo root so the key file, `.env` files and `node_modules` never go up:
+
+```
+#!include:.gitignore
+.git
+node_modules/
+**/node_modules/
+web/dist/
+docs/
+*.png
+.playwright-mcp/
+```
+
+Then check that no secret would be uploaded. This must print **nothing** (`.env.example` is filtered
+out because it holds only placeholders and public web settings):
+
+```bash
+gcloud meta list-files-for-upload | grep -iE "service-account|\.env" | grep -v "\.env\.example$"
+```
+
+### 5.3 Store the secrets in Secret Manager
+
+Secrets stay out of your shell history and out of the Cloud Run settings page.
+
+```bash
+# The service-account key, straight from the file (no need to squash it onto one line):
+gcloud secrets create firebase-service-account --data-file=server/service-account.json
+
+# The host password. Typing it here puts it in your shell history, so you can create it in
+# Cloud Console › Security › Secret Manager instead.
+printf '%s' 'a-long-host-password' | gcloud secrets create admin-password --data-file=-
+```
+
+Let Cloud Run read them. Cloud Run runs as the default compute service account unless you choose
+another:
+
+```bash
+PROJECT_NUMBER=$(gcloud projects describe YOUR-PROJECT --format='value(projectNumber)')
+for s in firebase-service-account admin-password; do
+  gcloud secrets add-iam-policy-binding "$s" \
+    --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
+```
+
+### 5.4 Deploy
+
+Run from the repo root:
+
+```bash
+gcloud run deploy deca-engine \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --min-instances 1 \
+  --max-instances 1 \
+  --no-cpu-throttling \
+  --cpu 1 \
+  --memory 1Gi \
+  --set-build-env-vars "GOOGLE_NODE_RUN_SCRIPTS=build:shared,GOOGLE_ENTRYPOINT=npm run start -w @deca/server" \
+  --set-secrets "FIREBASE_SERVICE_ACCOUNT=firebase-service-account:latest,ADMIN_PASSWORD=admin-password:latest" \
+  --set-env-vars "GCLOUD_PROJECT=YOUR-PROJECT,CORS_ORIGIN=https://YOUR-PROJECT.web.app"
+```
+
+What each part does:
+
+| Flag | Why |
+|---|---|
+| `--source .` | Builds a container from the repo with Google's Node.js buildpack |
+| `--allow-unauthenticated` | Phones must reach the server. The server checks its own sign-in tokens on every order and host action |
+| `--min-instances 1` | Keeps one server running so prices keep updating |
+| `--max-instances 1` | **Exactly one engine.** Two instances would each run the tick loop and keep separate in-memory order books |
+| `--no-cpu-throttling` | "CPU always allocated." The tick timer runs between requests; without this, Cloud Run limits the CPU when no request is active and price updates stall |
+| `GOOGLE_NODE_RUN_SCRIPTS=build:shared` | Builds only the shared contracts. The root `build` script also builds the web app, which the server doesn't need |
+| `GOOGLE_ENTRYPOINT` | Starts the server workspace (`tsx src/index.ts`) |
+| `--set-secrets` | Exposes the two secrets as environment variables |
+
+When it finishes, gcloud prints a **Service URL** like `https://deca-engine-abc123-uc.a.run.app`.
+Copy it.
+
+### 5.5 Check the server
+
+Open `https://<service-url>/health` in a browser. You should see JSON like:
+
+```json
+{"ok":true,"phase":"lobby","tick":0,"totalTicks":5760,"serverTime":1789412550000,"lastTickAt":null,"ticksBehind":0}
+```
+
+(`totalTicks` is 5760 for the default 48-hour game and changes with the game length.)
+
+If you get an error, see Troubleshooting (section 10).
+
+### 5.6 Server environment variables
+
+| Variable | Set it? | Secret? | What it does |
+|---|---|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | **Yes** (from Secret Manager) | **Yes** | The service-account JSON. The server uses it to write data and sign crews' sign-in tokens |
+| `ADMIN_PASSWORD` | Optional (from Secret Manager) | **Yes** | The host password. Only `npm run seed` reads it; the running server ignores it and keeps the host password the seed stored. Keeping it here gives you one safe place to look it up |
+| `CORS_ORIGIN` | **Yes** | No | The exact web address(es) allowed to call the server, comma-separated, no trailing slash. If unset, any site may call it |
+| `GCLOUD_PROJECT` | **Yes** | No | Your project ID. The server defaults to `decastockenvision` when it's empty |
+| `PORT` | No | No | Cloud Run sets it (8080) and the server listens on it |
+| `GAME_SEED` | **No** | Yes | Only a fallback. The engine reads the seed stored by `npm run seed` or **New game** |
+
+---
+
+## 6. Deploy the web app to Firebase Hosting
+
+### 6.1 Production settings
+
+Create `web/.env.production` (git-ignored; Vite uses it for `vite build`):
+
+```
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=YOUR-PROJECT.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=YOUR-PROJECT
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+VITE_API_BASE=https://deca-engine-abc123-uc.a.run.app
+```
+
+- Copy the `VITE_FIREBASE_*` values from **Project settings › General › Your apps**. They are
+  public by design.
+- `VITE_API_BASE` is the Service URL from step 5.4, with **no trailing slash**.
+- Vite also reads `web/.env`. Any value you leave out here falls back to `web/.env`, which may
+  point at `localhost`, so fill in every line.
+- Don't set `VITE_USE_EMULATORS`. Production builds ignore it anyway.
+
+### 6.2 Build and deploy
 
 ```bash
 npm run build:shared
+npm run deploy:hosting          # builds web/ into web/dist, then deploys it to Hosting
 ```
 
-You should see it compile with no errors. (This is the same as
-`npm run build -w @deca/shared`.)
+The CLI prints your **Hosting URL**, for example `https://YOUR-PROJECT.web.app`. The same site is
+also at `https://YOUR-PROJECT.firebaseapp.com`.
 
----
+(`npm run deploy` does `build:shared`, the rules and Hosting in one go.)
 
-## 6. Deploy the Firestore security rules + indexes
+### 6.3 Allow both web addresses
 
-This pushes the rules that lock the database down (clients can read public + own data,
-but can never write real data or see the future) and the query indexes.
+Students may open either Hosting address. Allow both. The values contain a comma, so use gcloud's
+alternate delimiter `^|^`:
 
 ```bash
-firebase deploy --only firestore
+gcloud run services update deca-engine --region us-central1 \
+  --update-env-vars "^|^CORS_ORIGIN=https://YOUR-PROJECT.web.app,https://YOUR-PROJECT.firebaseapp.com"
 ```
 
-This deploys both `firestore.rules` and `firestore.indexes.json` (configured in
-`firebase.json`). When it finishes you'll see **"Deploy complete!"**.
+If you add a custom domain later, add it to this list too.
 
-> If the CLI ever asks which project to use, choose **decastockenvision** (it's the default
-> from `.firebaserc`).
+### 6.4 Final check
+
+1. Open the Hosting URL on your phone using **mobile data** (not school Wi-Fi) and sign in with
+   crew name `admin` and the host password.
+2. Add a test crew, sign in as it on a second device, and confirm the Markets list loads.
+3. Remove the test crew, or follow the host's test run in [RUNBOOK.md](RUNBOOK.md) section 1.5.
+4. Give the host the game address, the host password and the health page address.
 
 ---
 
-## 7. Seed the market
+## 7. PWA and HTTPS notes
 
-This is the big one. It fills your empty database with the entire game world:
+- **HTTPS is automatic.** Firebase Hosting serves `*.web.app`, `*.firebaseapp.com` and custom
+  domains over HTTPS. The service worker and a full Home Screen install need HTTPS.
+- **Installing:** iPhone Safari **Share › Add to Home Screen**; Android Chrome **⋮ › Install app**;
+  Chromebook uses the install icon in the address bar. School IT can force-install the app on
+  managed Chromebooks (**Google Admin › Apps & extensions › Add by URL**).
+- **iPhone Home Screen apps keep their own storage,** so students sign in once more inside the
+  installed app.
+- **Updates:** the service worker waits for the student. After a web deploy, open apps show an
+  "Update ready · Reload" prompt between screens and never reload in the middle of a trade.
+  Deploy web changes **before** the event, not during it.
+- **No offline trading.** The service worker caches only the app shell. Firestore, sign-in and the
+  server API always go to the network, and orders are never queued offline.
+- **Cache headers:** `firebase.json` should send `Cache-Control: no-cache` for `/index.html`,
+  `/sw.js` and `/manifest.webmanifest`, and `public, max-age=31536000, immutable` for
+  `/assets/**`, so phones pick up new versions (MOBILE.md §9.5).
+- **School Wi-Fi:** if live updates stall behind a filter, the web app can force Firestore long
+  polling (MOBILE.md §9.5).
 
-```bash
-npm run seed
-```
-
-> Under the hood this runs the seed script in the `server` workspace using the
-> `FIREBASE_SERVICE_ACCOUNT`, `GAME_SEED`, and `ADMIN_PASSWORD` values from your root `.env`.
-
-**What the seed creates:**
-
-- **25 companies** (`companies/{id}`) — the full pirate roster (Blackbeard Incorporated /
-  BBRD, Davy Jones Salvage / DJON, Kraken Shipping / KRKN, Port Royal Banking / PRYL, and
-  so on) with starting IPO prices, tickers, sectors, and emoji.
-- **Fundamentals** (`companies/{id}/fundamentals/data`) — a full, internally consistent,
-  real-company-format research profile for each company (financial statements, valuation
-  multiples, management bios, industry analysis, risk factors, analyst rating). Generated
-  deterministically from `GAME_SEED`.
-- **`game/state`** — set to the **`lobby`** phase: market frozen at IPO prices, clock not
-  yet started.
-- **`_schedule`** — the **hidden future**: each company's secret fate archetype + intrinsic
-  value path, and the pre-scheduled news events with their hidden timings. This collection
-  is **server-only** — no player can ever read it.
-- **An admin (Captain) account** — a Firebase Auth user **`admin@deca-pirates.game`** with
-  the `admin` role claim, and the password from your **`ADMIN_PASSWORD`** env var (default
-  **`captain`**). This is how you log in to run the game.
-
-> **Re-running the seed:** Running `npm run seed` again regenerates the world from the seed.
-> Do this only **before** a game starts (e.g., you changed the seed and want a fresh
-> market). **Never re-seed mid-game** — it would clobber live prices and the clock.
+<!-- VERIFY: none of the PWA pieces exist yet: web/vite.config.ts does not register vite-plugin-pwa, web/index.html has no manifest, firebase.json has no headers block, and web/src/firebase.ts has no long-polling option. This section describes MOBILE.md §9. -->
 
 ---
 
-## 8. Deploy the authority service (the engine)
+## 8. Cost estimate
 
-The engine must run **continuously** for the whole 48 hours. Pick **one** of the two
-options below. **Cloud Run** is the most natural fit for a Firebase project; **Render** is
-the simplest if you've never used Google Cloud.
+Prices checked on **2026-09-14**. They change, so recheck the linked pages.
 
-The engine needs these **environment variables** wherever you deploy it:
+### 8.1 Price list used
 
-| Variable | Value |
+| Service | Price | Free allowance | Source |
+|---|---|---|---|
+| Firestore Standard, `us-central1` | $0.03 per 100,000 reads · $0.09 per 100,000 writes · $0.01 per 100,000 deletes | 50,000 reads, 20,000 writes, 20,000 deletes per day; 1 GiB stored | [Firestore pricing](https://cloud.google.com/firestore/pricing) |
+| Firestore Standard, `nam5` multi-region | $0.06 per 100,000 reads · $0.18 per 100,000 writes · $0.02 per 100,000 deletes | same | [Firestore billing example](https://firebase.google.com/docs/firestore/billing-example) |
+| Firestore listeners | "charged for a read each time a document in the result set is added or updated" | — | [Understand Cloud Firestore billing](https://firebase.google.com/docs/firestore/pricing) |
+| Cloud Run, instance-based billing, `us-central1` | $0.000018 per vCPU-second · $0.000002 per GiB-second | 240,000 vCPU-seconds and 450,000 GiB-seconds per month | [Cloud Run pricing](https://cloud.google.com/run/pricing) |
+| Firebase Hosting | $0.026 per GB stored · $0.15 per GB transferred beyond the free amount | 10 GB stored; 360 MB transferred per day | [Firebase pricing](https://firebase.google.com/pricing) |
+| Firebase Authentication | Google Cloud pricing beyond the free amount | 50,000 monthly active users | [Firebase pricing](https://firebase.google.com/pricing) |
+
+### 8.2 Firestore writes
+
+Each tick the server writes **55 + 3 × crews** documents:
+
+| What | Documents per tick |
 |---|---|
-| `PORT` | `8080` (Cloud Run convention) or whatever the platform assigns — see notes |
-| `CORS_ORIGIN` | The URL players use, e.g. `https://decastockenvision.web.app` (no trailing slash) |
-| `GAME_SEED` | The **exact same** seed string you used when seeding (`blackbeard-2026` or yours) |
-| `FIREBASE_SERVICE_ACCOUNT` | The **single-line** service-account JSON from Step 3 |
+| Company snapshots | 25 |
+| Company price-history chunks | 25 |
+| Market summary and its history chunk | 2 |
+| Game state and engine state | 2 |
+| Standings | 1 |
+| Per crew: account value, value-history chunk, research-grade stats | 3 × crews |
 
-> **Why min-instances = 1?** The engine ticks every 30 seconds and must never sleep, or
-> the market would freeze. Setting **minimum instances to 1** keeps it always warm. (On
-> restart it safely resumes from the wall-clock — no game state is lost — but you still
-> want it always running so ticks don't pause.)
+With **12 crews** that is **91 writes per tick**.
 
-### Option A — Google Cloud Run (recommended)
+The server also updates the game clock document every 5 seconds while the market is open. In games
+longer than 1 hour that adds writes between ticks: 1 per tick at 2 hours, 3 at 4 hours, and 5 at
+8 hours or more.
 
-1. Install the Google Cloud CLI (`gcloud`) from
-   <https://cloud.google.com/sdk/docs/install> and run:
-   ```bash
-   gcloud auth login
-   gcloud config set project decastockenvision
-   ```
-2. From the **repo root**, build and deploy the server straight from source. Cloud Run
-   will detect Node and build it for you:
-   ```bash
-   gcloud run deploy deca-engine \
-     --source . \
-     --region us-central1 \
-     --allow-unauthenticated \
-     --min-instances 1 \
-     --max-instances 1 \
-     --port 8080 \
-     --set-env-vars "GAME_SEED=blackbeard-2026,CORS_ORIGIN=https://decastockenvision.web.app"
-   ```
-   - `--allow-unauthenticated` is correct here: the service does its **own** auth (Firebase
-     ID tokens), so the HTTP endpoint itself is public but every write still requires a
-     valid token.
-   - `--max-instances 1` is important: there must be exactly **one** engine running the tick
-     loop, never two.
-3. **Set the secret service-account key** separately (so it's not in your shell history).
-   The single-line JSON has commas, which break `--set-env-vars`, so set it on its own:
-   ```bash
-   gcloud run services update deca-engine --region us-central1 \
-     --update-env-vars "FIREBASE_SERVICE_ACCOUNT=$(cat ~/Downloads/decastockenvision-firebase-adminsdk-XXXXX.json | tr -d '\n')"
-   ```
-   *(For production-grade secret handling you can instead store it in Secret Manager and use
-   `--set-secrets`, but the env var above works fine for a single event.)*
-4. When the deploy finishes, `gcloud` prints a **Service URL** like
-   `https://deca-engine-xxxxxxxx-uc.a.run.app`. **Copy it** — this is your
-   `VITE_API_BASE` for Step 9.
-5. Sanity check: open `https://<your-service-url>/health` in a browser. You should get a
-   healthy response.
+| Game length | Ticks | Writes (12 crews) | `us-central1` | `nam5` |
+|---|---|---|---|---|
+| 1 hour | 720 | 720 × 91 ≈ 65,500 | ≈ $0.06 (≈ $0.04 after the daily free writes) | ≈ $0.12 (≈ $0.08) |
+| 8 hours | 960 | 960 × 96 ≈ 92,000 | ≈ $0.08 (≈ $0.06) | ≈ $0.17 (≈ $0.13) |
+| 48 hours | 5,760 | 5,760 × 96 ≈ 553,000 | ≈ $0.50 (≈ $0.46 after two days of free writes) | ≈ $1.00 (≈ $0.92) |
 
-### Option B — Render
+Orders add about 5 writes each (crew, holding, trade, order, audit log). Even 2,000 orders is only
+10,000 writes, under a cent.
 
-1. Push this repo to GitHub (Render deploys from a repo).
-2. Go to <https://render.com> → **New → Web Service** → connect your repo.
-3. Configure:
-   - **Environment:** Node
-   - **Build command:** `npm install && npm run build:shared`
-   - **Start command:** `npm run start -w @deca/server`
-   - **Instance type:** any paid tier that does **not** sleep (the free tier sleeps after
-     inactivity — **do not use it**, the market would freeze).
-4. Under **Environment**, add the variables:
-   - `GAME_SEED` = your seed (same as seeding)
-   - `CORS_ORIGIN` = `https://decastockenvision.web.app`
-   - `FIREBASE_SERVICE_ACCOUNT` = the single-line JSON (paste it as the value)
-   - *(Render sets `PORT` automatically; the server reads it.)*
-5. Click **Create Web Service**. When it goes live, copy the public URL
-   (`https://deca-engine.onrender.com`) — this is your `VITE_API_BASE` for Step 9.
-6. Sanity check `https://<your-render-url>/health`.
+### 8.3 Firestore reads (rough)
+
+Reads depend on how many phones have the app open. Each open app receives about 25 company updates
+per tick plus a few other documents (game state, market summary, standings, its own crew and chart
+chunks). Call it **about 35 reads per tick per open app**, or about 40 in games of 8 hours or more,
+where the game clock document also changes between ticks.
+
+| Scenario | Reads | `us-central1` | `nam5` |
+|---|---|---|---|
+| 1-hour class game, 40 phones open the whole time | 40 × 35 × 720 ≈ 1.0 million | ≈ $0.30 | ≈ $0.60 |
+| 48-hour game, 8 phones open on average | 8 × 40 × 5,760 ≈ 1.8 million | ≈ $0.55 | ≈ $1.11 |
+
+<!-- VERIFY: "35 reads per tick per open app" is an estimate; the web hooks and screens that decide listener counts are still being built. -->
+
+### 8.4 Cloud Run
+
+One instance with 1 vCPU and 1 GiB, CPU always allocated, costs about **$0.072 per hour**
+(3,600 × $0.000018 + 3,600 × $0.000002), or **$1.73 per day**, before the free allowance.
+
+| Scenario | Cost |
+|---|---|
+| A 48-hour game (plus a few hours of lobby) | ≈ $3.50 to $4 before the free allowance. The monthly free allowance (about 66 hours of 1 vCPU) usually covers it |
+| Left running for 30 days by mistake | ≈ $47 |
+
+Cloud Build and Artifact Registry build and store the server's container. They bill separately,
+so check **Billing › Reports** after your first deploy; for one small app they are usually a few
+cents.
+
+Storage stays far below 1 GiB, and Hosting and Auth stay inside their free allowances for a
+class-sized game.
+
+### 8.5 Bottom line
+
+- **1-hour class game:** well under **$1** in total.
+- **48-hour game:** roughly **$1 to $6**, depending on the region, how many phones stay open, and
+  whether the Cloud Run free allowance is still unused this month.
+- The biggest risk is **forgetting to scale the server down** afterwards (section 9).
 
 ---
 
-## 9. Build and deploy the web app
+## 9. Game day and after
 
-Now point the web app at your live engine and ship it to Firebase Hosting.
-
-1. Edit **`web/.env`** and set `VITE_API_BASE` to the **Service URL from Step 8** (no
-   trailing slash):
-   ```
-   VITE_API_BASE=https://deca-engine-xxxxxxxx-uc.a.run.app
-   ```
-   Leave all the `VITE_FIREBASE_*` values as they are — **this Firebase web config is
-   public and safe to expose.** Security comes from the Firestore rules + the server
-   authority, not from hiding these keys.
-
-2. Build the web app (this compiles it into `web/dist`, which is what Hosting serves):
-   ```bash
-   npm run build -w @deca/web
-   ```
-
-3. Deploy it:
-   ```bash
-   firebase deploy --only hosting
-   ```
-
-4. When it finishes, the CLI prints your **Hosting URL**, e.g.
-   `https://decastockenvision.web.app`. Open it — you should see the pirate login screen.
-
-> **Make sure the URLs line up.** The `CORS_ORIGIN` you gave the engine (Step 8) must
-> **exactly** match this Hosting URL. If you used `decastockenvision.web.app` for CORS but
-> Firebase shows `decastockenvision.firebaseapp.com` (both are valid Hosting domains), set
-> `CORS_ORIGIN` to whichever one players will actually use, then redeploy the engine.
-
-You're live. Continue to **`docs/RUNBOOK.md`** to actually run the game.
-
----
-
-## 10. Local development with the Firebase Emulator Suite
-
-For testing without touching the real cloud project (no cost, no real data), use the
-local emulators. The repo is already configured for them in `firebase.json` (Auth on
-`9099`, Firestore on `8080`, Hosting on `5000`, an emulator UI on `4000`).
-
-1. Start the emulators (from the repo root):
-   ```bash
-   npm run emulators
-   ```
-   This is shorthand for `firebase emulators:start`. The **Emulator UI** opens at
-   <http://localhost:4000> where you can watch the database live.
-
-2. In a **second terminal**, tell the server to talk to the emulators instead of the cloud.
-   Add these two lines to your root `.env` (they're listed, commented out, in
-   `.env.example`):
-   ```
-   FIRESTORE_EMULATOR_HOST=localhost:8080
-   FIREBASE_AUTH_EMULATOR_HOST=localhost:9099
-   ```
-   Then seed the **emulated** database and start the engine:
-   ```bash
-   npm run seed
-   npm run dev:server
-   ```
-
-3. In a **third terminal**, run the web app in dev mode:
-   ```bash
-   npm run dev:web
-   ```
-   It serves at <http://localhost:5173> — which is already the default `CORS_ORIGIN` and
-   matches `web/.env`'s `VITE_API_BASE=http://localhost:8081`.
-
-4. Log in as the Captain with `admin@deca-pirates.game` / your `ADMIN_PASSWORD` (default
-   `captain`) and create test teams.
-
-> **Remember to remove (or comment out) the two `*_EMULATOR_HOST` lines** before you seed
-> or deploy against the real cloud project again — otherwise commands will keep pointing at
-> your local emulator.
-
----
-
-## Quick command reference
+**Before the game.** Each day the server runs with `--min-instances 1` counts against the free
+allowance and then costs about $1.73. If you deploy a week early, you can deploy with
+`--min-instances 0` and switch to 1 on game day, **before the host presses Start game**. The lobby
+still works with 0 (the server wakes up when someone signs in, which can take several seconds):
 
 ```bash
-# One-time setup
-npm install -g firebase-tools && firebase login
-cp .env.example .env            # then fill in FIREBASE_SERVICE_ACCOUNT, GAME_SEED, ADMIN_PASSWORD
-
-# Build & deploy (cloud)
-npm install                     # install all workspaces (repo root)
-npm run build:shared            # compile shared types
-firebase deploy --only firestore   # push rules + indexes
-npm run seed                    # create companies, fundamentals, lobby, _schedule, Captain
-# ... deploy the engine to Cloud Run / Render (Step 8) ...
-# edit web/.env -> VITE_API_BASE = engine URL
-npm run build -w @deca/web      # build the web app into web/dist
-firebase deploy --only hosting  # publish the web app
-
-# Local development
-npm run emulators               # firebase emulators:start
-npm run dev:server              # the engine, locally
-npm run dev:web                 # the web app, locally (http://localhost:5173)
+gcloud run services update deca-engine --region us-central1 --min-instances 1
 ```
+
+**During the game.** Don't redeploy the server. A new revision can briefly run next to the old
+one, which means two engines. If you must deploy a fix: have the host **Pause trading**, deploy,
+check `/health`, then have the host **Resume trading**.
+
+**After the game** (once the reveal is done):
+
+```bash
+# Stop paying for the always-on instance:
+gcloud run services update deca-engine --region us-central1 --min-instances 0
+# …or remove the server completely:
+gcloud run services delete deca-engine --region us-central1
+```
+
+- The game data stays in Firestore. It is small and within the free storage.
+- If you no longer need the laptop copy of the key, delete `server/service-account.json` and delete
+  that key in **Google Cloud Console › IAM & Admin › Service accounts › Keys**. The Secret Manager
+  copy keeps working if you keep the server.
+
+---
+
+## 10. Troubleshooting
+
+Server logs are in **Google Cloud Console › Cloud Run › deca-engine › Logs**.
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Build fails with `Missing script: "build"` | The buildpack ran the root `build` script | Keep `GOOGLE_NODE_RUN_SCRIPTS=build:shared` in `--set-build-env-vars` |
+| Container starts, then exits; logs mention `index.js` or `npm start` | Wrong start command | Keep `GOOGLE_ENTRYPOINT=npm run start -w @deca/server` |
+| Logs show `Fatal:` with a credentials or permission error | Secret not readable, or the wrong project | Check the secret IAM binding (5.3) and that `GCLOUD_PROJECT` is your project ID |
+| `/health` works but `ticksBehind` keeps growing during a live game | CPU throttled or the instance scaled to zero | Redeploy with `--no-cpu-throttling` and `--min-instances 1` |
+| Browser console shows a CORS error; sign-in or orders fail | `CORS_ORIGIN` doesn't match the address students use | Set both Hosting addresses exactly, no trailing slash (6.3) |
+| Web app is blank or shows a Firebase `invalid-api-key` error | `VITE_FIREBASE_*` values missing at build time | Fill `web/.env.production`, run `npm run deploy:hosting` again |
+| Sign-in or orders fail with a network error, but `/health` works | `VITE_API_BASE` is wrong, or the web app was built before you set it | Fix it in `web/.env.production` and redeploy Hosting |
+| Charts, the market index or value history are empty | Rules not deployed, or old rules | `npm run deploy:rules` (section 3) |
+| **Start game** fails with "There is no market yet" | The market was never created | Use **New game** in the host console. If you run `npm run seed` instead, restart the server afterwards (run the 5.4 deploy command again) so it loads the new market |
+| Log warning `_schedule/_meta has no seed` | The market was created by an old version | Use **New game** in the host console |
+| Host password lost | Only `npm run seed` sets it | Not during a game. From your laptop: `ADMIN_PASSWORD='new' GCLOUD_PROJECT=YOUR-PROJECT npm run seed`. This also makes a new market and resets crews' cash. The running server still holds the old market in memory, so then sign in with the new password and press **New game** (Keep crews on), or restart the server by running the 5.4 deploy command again |
+| Costs higher than expected | The instance was left at min 1, or many phones stayed open | Section 9; check **Billing › Reports** |
+
+For running the game itself, see [RUNBOOK.md](RUNBOOK.md). For local development, see
+[QUICKSTART.md](QUICKSTART.md).
