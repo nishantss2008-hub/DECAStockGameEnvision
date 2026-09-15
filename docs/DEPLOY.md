@@ -454,3 +454,53 @@ Server logs are in **Google Cloud Console › Cloud Run › deca-engine › Logs
 
 For running the game itself, see [RUNBOOK.md](RUNBOOK.md). For local development, see
 [QUICKSTART.md](QUICKSTART.md).
+
+---
+
+## Option: host the web app on Vercel
+
+Vercel can host the **web app only**. The game server must run somewhere that keeps a process
+alive (Cloud Run with `--no-cpu-throttling`, Render, Railway or Fly), because the price engine
+ticks on a timer and holds the market in memory. Vercel functions stop between requests, so the
+engine cannot live there.
+
+**1. Repo settings (already committed).** `vercel.json` builds only the shared package and the
+web app, and publishes `web/dist`:
+
+```json
+{ "buildCommand": "npm run build:shared && npm run build -w @deca/web", "outputDirectory": "web/dist" }
+```
+
+Leave Vercel's Root Directory as the repository root. Do not set it to `web/`, or the shared
+package will not build.
+
+**2. Environment variables** (Vercel → Project → Settings → Environment Variables, for
+Production and Preview). Vite reads these at build time, so a deploy made before they exist
+will ship an app that cannot reach Firebase:
+
+| Variable | Value |
+|---|---|
+| `VITE_FIREBASE_API_KEY` … `VITE_FIREBASE_MEASUREMENT_ID` | the seven public web-config values from `.env.example` |
+| `VITE_API_BASE` | the HTTPS URL of your deployed game server, with no trailing slash |
+
+These web values are public by design; security comes from the Firestore rules and the server.
+
+**3. Point the server at Vercel.** Set the server's `CORS_ORIGIN` to your Vercel domain
+(comma-separate several, e.g. `https://your-app.vercel.app,https://your-domain.com`), then
+redeploy the server. A missing origin shows up as failed sign-ins and orders in the browser
+console.
+
+**4. Firestore rules and indexes** still deploy from this repo:
+`npm run deploy:rules`.
+
+**5. After deploying**, open the Vercel URL on a phone, sign in as the host, and check that the
+market status line updates. If sign-in fails, check `VITE_API_BASE` and `CORS_ORIGIN` first.
+
+### Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Build fails with `Missing script: "build"` | Vercel is running the root build script on an older commit; pull the commit that adds `server/package.json` `build` and `vercel.json` |
+| Build succeeds, page is blank | Root Directory was set to `web/`, so `@deca/shared` was never built |
+| App loads, sign-in fails | `VITE_API_BASE` missing or wrong, or the server's `CORS_ORIGIN` does not list the Vercel domain |
+| App loads with stale content after a deploy | The service worker serves the previous shell until the update prompt is accepted; reload twice |
