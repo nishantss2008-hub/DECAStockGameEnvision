@@ -1,5 +1,14 @@
 # Hosting Buccaneer Exchange for $0
 
+> **Superseded — kept as background research.** Follow
+> **[DEPLOY-EASY.md](DEPLOY-EASY.md)** instead. This document was written when a
+> game was expected to run continuously for 48 hours, and it recommends Oracle
+> Cloud on that basis. A game is now **30 minutes at most**, which changes the
+> answer completely: the sleeping and wiping behaviour ruled out below is
+> survivable inside a half-hour session, and Render's free tier was chosen for
+> being far easier to set up than an Oracle VM. The provider facts here were
+> accurate on 2026-09-15; the conclusions drawn from them no longer apply.
+
 **Written 2026-09-15. Every number below was checked against the provider's own page on that date — links are at the end of each section.**
 
 This document answers one question: *where do we run the game server, for free, so that a 48-hour event never goes down and never loses data?*

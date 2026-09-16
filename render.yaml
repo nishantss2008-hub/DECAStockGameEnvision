@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Buccaneer Exchange — Render Blueprint
+#
+#  One Node process that owns the SQLite file, streams live prices over SSE and
+#  serves the built web app. Push this file to GitHub, then in the Render
+#  dashboard: New → Blueprint → pick this repo. Render reads everything below,
+#  asks you for one password, and builds.
+#
+#  Plain-English walkthrough: docs/DEPLOY-EASY.md
+#
+#  Cost: nothing. This runs on Render's Free instance type.
+#  Field names and values checked against https://render.com/docs/blueprint-spec
+#  and https://render.com/docs/compute-plans on 2026-09-15.
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  - type: web
+    name: buccaneer-exchange
+    runtime: node
+
+    # Free = 512 MB, a small shared CPU slice, $0, and 750 instance-hours a month
+    # across the whole workspace. Read this before game day — the free tier has
+    # three behaviours that decide your run-of-show:
+    #
+    #   1. It SLEEPS after 15 minutes with no traffic, and the next request takes
+    #      roughly a minute to wake it.
+    #   2. Its filesystem is WIPED whenever it sleeps, restarts or deploys. The
+    #      game database lives there, so sleeping loses the seeded market, the
+    #      crews and any game in progress.
+    #   3. Render's docs state plainly that it "might restart a Free web service
+    #      at any time" — rare, but not something you control.
+    #
+    # So: seed the market and create the crews shortly before you start, open the
+    # site yourself a minute ahead to wake it, and keep the tab open.
+    #
+    # To make all three go away, change `plan` to 0.5c-512mb ($7/month) and
+    # uncomment the `disk` block and the DB_FILE variable below. That is a
+    # two-line edit, or one dropdown in the dashboard.
+    plan: free
+
+    # Closest region to Florida. Others: oregon, ohio, frankfurt, singapore.
+    region: virginia
+    branch: main
+
+    # Deploys restart the service, which on the free tier means a wiped database.
+    # So deploys are manual: press "Manual Deploy" in the dashboard when you
+    # actually want to ship, never during class. Quoted because bare `off` is
+    # read as the boolean false by YAML.
+    autoDeployTrigger: "off"
+
+    # Render polls this until it answers 200 before sending traffic to a new
+    # instance, and keeps watching afterwards.
+    healthCheckPath: /health
+
+    # --include=dev is required: `vite` lives in web's devDependencies, so a
+    # production-only install would have nothing to build the web app with.
+    buildCommand: npm ci --include=dev && npm run build:shared && npm run build -w @deca/web
+    startCommand: npm run start
+
+    # ── Durable storage (paid plans only) ────────────────────────────────────
+    # Free instances cannot have a disk. Uncomment this together with DB_FILE
+    # below and a paid `plan` to keep games across restarts and deploys.
+    # 1 GB is far more than this needs (~32k small rows per 30-minute game).
+    # disk:
+    #   name: game-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+
+    envVars:
+      # DB_FILE is deliberately unset. The server defaults to ./data/game.db and
+      # creates the folder itself, which is right for a free instance where no
+      # path is durable anyway. With a disk attached, set it to a path INSIDE the
+      # mount or the disk holds nothing:
+      # - key: DB_FILE
+      #   value: /var/data/game.db
+
+      # Render generates a high-entropy value once and keeps it. Setting it here
+      # means crew sign-ins survive a redeploy instead of everyone being logged
+      # out mid-game.
+      - key: SESSION_SECRET
+        generateValue: true
+
+      # sync: false = Render prompts YOU for this when you create the Blueprint
+      # and never stores it in git. This is the host console password; the app is
+      # on a public URL, so make it a real password, not "captain".
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Deliberately NOT set: GAME_SEED. Leaving it unset makes the server
+      # generate a high-entropy seed and keep it server-only. Anyone who knew the
+      # seed could predict every future price move.
+      #
+      # Also not set: WEB_DIR (the server finds web/dist next to itself),
+      # CORS_ORIGIN (the app and the API share one origin, so CORS never
+      # applies), and NODE_VERSION (the .node-version file at the repo root pins
+      # Node 24, which has a prebuilt better-sqlite3 binary — Node 20 does not,
+      # and would force a slow compile from source).

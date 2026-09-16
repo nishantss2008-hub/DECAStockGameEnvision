@@ -42,15 +42,17 @@ the game ends a market reveal shows what was really behind every price.
 | Part | Built with |
 |---|---|
 | `shared/` | TypeScript 5.5, zod. Pure contracts and math: clock, quality score, order estimate |
-| `server/` | Node 20+, Fastify 4, firebase-admin 12. The only trusted writer: price engine, trading, host API |
+| `server/` | Node 24 (see `.node-version`), Fastify 4, better-sqlite3 12. The only trusted writer, and the whole backend: price engine, trading, host API, SQLite store, SSE stream, static hosting |
 | `web/` | React 18, Vite 5, react-router-dom 6.30, Base UI 1.8 (sheets and dialogs), lucide-react icons, d3-hierarchy, vite-plugin-pwa |
-| Data and hosting | Cloud Firestore, Firebase Authentication (custom tokens), Firebase Hosting, Cloud Run |
-| Tests | vitest 2, Testing Library, simple-statistics (calibration), @firebase/rules-unit-testing, Playwright |
+| Data and hosting | SQLite (WAL) owned by the server, its own HS256 session tokens, one process that also serves the built web app (docs/HOSTING-FREE.md) |
+| Tests | vitest 2, Testing Library, simple-statistics (calibration), Playwright |
 
 ## Quick start (local, no cloud account)
 
-You need Node 20 or newer and Java 21. [docs/QUICKSTART.md](docs/QUICKSTART.md) explains how to
-install them.
+You need Node 24 — the version `.node-version` pins, and the one better-sqlite3 ships a prebuilt
+binary for (on Node 20 it has to compile from source). Nothing else: no cloud account, no Java, no
+emulators.
+[docs/QUICKSTART.md](docs/QUICKSTART.md) explains how to install it.
 
 ```bash
 npm install
@@ -58,11 +60,37 @@ npm run build:shared
 npm run dev:local
 ```
 
-`dev:local` starts the Firestore and Auth emulators, creates a market, and runs the server and the
-web app. Open <http://localhost:5173> and sign in with the crew name `admin` and the password
+`dev:local` creates a market in a local SQLite file (`server/data/dev.db`) and runs the server and
+the web app (`FRESH=1` starts from an empty database). Open <http://localhost:5173> and sign in with the crew name `admin` and the password
 `captain` (a development-only default; set `ADMIN_PASSWORD` to change it). `PORT_OFFSET=100 npm run
 dev:local` runs a second stack beside the first, and `LAN=1 npm run dev:local` lets phones on the same
 Wi-Fi open it (QUICKSTART A3 and A5).
+
+## Put it online
+
+Twenty phones need one address they can all open. **Start with
+[docs/DEPLOY-EASY.md](docs/DEPLOY-EASY.md)** — three ways to get one, in plain English, with
+copy-paste steps and no sysadmin knowledge.
+
+| Way | Cost | Setup | Best for |
+|---|---|---|---|
+| **Your laptop + a tunnel** — `bash scripts/serve-tunnel.sh` | Free | ~10 min, one command | Practice runs and club meetings |
+| **Render** — `render.yaml` is already in this repo; point Render at it | Free | ~10 min, all in a browser | **The real DECA event** (see the free-tier run of show) |
+| **Railway** | ~$5/month | ~10 min, all in a browser | When Render will not take your card |
+
+The laptop option is free and fast, but the game ends if the lid closes or the Wi-Fi drops, and
+Cloudflare's free quick tunnels do not officially support the live price stream — so
+`serve-tunnel.sh` tests that on every run and tells you outright whether prices will move. For
+anything graded, pay for the month.
+
+Once you have an address, make the teams and print the handout in one command:
+
+```bash
+node deploy/crew-sheet.mjs --url https://YOUR-ADDRESS --count 12
+```
+
+Running a real Linux server yourself is still an option — see
+[docs/DEPLOY-ORACLE.md](docs/DEPLOY-ORACLE.md) — but it is much more work.
 
 ## Tests
 
@@ -73,7 +101,7 @@ npm test                          # server unit tests, including the price-model
 npm test -w @deca/web             # web unit tests
 npm run typecheck -w @deca/server
 npm run typecheck -w @deca/web
-npm run test:integration          # emulator integration + security-rules tests (needs Java 21)
+npm run test:integration          # whole-game, resume, authorization and SSE tests (temp SQLite file)
 ```
 
 ## Repo map
@@ -83,20 +111,20 @@ shared/src/        contracts and pure math (types, schemas, constants, clock, qu
 server/src/
   engine/          price model, news schedule, order flow, engine loop (ticks, reveal)
   services/        market creation, trading, crews, leaderboard
-  routes/          /auth/login, /orders, /admin/*, /health
+  routes/          /auth/login, /orders, /api/*, /api/admin/*, /health
   seed/            roster, market generator, `npm run seed`, `npm run reset`, `npm run set-host-password`
-  auth/ lib/       token checks, password hashing, PRNG, money, audit log
+  store/           the SQLite schema and the only module that touches the database
+  realtime/        the SSE hub and the per-crew snapshot filter
+  auth/ lib/       session tokens, password hashing, PRNG, money, audit log
 server/test/       unit, calibration and engine-loop tests
-  integration/     emulator scenario and security-rules tests (`npm run test:integration`)
-scripts/dev-local.sh  the `npm run dev:local` stack (emulators, seed, server, web)
+  integration/     whole-game, resume, authorization and SSE tests (`npm run test:integration`)
+scripts/dev-local.sh  the `npm run dev:local` stack (seed, server, web)
 web/src/
   components/ios/  iPhone-style components (tab bar, sheets, lists, keypad…)
   components/charts/  chart card, sparkline, scatter, range and allocation bars
-  hooks/ lib/      Firestore listeners, API client, formatting, glossary, sector compare
+  hooks/ lib/      live-stream store, API client, formatting, glossary, sector compare
   theme/           design tokens and base CSS
   pages/           screens
-firestore.rules    security rules (clients read only; the server writes everything)
-firebase.json      hosting, rules and emulator config
 docs/              guides, design system, copy deck, spec and plan
 ```
 
@@ -104,9 +132,11 @@ docs/              guides, design system, copy deck, spec and plan
 
 | Doc | For | What it covers |
 |---|---|---|
-| [QUICKSTART](docs/QUICKSTART.md) | Student developer | Run it locally, or on a real Firebase project |
+| **[DEPLOY-EASY](docs/DEPLOY-EASY.md)** | **Anyone putting it online** | **Start here — three easy ways to get a public address, step by step** |
+| [QUICKSTART](docs/QUICKSTART.md) | Student developer | Run it locally, or on a free server |
 | [RUNBOOK](docs/RUNBOOK.md) | DECA advisor or student host | Running a live game from start to reveal |
-| [DEPLOY](docs/DEPLOY.md) | Student developer | Cloud Run, Firestore rules, Hosting, costs |
+| [DEPLOY](docs/DEPLOY.md) | Student developer | The long version: every provider, backups and costs |
+| [DEPLOY-ORACLE](docs/DEPLOY-ORACLE.md) | Student developer | Running your own Linux server on Oracle Always Free |
 | [research-findings](docs/research-findings.md) | Anyone curious | The market math, the quality score and the sources |
 | [MOBILE.md](docs/design/MOBILE.md) | Designers and developers | Mobile design system, screens and PWA |
 | [COPY.md](docs/design/COPY.md) | Designers and developers | Every beginner-facing word in the game |
@@ -114,11 +144,11 @@ docs/              guides, design system, copy deck, spec and plan
 
 ## Security in one paragraph
 
-Clients never write to the database. The server uses the Firebase Admin SDK and is the only
-writer. The hidden future (quality scores, the news schedule, the game seed, engine state) lives
-in server-only collections, and health scores reach students only after the game ends. Never
-commit `server/service-account.json` or any `.env` file; both are git-ignored. When
-`npm run seed` generates a game seed or host password, it prints them once in the terminal, so
-don't share or screenshot that output. The `VITE_FIREBASE_*` web settings are public by design.
+Clients never touch the database. The server owns the SQLite file and is the only writer; phones
+read through filtered endpoints and one SSE stream, holding a session token the server signed. The
+hidden future (quality scores, the news schedule, the game seed, engine state) lives in server-only
+tables, and health scores reach students only after the game ends. Never commit a `.env` file or
+your `DB_FILE`; both are git-ignored. When `npm run seed` generates a game seed or host password,
+it prints them once in the terminal, so don't share or screenshot that output.
 
 A market simulation. No real money.
