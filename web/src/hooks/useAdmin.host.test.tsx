@@ -1,51 +1,52 @@
+/** The host tape and per-crew holdings: host-only reads, invisible to a crew. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 const authState = vi.hoisted(() => ({ value: { teamId: 'saltwind' as string | null, role: 'team' as 'team' | 'admin' } }));
+const apiGetMock = vi.hoisted(() => vi.fn());
 
-vi.mock('firebase/firestore', async () => (await import('./firestoreMock.testutil')).firestoreModule);
-vi.mock('../firebase', () => ({ db: { name: 'test-db' }, auth: { currentUser: null } }));
+vi.mock('./liveState', async () => (await import('./liveMock.testutil')).liveStateModule);
 vi.mock('../lib/auth', () => ({ useAuth: () => authState.value }));
+vi.mock('../lib/api', () => ({ apiGet: apiGetMock }));
 
-import { fsMock } from './firestoreMock.testutil';
+import { liveMock } from './liveMock.testutil';
 import { useAdminHoldings, useAdminTape } from './useAdmin';
-import { clearSnapshotCache } from '../lib/snapshotCache';
 
 beforeEach(() => {
-  fsMock.reset();
-  clearSnapshotCache();
+  liveMock.reset();
+  apiGetMock.mockReset();
+  apiGetMock.mockResolvedValue({});
   authState.value = { teamId: 'saltwind', role: 'team' };
 });
 
 describe('host tape and holdings hooks', () => {
-  it('useAdminTape listens to every trade only for the host', () => {
+  it('useAdminTape reads every crew’s fills for the host only', async () => {
     const crew = renderHook(() => useAdminTape());
+    await act(async () => void (await Promise.resolve()));
     expect(crew.result.current).toMatchObject({ trades: [], loading: false });
-    expect(fsMock.active()).toEqual([]);
+    expect(apiGetMock).not.toHaveBeenCalled();
     crew.unmount();
+
     authState.value = { teamId: null, role: 'admin' };
+    apiGetMock.mockResolvedValue({ trades: [{ id: 't1', teamId: 'a', side: 'buy', quantity: 5, executedAt: 2 }] });
     const host = renderHook(() => useAdminTape());
-    expect(fsMock.active()).toEqual(['trades?order:executedAt:desc&limit:100']);
-    act(() => fsMock.emitQuery('trades', [{ id: 't1', data: { teamId: 'a', side: 'buy', quantity: 5, executedAt: 2 } }]));
-    expect(host.result.current.trades.map((t) => t.id)).toEqual(['t1']);
-    host.unmount();
-    expect(fsMock.active()).toEqual([]);
+    await waitFor(() => expect(host.result.current.trades.map((t) => t.id)).toEqual(['t1']));
+    expect(apiGetMock).toHaveBeenCalledWith('/admin/trades?limit=100');
   });
 
-  it('useAdminHoldings reads one crew’s holdings and hides empty positions', () => {
+  it('useAdminHoldings reads one crew’s holdings and hides empty positions', async () => {
     authState.value = { teamId: null, role: 'admin' };
     const none = renderHook(() => useAdminHoldings(null));
-    expect(fsMock.active()).toEqual([]);
+    await act(async () => void (await Promise.resolve()));
+    expect(none.result.current).toMatchObject({ holdings: [], loading: false });
+    expect(apiGetMock).not.toHaveBeenCalled();
     none.unmount();
+
+    apiGetMock.mockResolvedValue({
+      holdings: [{ companyId: 'krkn', shares: 10, avgCost: 100 }, { companyId: 'salt', shares: 0, avgCost: 0 }],
+    });
     const host = renderHook(() => useAdminHoldings('crew1'));
-    expect(fsMock.active()).toEqual(['teams/crew1/holdings']);
-    act(() =>
-      fsMock.emitQuery('teams/crew1/holdings', [
-        { id: 'krkn', data: { shares: 10, avgCost: 100 } },
-        { id: 'salt', data: { companyId: 'salt', shares: 0, avgCost: 0 } },
-      ]),
-    );
-    expect(host.result.current.holdings).toEqual([{ companyId: 'krkn', shares: 10, avgCost: 100 }]);
-    host.unmount();
+    await waitFor(() => expect(host.result.current.holdings).toEqual([{ companyId: 'krkn', shares: 10, avgCost: 100 }]));
+    expect(apiGetMock).toHaveBeenCalledWith('/admin/teams/crew1/holdings');
   });
 });

@@ -5,17 +5,13 @@
 
 import { deriveClock, type GameState, type Phase, type Team, type Trade } from '@deca/shared';
 import { formatNumber, formatPct, MINUS, roundHalfUp } from '../../lib/format';
+import { lengthLabel as sharedLengthLabel, lengthPhrase } from '../../lib/gameLength';
 import { fill, PHASES } from '../../shell/copy';
 import { HOST_ERRORS, HOST_SETTINGS, type HostErrorCode } from './hostCopy';
 
-const HOUR_MS = 3_600_000;
-
-/** 3600000 → '1 hour', 172800000 → '48 hours'. */
+/** 600000 → '10 minutes', 3600000 → '1 hour', 172800000 → '48 hours'. */
 export function lengthLabel(ms: number): string {
-  const known = HOST_SETTINGS.gameLength.options[ms];
-  if (known) return known;
-  const hours = roundHalfUp(ms / HOUR_MS, 1);
-  return `${formatNumber(hours, Number.isInteger(hours) ? 0 : 1)} ${hours === 1 ? 'hour' : 'hours'}`;
+  return HOST_SETTINGS.gameLength.options[ms] ?? sharedLengthLabel(ms);
 }
 
 export function ticksFor(ms: number): { tickIntervalMs: number; totalTicks: number } {
@@ -27,7 +23,7 @@ export function ticksFor(ms: number): { tickIntervalMs: number; totalTicks: numb
 export function derivedText(ms: number): string {
   const clock = deriveClock(ms);
   return fill(HOST_SETTINGS.gameLength.derived, {
-    hours: formatNumber(clock.hours, Number.isInteger(clock.hours) ? 0 : 1),
+    length: lengthPhrase(ms),
     tickSeconds: formatNumber(clock.tickIntervalMs / 1000),
     totalTicks: formatNumber(clock.totalTicks),
   });

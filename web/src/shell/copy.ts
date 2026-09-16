@@ -109,7 +109,7 @@ export const SETTINGS = {
   startingCash: 'Starting cash',
   tradingFee: 'Trading fee',
   positionLimit: 'Position limit',
-  derived: '{hours}-hour game · updates every {tickSeconds} seconds · {totalTicks} ticks',
+  derived: '{length} game · updates every {tickSeconds} seconds · {totalTicks} ticks',
   limitOff: 'Off',
 } as const;
 

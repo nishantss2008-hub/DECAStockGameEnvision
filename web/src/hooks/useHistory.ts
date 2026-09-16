@@ -1,16 +1,15 @@
 /**
- * Price and volume per tick for one company over a tick range, read from the 120-tick chunk
- * documents `companies/{id}/history/{chunk}`.
+ * Price and volume per tick for one company over a tick range, read from
+ * `GET /api/companies/{id}/history?from&to`.
  *
- * Only the chunks that cover the range are listened to (MOBILE §9.7). When the range moves,
- * chunks that stay covered keep their listener; the rest subscribe or unsubscribe.
+ * One request per range, shared and cached (restCache), so several charts on a screen ask once.
+ * While a moved range loads, the previous points stay on screen instead of blanking the chart.
  * `fromTick` null means the start of the game.
  */
 
-import { useMemo } from 'react';
-import type { HistoryChunk } from '@deca/shared';
-import { assemblePricePoints, chunkIndexes, normalizeRange } from '../lib/series';
-import { useDocSet } from './useSnapshot';
+import { apiGet } from '../lib/api';
+import { normalizeRange } from '../lib/series';
+import { useRest } from './restCache';
 
 export interface PricePoint {
   tick: number;
@@ -23,18 +22,18 @@ export interface UseHistoryResult {
   loading: boolean;
 }
 
-const NO_PATHS: string[] = [];
 const NO_POINTS: PricePoint[] = [];
+
+export function historyPath(companyId: string, from: number, to: number): string {
+  return `/api/companies/${encodeURIComponent(companyId)}/history?from=${from}&to=${to}`;
+}
 
 export function useHistory(companyId: string | null | undefined, fromTick: number | null, toTick: number): UseHistoryResult {
   const range = normalizeRange(fromTick, toTick);
-  const from = range?.from ?? 0;
-  const to = range?.to ?? -1;
-  const paths = useMemo(
-    () => (companyId && to >= from ? chunkIndexes({ from, to }).map((c) => `companies/${companyId}/history/${c}`) : NO_PATHS),
-    [companyId, from, to],
-  );
-  const { chunks, loading } = useDocSet<HistoryChunk>(paths);
-  const points = useMemo(() => (paths.length ? assemblePricePoints(chunks, { from, to }) : NO_POINTS), [chunks, from, to, paths.length]);
-  return { points, loading };
+  const key = companyId && range ? historyPath(companyId, range.from, range.to) : null;
+  const { data, loading } = useRest<PricePoint[]>(key, async () => {
+    const body = await apiGet<{ points?: PricePoint[] }>(key!);
+    return body?.points ?? NO_POINTS;
+  });
+  return { points: data ?? NO_POINTS, loading: key === null ? false : loading };
 }

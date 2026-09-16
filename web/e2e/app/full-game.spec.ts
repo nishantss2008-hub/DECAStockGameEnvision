@@ -1,7 +1,8 @@
 /**
  * One whole game on phones (final web gate): host setup → crew walkthrough, research and first trade → news →
- * pause/resume → end and the reveal → new game with the crews kept. Needs a running emulator stack whose game is
- * in the lobby; run with playwright.app.config.ts (no webServer, see there). Crew names are unique per run.
+ * pause/resume → end and the reveal → new game with the crews kept. Needs the authority server running with the built
+ * web app (DB_FILE=… WEB_DIR=../web/dist PORT=… ADMIN_PASSWORD=… npx tsx src/index.ts) and its game in the lobby;
+ * run with playwright.app.config.ts (no webServer, see there). Crew names are unique per run.
  */
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { axeViolations } from '../a11y';
@@ -10,7 +11,7 @@ const PASSWORD = process.env.ADMIN_PASSWORD ?? 'captain';
 const SHOTS = process.env.APP_SHOTS;
 const CREW_PASSWORD = 'plunder42';
 
-test.skip(!process.env.APP_URL, 'Set APP_URL to a running emulator stack (scripts/dev-local.sh).');
+test.skip(!process.env.APP_URL, 'Set APP_URL to a running authority server (server/: npx tsx src/index.ts).');
 
 async function shot(page: Page, name: string) {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${test.info().project.name}-${name}.png` });
@@ -72,6 +73,17 @@ async function ensureLobby(host: Page) {
   await newGameKeepCrews(host);
 }
 
+/**
+ * Moves the host between console screens by tapping the host tab bar.
+ *
+ * Not `page.goto`: the server owns the `/admin/*` URL namespace for its host API, so a direct load of
+ * a host screen is answered by the API's 404 rather than the app. In the app it is a tab anyway.
+ */
+async function hostTab(host: Page, name: string) {
+  await host.getByRole('navigation', { name: 'Host' }).getByRole('link', { name, exact: true }).click();
+  await expect(host.getByRole('heading', { level: 1, name })).toBeVisible();
+}
+
 async function crewSignIn(page: Page, crew: string) {
   await page.goto('/login');
   await page.getByLabel('Crew name').fill(crew);
@@ -108,9 +120,9 @@ test('a whole game on a phone', async ({ page, browser }) => {
   // ── Host: settings, three crews, start ────────────────────────────────────
   const host = await hostPage(browser);
   await ensureLobby(host);
-  await editSetting(host, 'Game length', '1 hour');
+  await editSetting(host, 'Game length', '10 minutes');
   await editSetting(host, 'Position limit', '50%');
-  await host.goto('/admin/crews');
+  await hostTab(host, 'Crews');
   for (const name of crews) {
     await host.getByRole('button', { name: 'Add crew' }).first().click();
     const sheet = host.getByRole('dialog', { name: 'Add crew' });
@@ -121,7 +133,7 @@ test('a whole game on a phone', async ({ page, browser }) => {
     await expect(host.getByText(`${name} added.`).first()).toBeVisible();
     await expect(sheet).toBeHidden();
   }
-  await host.goto('/admin');
+  await hostTab(host, 'Control');
   await host.getByRole('button', { name: 'Start game', exact: true }).click();
   await confirmAlert(host, 'Start game');
   await expect(host.getByRole('button', { name: 'Pause trading' })).toBeVisible();
@@ -193,7 +205,8 @@ test('a whole game on a phone', async ({ page, browser }) => {
 
   // ── News: host fires, crew reads "What this means" ────────────────────────
   const headline = `Kraken wins a navy contract ${stamp}`.slice(0, 90);
-  await host.goto('/admin/news?compose=1');
+  await hostTab(host, 'News');
+  await host.getByRole('button', { name: 'Fire news…' }).first().click();
   const compose = host.getByRole('dialog', { name: 'Fire news' });
   await compose.getByRole('button', { name: 'Add company' }).click();
   await compose.locator('.bx-host-picker__item', { hasText: 'KRKN' }).first().click();
@@ -208,7 +221,7 @@ test('a whole game on a phone', async ({ page, browser }) => {
   if (runAxe) a11y.push(...(await axeBoth(page, 'news')));
 
   // ── Pause: banner, trade blocked, resume ──────────────────────────────────
-  await host.goto('/admin');
+  await hostTab(host, 'Control');
   await host.getByRole('button', { name: 'Pause trading' }).click();
   await confirmAlert(host, 'Pause');
   await tab(page, 'Markets');

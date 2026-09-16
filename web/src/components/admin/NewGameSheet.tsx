@@ -10,6 +10,7 @@ import { ToggleRow } from '../ios/ListRow';
 import { Button } from '../ios/Button';
 import { Alert } from '../ios/Alert';
 import { apiPost } from '../../lib/api';
+import { resyncLive } from '../../lib/live';
 import { formatMoney } from '../../lib/format';
 import { fill } from '../../shell/copy';
 import { HOST_SETTINGS } from './hostCopy';
@@ -25,7 +26,11 @@ export function NewGameSheet({ game, open, onClose }: { game: GameState; open: b
   const start = async () => {
     setConfirming(false);
     const result = await run('newGame', () => apiPost('/admin/game/new', { keepCrews }), { success: N.done });
-    if (result.ok) onClose();
+    // The new market is a whole new world and the server sends no event for it: pull it down.
+    if (result.ok) {
+      resyncLive();
+      onClose();
+    }
   };
 
   return (

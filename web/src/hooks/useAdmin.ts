@@ -1,39 +1,16 @@
 /**
  * Host console data.
  *
- * - useAdminTeams: live `teams` listener, host only (crews get an empty, non-loading result and
- *   no listener, since rules would deny it).
- * - useAdminPoll: polls an authority API GET route (`/admin/market`, `/admin/news/scheduled`,
- *   `/admin/logs`) on an interval. Server-only data such as quality scores reaches the host this
- *   way, never through Firestore listeners.
+ * Crews are never given a route to another crew's rows, so everything here is a host-only
+ * `GET /admin/*` read on an interval rather than anything on the stream: crews get an empty,
+ * non-loading result and send no request at all.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { collection, limit, orderBy, query } from 'firebase/firestore';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Holding, Team, Trade } from '@deca/shared';
-import { db } from '../firebase';
 import { apiGet } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { useQuerySnapshot, type QuerySpec, type SnapshotStatus } from './useSnapshot';
-
-export interface UseAdminTeamsResult extends SnapshotStatus {
-  teams: Team[];
-}
-
-const byName = (a: Team, b: Team) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id);
-
-const TEAMS: QuerySpec<Team> = {
-  key: 'teams',
-  build: () => query(collection(db, 'teams')),
-  map: (id, data) => ({ ...(data as Team), id: (data as Partial<Team>).id ?? id }),
-  select: (items) => [...items].sort(byName),
-};
-
-export function useAdminTeams(): UseAdminTeamsResult {
-  const { role, loading: authLoading } = useAuth();
-  const { items: teams, loading, fromCache, error } = useQuerySnapshot(role === 'admin' ? TEAMS : null);
-  return { teams, loading: Boolean(authLoading) || loading, fromCache, error };
-}
+import { type SnapshotStatus } from './useSnapshot';
 
 export interface UseAdminPollResult<T> {
   data: T | null;
@@ -45,8 +22,11 @@ export interface UseAdminPollResult<T> {
 
 /** Shortest poll interval, so a bad argument cannot flood the authority service. */
 export const MIN_POLL_MS = 1_000;
+/** How often the host console refreshes its lists. */
+export const ADMIN_POLL_MS = 4_000;
 
-export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollResult<T> {
+/** Polls `path` on an interval; a null path sends nothing. */
+function usePoll<T>(path: string | null, intervalMs: number): UseAdminPollResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchNow = useRef<() => void>(() => {});
@@ -57,6 +37,10 @@ export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollR
     let inFlight = false;
     setData(null);
     setError(null);
+    if (path === null) {
+      fetchNow.current = () => {};
+      return undefined;
+    }
     // Interval polls skip while a request is still out, so a slow server is never flooded and
     // its answer is never discarded. refresh() always sends, and only the newest answer is used.
     const run = (force: boolean) => {
@@ -92,6 +76,39 @@ export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollR
   return { data, error, refresh };
 }
 
+/** Polls a host API GET route (`/admin/market`, `/admin/news/scheduled`, `/admin/logs`). */
+export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollResult<T> {
+  return usePoll<T>(path, intervalMs);
+}
+
+const EMPTY_TEAMS: Team[] = [];
+const EMPTY_TRADES: Trade[] = [];
+const EMPTY_HOLDINGS: Holding[] = [];
+
+/** Host-only list status: loading until the first answer, empty and finished for a crew. */
+function status(path: string | null, data: unknown, error: string | null, authLoading?: boolean): SnapshotStatus {
+  if (authLoading) return { loading: true, fromCache: false, error: null };
+  if (path === null) return { loading: false, fromCache: false, error: null };
+  return { loading: data === null && error === null, fromCache: false, error };
+}
+
+export interface UseAdminTeamsResult extends SnapshotStatus {
+  teams: Team[];
+}
+
+const byName = (a: Team, b: Team) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id);
+
+export const ADMIN_TEAMS_PATH = '/admin/teams';
+
+/** Every crew, by name (host rule); crews get an empty result and send no request. */
+export function useAdminTeams(): UseAdminTeamsResult {
+  const { role, loading: authLoading } = useAuth();
+  const path = role === 'admin' ? ADMIN_TEAMS_PATH : null;
+  const { data, error } = usePoll<{ teams?: Team[] }>(path, ADMIN_POLL_MS);
+  const teams = data?.teams ? [...data.teams].sort(byName) : EMPTY_TEAMS;
+  return { teams, ...status(path, data, error, authLoading) };
+}
+
 /** Rows on the host trade tape (MOBILE §7.18). */
 export const ADMIN_TAPE_LIMIT = 100;
 
@@ -99,43 +116,23 @@ export interface UseAdminTapeResult extends SnapshotStatus {
   trades: Trade[];
 }
 
-/** Live `trades` from every crew, newest first (host rule); crews get an empty result and no listener. */
+/** Every crew's fills, newest first (host rule); crews get an empty result and send no request. */
 export function useAdminTape(max = ADMIN_TAPE_LIMIT): UseAdminTapeResult {
   const { role, loading: authLoading } = useAuth();
-  const spec = useMemo<QuerySpec<Trade> | null>(
-    () =>
-      role === 'admin'
-        ? {
-            key: `trades?orderBy=executedAt:desc&limit=${max}`,
-            build: () => query(collection(db, 'trades'), orderBy('executedAt', 'desc'), limit(max)),
-            map: (id, data) => ({ ...(data as Trade), id }),
-          }
-        : null,
-    [role, max],
-  );
-  const { items: trades, loading, fromCache, error } = useQuerySnapshot(spec);
-  return { trades, loading: Boolean(authLoading) || loading, fromCache, error };
+  const path = role === 'admin' ? `/admin/trades?limit=${max}` : null;
+  const { data, error } = usePoll<{ trades?: Trade[] }>(path, ADMIN_POLL_MS);
+  return { trades: data?.trades ?? EMPTY_TRADES, ...status(path, data, error, authLoading) };
 }
 
 export interface UseAdminHoldingsResult extends SnapshotStatus {
   holdings: Holding[];
 }
 
-/** One crew's non-empty holdings (`teams/{id}/holdings`), host only. */
+/** One crew's non-empty holdings, host only. */
 export function useAdminHoldings(teamId: string | null): UseAdminHoldingsResult {
   const { role } = useAuth();
-  const spec = useMemo<QuerySpec<Holding> | null>(
-    () =>
-      role === 'admin' && teamId
-        ? {
-            key: `teams/${teamId}/holdings`,
-            build: () => query(collection(db, 'teams', teamId, 'holdings')),
-            map: (id, data) => ({ ...(data as Holding), companyId: (data as Partial<Holding>).companyId ?? id }),
-            select: (items) => items.filter((h) => h.shares !== 0),
-          }
-        : null,
-    [role, teamId],
-  );
-  const { items: holdings, loading, fromCache, error } = useQuerySnapshot(spec);
-  return { holdings, loading, fromCache, error };
+  const path = role === 'admin' && teamId ? `/admin/teams/${encodeURIComponent(teamId)}/holdings` : null;
+  const { data, error } = usePoll<{ holdings?: Holding[] }>(path, ADMIN_POLL_MS);
+  const holdings = data?.holdings ? data.holdings.filter((h) => h.shares !== 0) : EMPTY_HOLDINGS;
+  return { holdings, ...status(path, data, error) };
 }

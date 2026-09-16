@@ -1,10 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Whole-game end-to-end run against an emulator stack that is ALREADY running (scripts/dev-local.sh).
- * There is deliberately no webServer: a plain `vite` would read web/.env, the real project's config.
+ * Whole-game end-to-end run against an authority server that is ALREADY running and serving web/dist.
+ * There is deliberately no webServer: the app under test must be the built bundle the server hosts,
+ * so the run exercises the real REST + SSE stack rather than a dev server.
  *
- *   APP_URL=http://localhost:5173 npx playwright test -c playwright.app.config.ts
+ *   (server/) DB_FILE=./data/e2e.db WEB_DIR=../web/dist PORT=8081 ADMIN_PASSWORD=… npx tsx src/index.ts
+ *   (web/)    APP_URL=http://localhost:8081 npx playwright test -c playwright.app.config.ts
  *
  * Projects run one after another on the same stack; each game ends with "New game (keep crews)", which
  * returns the market to the lobby for the next project. APP_SHOTS=<dir> saves screenshots of key steps.
@@ -19,7 +21,10 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   outputDir: '../node_modules/.cache/playwright-app',
-  use: { baseURL: process.env.APP_URL, trace: 'off', actionTimeout: 20_000 },
+  // Service workers are blocked: installing one precaches ~138 files, which on its own pushes a single
+  // host+crew run past the server's 240-requests-per-minute-per-IP limit and answers route chunks with 429.
+  // The PWA/offline behaviour has its own coverage; this run is about the REST + SSE stack.
+  use: { baseURL: process.env.APP_URL, trace: 'off', actionTimeout: 20_000, serviceWorkers: 'block' },
   projects: [
     { name: 'webkit-iphone15', use: { ...devices['iPhone 15'] } },
     { name: 'chromium-iphone15', use: { browserName: 'chromium', viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true } },

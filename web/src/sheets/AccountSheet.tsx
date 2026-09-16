@@ -21,6 +21,7 @@ import { isStandalone, localStore } from '../shell/storage';
 import { useAuth } from '../lib/auth';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { formatMoney, formatNumber, formatPct } from '../lib/format';
+import { lengthLabel, lengthPhrase } from '../lib/gameLength';
 import { GLOSSARY } from '../lib/glossary';
 import { GUIDE, MOBILE, SETTINGS, SHELL, SIGN_IN, WALKTHROUGH, fill } from '../shell/copy';
 
@@ -37,10 +38,10 @@ function GameRules() {
   const fee = useInlineTip('fee', fill(GUIDE.fees, { feePct }));
   const limit = useInlineTip('positionLimit', limitOn ? fill(GUIDE.limit, { limitPct }) : GUIDE.limitOff);
   if (!game) return null;
-  const hours = Math.round(game.gameLengthMs / 3_600_000);
+  const length = game.gameLengthMs;
   return (
-    <InsetGroupedList surface="sheet" aria-label={SHELL.gameRules} footer={fill(SETTINGS.derived, { hours, tickSeconds, totalTicks: formatNumber(game.totalTicks) })}>
-      <KeyValueRow label={SETTINGS.gameLength} value={hours === 1 ? '1 hour' : `${hours} hours`} />
+    <InsetGroupedList surface="sheet" aria-label={SHELL.gameRules} footer={fill(SETTINGS.derived, { length: lengthPhrase(length), tickSeconds, totalTicks: formatNumber(game.totalTicks) })}>
+      <KeyValueRow label={SETTINGS.gameLength} value={lengthLabel(length)} />
       <KeyValueRow label={GLOSSARY.tick?.label ?? 'Price update'} info={tick.button} value={`${tickSeconds} s`} />
       {tick.panel}
       <KeyValueRow label={SETTINGS.tradingFee} info={fee.button} value={feePct} />

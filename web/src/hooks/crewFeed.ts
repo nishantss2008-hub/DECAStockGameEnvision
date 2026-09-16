@@ -1,15 +1,9 @@
 /**
- * Query spec for a crew's newest-first feed in a top-level collection (`trades`, `orders`).
+ * Shared sizing and ordering for the crew's newest-first feeds (trades, orders) and the news list.
  *
- * Security rules only let a crew read documents whose `teamId` is its own, so the query always
- * filters on it. The ordered query needs a composite index (teamId asc, time desc); when that
- * index is missing or still building, Firestore answers `failed-precondition`, and the feed
- * falls back to the plain teamId filter sorted and limited on the device.
+ * The rows arrive on the stream inside the crew's own `portfolio` payload — the server filters by
+ * the session's crew, so there is nothing to filter here beyond the row count the screen asked for.
  */
-
-import { collection, limit, orderBy, query, where, type DocumentData } from 'firebase/firestore';
-import { db } from '../firebase';
-import type { QuerySpec } from './useSnapshot';
 
 /** Default number of rows for Activity and order feeds. */
 export const DEFAULT_FEED_LIMIT = 100;
@@ -18,23 +12,11 @@ export function feedLimit(n: number | undefined): number {
   return n !== undefined && Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_FEED_LIMIT;
 }
 
-export function crewFeedSpec<T extends { id: string }>(
-  collectionName: 'trades' | 'orders',
-  teamId: string,
-  timeField: 'executedAt' | 'createdAt',
-  max: number,
-): QuerySpec<T> {
+/** Newest first by `timeField`, ties broken by id, cut to `max`. */
+export function newestFirst<T extends { id: string }>(items: readonly T[], timeField: string, max: number): T[] {
   const time = (item: T) => {
     const v = (item as unknown as Record<string, unknown>)[timeField];
     return typeof v === 'number' ? v : 0;
   };
-  return {
-    key: `${collectionName}?teamId==${teamId}&orderBy=${timeField}:desc&limit=${max}`,
-    build: () => query(collection(db, collectionName), where('teamId', '==', teamId), orderBy(timeField, 'desc'), limit(max)),
-    map: (id: string, data: DocumentData) => ({ id, ...data }) as T,
-    fallback: {
-      build: () => query(collection(db, collectionName), where('teamId', '==', teamId)),
-      select: (items) => [...items].sort((a, b) => time(b) - time(a) || b.id.localeCompare(a.id)).slice(0, max),
-    },
-  };
+  return [...items].sort((a, b) => time(b) - time(a) || b.id.localeCompare(a.id)).slice(0, max);
 }

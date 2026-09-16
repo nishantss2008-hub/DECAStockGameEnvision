@@ -1,3 +1,8 @@
+/**
+ * The hooks over the live store and the ranged REST reads. The store is a real test store behind
+ * the one seam module (liveMock), so a test pushes server state exactly as the stream would and
+ * asserts what the screens get.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { StrictMode, createElement, type ReactNode } from 'react';
@@ -5,12 +10,12 @@ import { StrictMode, createElement, type ReactNode } from 'react';
 const authState = vi.hoisted(() => ({ value: { teamId: 'saltwind' as string | null, role: 'team' as 'team' | 'admin' | null } }));
 const apiGetMock = vi.hoisted(() => vi.fn());
 
-vi.mock('firebase/firestore', async () => (await import('./firestoreMock.testutil')).firestoreModule);
-vi.mock('../firebase', () => ({ db: { name: 'test-db' }, auth: { currentUser: null } }));
+vi.mock('./liveState', async () => (await import('./liveMock.testutil')).liveStateModule);
 vi.mock('../lib/auth', () => ({ useAuth: () => authState.value }));
 vi.mock('../lib/api', () => ({ apiGet: apiGetMock }));
 
-import { fsMock } from './firestoreMock.testutil';
+import { liveMock } from './liveMock.testutil';
+import type { LiveState } from '../lib/liveStore';
 import { useGame } from './useGame';
 import { useCompanies } from './useCompanies';
 import { useCompany } from './useCompany';
@@ -23,293 +28,249 @@ import { useOrders } from './useOrders';
 import { useNews } from './useNews';
 import { useLeaderboard } from './useLeaderboard';
 import { useCountdown } from './useCountdown';
+import { useDocSnapshot } from './useSnapshot';
 import { useAdminPoll, useAdminTeams } from './useAdmin';
 import { invalidateAllFundamentals, useAllFundamentals } from './useAllFundamentals';
+import { invalidateRest } from './restCache';
 import { serverClock } from '../lib/gameTime';
-import { clearSnapshotCache } from '../lib/snapshotCache';
+
+const strict = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children);
+const flush = () => act(async () => void (await Promise.resolve()));
+
+/** A roster as the store holds it: ordered ids plus the rows. */
+const roster = (...rows: Array<{ id: string; ticker: string }>): Partial<LiveState> =>
+  ({ companyIds: rows.map((r) => r.id), companies: Object.fromEntries(rows.map((r) => [r.id, r])) }) as Partial<LiveState>;
 
 beforeEach(() => {
-  fsMock.reset();
-  clearSnapshotCache();
+  liveMock.reset();
+  invalidateRest();
+  apiGetMock.mockReset();
+  apiGetMock.mockResolvedValue({});
   authState.value = { teamId: 'saltwind', role: 'team' };
 });
 
-describe('document hooks', () => {
-  it('useGame reads game/state, derives the clock, feeds the skew estimate and unsubscribes', async () => {
+describe('live document hooks', () => {
+  it('useGame reports loading until the snapshot lands, then the game, clock and skew estimate', () => {
+    serverClock.reset();
     const { result, unmount } = renderHook(() => useGame());
-    expect(result.current).toMatchObject({ game: null, clock: null, loading: true });
-    expect(fsMock.active()).toEqual(['game/state']);
-    const serverTime = Date.now() + 60_000;
-    act(() =>
-      fsMock.emitDoc('game/state', {
-        phase: 'live',
-        gameLengthMs: 3_600_000,
-        tickIntervalMs: 5000,
-        totalTicks: 720,
-        sessionTicks: 90,
-        serverTime,
-      }),
-    );
+    expect(result.current).toMatchObject({ game: null, clock: null, loading: true, fromCache: false });
+
+    const game = { phase: 'live', startAt: 1_000, tickMs: 5_000, gameLengthMs: 1_800_000, endAt: null, pausedAt: null };
+    act(() => liveMock.push({ game: game as never, serverTime: Date.now() + 60_000 }));
+    expect(result.current.game).toBe(game as never);
     expect(result.current.loading).toBe(false);
-    expect(result.current.clock).toEqual({ gameLengthMs: 3_600_000, tickIntervalMs: 5000, totalTicks: 720, sessionTicks: 90, hours: 1 });
-    await waitFor(() => expect(serverClock.offsetMs).toBeGreaterThan(55_000));
+    expect(result.current.clock).not.toBeNull();
+    expect(serverClock.offsetMs).toBeGreaterThan(50_000);
+
     unmount();
-    expect(fsMock.active()).toEqual([]);
+    expect(liveMock.subscribers()).toBe(0);
   });
 
-  it('useGame ignores cached heartbeats for the skew estimate and reports fromCache', () => {
-    const before = serverClock.offsetMs;
+  it('useGame ignores a heartbeat from a dropped stream and reports fromCache', () => {
+    serverClock.reset();
     const { result } = renderHook(() => useGame());
-    act(() => fsMock.emitDoc('game/state', { phase: 'live', gameLengthMs: 3_600_000, serverTime: Date.now() + 9_999_999 }, true));
+    act(() => liveMock.push({ game: { phase: 'live' } as never, serverTime: Date.now() + 60_000, status: 'connecting' }));
     expect(result.current.fromCache).toBe(true);
-    expect(serverClock.offsetMs).toBe(before);
+    expect(serverClock.offsetMs).toBe(0);
   });
 
-  it('useMarket and useLeaderboard read their public docs', () => {
+  it('useMarket and useLeaderboard read the pushed market and standings', () => {
     const market = renderHook(() => useMarket());
     const board = renderHook(() => useLeaderboard());
-    expect(fsMock.active()).toEqual(['leaderboard/current', 'market/summary']);
-    act(() => fsMock.emitDoc('market/summary', { lastTick: 3 }));
-    act(() => fsMock.emitDoc('leaderboard/current', null));
-    expect(market.result.current).toMatchObject({ market: { lastTick: 3 }, loading: false });
-    expect(board.result.current).toMatchObject({ leaderboard: null, loading: false });
-    market.unmount();
-    board.unmount();
-    expect(fsMock.active()).toEqual([]);
+    expect(market.result.current).toMatchObject({ market: null, loading: true });
+    act(() => liveMock.push({ market: { composite: 1_000 } as never, leaderboard: { rows: [{ teamId: 'a' }] } as never }));
+    expect(market.result.current.market).toEqual({ composite: 1_000 });
+    expect(board.result.current).toMatchObject({ leaderboard: { rows: [{ teamId: 'a' }] }, loading: false });
   });
 
-  it('useCompany follows the id and waits for both documents', () => {
-    const { result, rerender, unmount } = renderHook(({ id }: { id: string | null }) => useCompany(id), { initialProps: { id: null as string | null } });
-    expect(result.current).toMatchObject({ company: null, fundamentals: null, loading: false });
-    expect(fsMock.active()).toEqual([]);
-    rerender({ id: 'kraken' });
-    expect(fsMock.active()).toEqual(['companies/kraken', 'companies/kraken/fundamentals/data']);
-    act(() => fsMock.emitDoc('companies/kraken', { id: 'kraken', ticker: 'KRKN' }));
-    expect(result.current.loading).toBe(true);
-    act(() => fsMock.emitDoc('companies/kraken/fundamentals/data', { revenue: 1 }));
-    expect(result.current).toMatchObject({ company: { ticker: 'KRKN' }, fundamentals: { revenue: 1 }, loading: false });
-    rerender({ id: 'astrolabe' });
-    expect(fsMock.active()).toEqual(['companies/astrolabe', 'companies/astrolabe/fundamentals/data']);
-    expect(result.current).toMatchObject({ company: null, loading: true });
-    unmount();
-    expect(fsMock.active()).toEqual([]);
-  });
-});
-
-describe('snapshot cache', () => {
-  it('a second instance renders the last snapshot at once, then follows its own listener', () => {
-    const first = renderHook(() => useCompanies());
-    act(() => fsMock.emitQuery('companies', [{ id: 'kraken', data: { id: 'kraken', ticker: 'KRKN', currentPrice: 8412 } }]));
-    const second = renderHook(() => useCompanies());
-    expect(second.result.current).toMatchObject({ loading: false, companies: [{ id: 'kraken', currentPrice: 8412 }] });
-    act(() => fsMock.emitQuery('companies', [{ id: 'kraken', data: { id: 'kraken', ticker: 'KRKN', currentPrice: 8500 } }]));
-    expect(second.result.current.companies[0]!.currentPrice).toBe(8500);
-    first.unmount();
-    second.unmount();
-    expect(fsMock.active()).toEqual([]);
+  it('useDocSnapshot resolves only the paths the stream carries', () => {
+    act(() =>
+      liveMock.push({
+        game: { phase: 'live' } as never,
+        ...roster({ id: 'kraken', ticker: 'KRKN' }),
+        news: [{ id: 'n1', firedAt: 5 }] as never,
+        team: { id: 'saltwind', cash: 10 } as never,
+      }),
+    );
+    const read = (path: string | null) => renderHook(() => useDocSnapshot<Record<string, unknown>>(path)).result.current;
+    expect(read('game/state').data).toEqual({ phase: 'live' });
+    expect(read('companies/kraken').data).toMatchObject({ ticker: 'KRKN' });
+    expect(read('news/n1').data).toMatchObject({ firedAt: 5 });
+    expect(read('teams/saltwind').data).toMatchObject({ cash: 10 });
+    // Another crew's row and a server-only path are not readable, and do not hang on loading.
+    expect(read('teams/other')).toMatchObject({ data: null, loading: false });
+    expect(read('_engine/state')).toMatchObject({ data: null, loading: false });
+    expect(read(null)).toEqual({ data: null, loading: false, fromCache: false, error: null });
   });
 
-  it('never shows a previous id while the next one loads', () => {
-    const { result, rerender } = renderHook(({ id }: { id: string }) => useCompany(id), { initialProps: { id: 'kraken' } });
-    act(() => fsMock.emitDoc('companies/kraken', { id: 'kraken' }));
-    act(() => fsMock.emitDoc('companies/kraken/fundamentals/data', { revenue: 1 }));
-    rerender({ id: 'astrolabe' });
-    expect(result.current).toEqual({ company: null, fundamentals: null, loading: true, fromCache: false, error: null });
-  });
-});
-
-describe('chunked series hooks', () => {
-  it('useHistory without a company or with an empty range has no listeners', () => {
-    const none = renderHook(() => useHistory(null, 0, 50));
-    expect(none.result.current).toEqual({ points: [], loading: false });
-    const backwards = renderHook(() => useHistory('kraken', 90, 10));
-    expect(backwards.result.current).toEqual({ points: [], loading: false });
-    expect(fsMock.active()).toEqual([]);
-  });
-
-
-  it('useHistory subscribes only to the chunks in range and diffs when the range moves', () => {
-    const { result, rerender, unmount } = renderHook(({ from, to }: { from: number | null; to: number }) => useHistory('kraken', from, to), {
-      initialProps: { from: 100 as number | null, to: 130 },
+  it('useCompany follows the id and waits for both the company and the fundamentals read', async () => {
+    apiGetMock.mockResolvedValue({ fundamentals: { kraken: { grade: 'A' }, saltworks: { grade: 'B' } } });
+    act(() => liveMock.push(roster({ id: 'kraken', ticker: 'KRKN' }, { id: 'saltworks', ticker: 'SALT' })));
+    const { result, rerender } = renderHook(({ id }: { id: string | null }) => useCompany(id), {
+      initialProps: { id: 'kraken' } as { id: string | null },
     });
-    expect(fsMock.active()).toEqual(['companies/kraken/history/0', 'companies/kraken/history/1']);
-    const subscribed = fsMock.subscribeCount;
-    act(() => fsMock.emitDoc('companies/kraken/history/0', { chunk: 0, startTick: 0, prices: Array.from({ length: 120 }, (_, i) => 1000 + i), volumes: [] }));
     expect(result.current.loading).toBe(true);
-    act(() => fsMock.emitDoc('companies/kraken/history/1', { chunk: 1, startTick: 120, prices: [5000, 5001], volumes: [7, 8] }));
-    expect(result.current.loading).toBe(false);
-    expect(result.current.points[0]).toEqual({ tick: 100, price: 1100, volume: 0 });
-    expect(result.current.points.at(-1)).toEqual({ tick: 121, price: 5001, volume: 8 });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current).toMatchObject({ company: { ticker: 'KRKN' }, fundamentals: { grade: 'A' } });
 
-    rerender({ from: 100, to: 131 }); // same chunks: no new listeners
-    expect(fsMock.subscribeCount).toBe(subscribed);
-    rerender({ from: 100, to: 245 }); // adds chunk 2 only
-    expect(fsMock.subscribeCount).toBe(subscribed + 1);
-    expect(fsMock.active()).toEqual(['companies/kraken/history/0', 'companies/kraken/history/1', 'companies/kraken/history/2']);
-    rerender({ from: 240, to: 245 }); // drops 0 and 1
-    expect(fsMock.active()).toEqual(['companies/kraken/history/2']);
-    unmount();
-    expect(fsMock.active()).toEqual([]);
-  });
-
-  it('keeps exactly one listener per chunk under StrictMode double effects', () => {
-    const wrapper = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children);
-    const { rerender, unmount } = renderHook(({ to }: { to: number }) => useHistory('kraken', 0, to), { wrapper, initialProps: { to: 130 } });
-    expect(fsMock.active()).toEqual(['companies/kraken/history/0', 'companies/kraken/history/1']);
-    rerender({ to: 10 });
-    expect(fsMock.active()).toEqual(['companies/kraken/history/0']);
-    unmount();
-    expect(fsMock.active()).toEqual([]);
-    const game = renderHook(() => useGame(), { wrapper });
-    expect(fsMock.active()).toEqual(['game/state']);
-    game.unmount();
-    expect(fsMock.active()).toEqual([]);
-  });
-
-  it('useCompositeHistory and useTeamHistory read value chunks; no team → no listeners', () => {
-    const comp = renderHook(() => useCompositeHistory(null, 5));
-    expect(fsMock.active()).toEqual(['market/summary/history/0']);
-    act(() => fsMock.emitDoc('market/summary/history/0', { chunk: 0, startTick: 0, values: [1000, 1001, 1002] }));
-    expect(comp.result.current).toEqual({ points: [{ tick: 0, value: 1000 }, { tick: 1, value: 1001 }, { tick: 2, value: 1002 }], loading: false });
-    comp.unmount();
-    const none = renderHook(() => useTeamHistory(null, 0, 10));
-    expect(none.result.current).toEqual({ points: [], loading: false });
-    expect(fsMock.active()).toEqual([]);
-    none.unmount();
-    const team = renderHook(() => useTeamHistory('saltwind', 0, 10));
-    expect(fsMock.active()).toEqual(['teams/saltwind/history/0']);
-    team.unmount();
+    rerender({ id: 'saltworks' });
+    expect(result.current).toMatchObject({ company: { ticker: 'SALT' }, fundamentals: { grade: 'B' } });
+    rerender({ id: null });
+    expect(result.current).toEqual({ company: null, fundamentals: null, loading: false, fromCache: false, error: null });
+    expect(apiGetMock).toHaveBeenCalledTimes(1); // one shared fundamentals read
   });
 });
 
-describe('collection hooks', () => {
-  it('useCompanies indexes by id and ticker', () => {
-    const { result, unmount } = renderHook(() => useCompanies());
-    expect(fsMock.active()).toEqual(['companies?order:ticker:asc']);
-    act(() => fsMock.emitQuery('companies', [{ id: 'kraken', data: { id: 'kraken', ticker: 'KRKN' } }]));
-    expect(result.current.byId.kraken!.ticker).toBe('KRKN');
-    expect(result.current.byTicker.KRKN!.id).toBe('kraken');
-    unmount();
-    expect(fsMock.active()).toEqual([]);
+describe('ranged reads', () => {
+  it('useHistory asks for nothing without a company or with an empty range', () => {
+    expect(renderHook(() => useHistory(null, 0, 10)).result.current).toEqual({ points: [], loading: false });
+    expect(renderHook(() => useHistory('kraken', 10, 5)).result.current).toEqual({ points: [], loading: false });
+    expect(apiGetMock).not.toHaveBeenCalled();
   });
 
-  it('usePortfolio listens to the signed-in crew only and hides empty holdings', () => {
-    const { result, unmount } = renderHook(() => usePortfolio());
-    expect(fsMock.active()).toEqual(['teams/saltwind', 'teams/saltwind/holdings']);
-    act(() => fsMock.emitDoc('teams/saltwind', { id: 'saltwind', cashBalance: 5 }));
+  it('useHistory reads one range, shares it between instances and keeps points while the range moves', async () => {
+    const points = [{ tick: 0, price: 1_000, volume: 5 }];
+    apiGetMock.mockResolvedValue({ points });
+    const { result, rerender } = renderHook(({ to }: { to: number }) => useHistory('kraken', null, to), { initialProps: { to: 5 } });
+    await waitFor(() => expect(result.current.points).toEqual(points));
+    expect(apiGetMock).toHaveBeenCalledWith('/api/companies/kraken/history?from=0&to=5');
+
+    const second = renderHook(() => useHistory('kraken', null, 5));
+    expect(second.result.current.points).toEqual(points); // cached, no second request
+    expect(apiGetMock).toHaveBeenCalledTimes(1);
+
+    const moved = [...points, { tick: 6, price: 1_100, volume: 2 }];
+    apiGetMock.mockResolvedValue({ points: moved });
+    rerender({ to: 6 });
+    expect(result.current).toMatchObject({ points, loading: true }); // the chart does not blank
+    await waitFor(() => expect(result.current.points).toEqual(moved));
+    expect(apiGetMock).toHaveBeenLastCalledWith('/api/companies/kraken/history?from=0&to=6');
+  });
+
+  it('de-duplicates two charts opening the same range at once', async () => {
+    apiGetMock.mockResolvedValue({ points: [{ tick: 1, price: 10, volume: 0 }] });
+    renderHook(() => useHistory('kraken', 0, 9));
+    renderHook(() => useHistory('kraken', 0, 9));
+    await flush();
+    expect(apiGetMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('useCompositeHistory and useTeamHistory read value ranges; no crew → no request', async () => {
+    apiGetMock.mockResolvedValue({ points: [{ tick: 2, value: 1_500 }] });
+    const comp = renderHook(() => useCompositeHistory(null, 5));
+    await waitFor(() => expect(comp.result.current.points).toEqual([{ tick: 2, value: 1_500 }]));
+    expect(apiGetMock).toHaveBeenCalledWith('/api/market/history?from=0&to=5');
+
+    expect(renderHook(() => useTeamHistory(null, 0, 5)).result.current).toEqual({ points: [], loading: false });
+    const crew = renderHook(() => useTeamHistory('saltwind', 0, 5));
+    await waitFor(() => expect(crew.result.current.points).toHaveLength(1));
+    // The server takes the crew from the token, so the path never names a crew.
+    expect(apiGetMock).toHaveBeenLastCalledWith('/api/portfolio/history?from=0&to=5');
+  });
+});
+
+describe('list hooks', () => {
+  it('useCompanies sorts by ticker and indexes by id and ticker', () => {
+    const { result } = renderHook(() => useCompanies());
+    act(() => liveMock.push(roster({ id: 'saltworks', ticker: 'SALT' }, { id: 'kraken', ticker: 'KRKN' })));
+    expect(result.current.companies.map((c) => c.ticker)).toEqual(['KRKN', 'SALT']);
+    expect(result.current.byId.kraken?.ticker).toBe('KRKN');
+    expect(result.current.byTicker.SALT?.id).toBe('saltworks');
+  });
+
+  it('usePortfolio shows the signed-in crew only and hides empty positions', () => {
+    const { result } = renderHook(() => usePortfolio());
+    expect(result.current).toMatchObject({ team: null, holdings: [], loading: true });
     act(() =>
-      fsMock.emitQuery('teams/saltwind/holdings', [
-        { id: 'kraken', data: { companyId: 'kraken', shares: 10, avgCost: 1 } },
-        { id: 'astrolabe', data: { shares: 0, avgCost: 1 } },
-      ]),
+      liveMock.push({
+        team: { id: 'saltwind', cash: 50_000 } as never,
+        holdings: [{ companyId: 'krkn', shares: 10 }, { companyId: 'salt', shares: 0 }] as never,
+      }),
     );
-    expect(result.current.loading).toBe(false);
-    expect(result.current.holdings).toEqual([{ companyId: 'kraken', shares: 10, avgCost: 1 }]);
-    unmount();
-    expect(fsMock.active()).toEqual([]);
+    expect(result.current.team).toMatchObject({ cash: 50_000 });
+    expect(result.current.holdings).toEqual([{ companyId: 'krkn', shares: 10 }]);
+
     authState.value = { teamId: null, role: 'admin' };
-    const host = renderHook(() => usePortfolio());
-    expect(host.result.current).toEqual({ team: null, holdings: [], loading: false, fromCache: false, error: null });
-    expect(fsMock.active()).toEqual([]);
+    expect(renderHook(() => usePortfolio()).result.current).toMatchObject({ team: null, holdings: [], loading: false });
   });
 
-  it('useTrades and useOrders filter to the crew, newest first, with a limit', () => {
-    const trades = renderHook(() => useTrades(25));
-    const orders = renderHook(() => useOrders());
-    expect(fsMock.active()).toEqual([
-      'orders?teamId==saltwind&order:createdAt:desc&limit:100',
-      'trades?teamId==saltwind&order:executedAt:desc&limit:25',
-    ]);
-    act(() => fsMock.emitQuery('trades', [{ id: 't1', data: { teamId: 'saltwind', executedAt: 2 } }]));
-    expect(trades.result.current).toMatchObject({ trades: [{ id: 't1', executedAt: 2 }], loading: false });
-    trades.unmount();
-    orders.unmount();
-    expect(fsMock.active()).toEqual([]);
-  });
-
-  it('useOrders falls back to a client-sorted query when the composite index is missing', () => {
-    const { result } = renderHook(() => useOrders(2));
-    act(() => fsMock.emitError('orders?teamId==saltwind&order:createdAt:desc&limit:2', 'failed-precondition'));
-    expect(fsMock.active()).toEqual(['orders?teamId==saltwind']);
+  it('useTrades and useOrders show the crew rows newest first, cut to the limit', () => {
     act(() =>
-      fsMock.emitQuery('orders', [
-        { id: 'a', data: { createdAt: 1 } },
-        { id: 'b', data: { createdAt: 3 } },
-        { id: 'c', data: { createdAt: 2 } },
-      ]),
+      liveMock.push({
+        team: { id: 'saltwind' } as never,
+        trades: [{ id: 't1', executedAt: 1 }, { id: 't3', executedAt: 3 }, { id: 't2', executedAt: 2 }] as never,
+        orders: [{ id: 'o1', createdAt: 9 }, { id: 'o2', createdAt: 11 }] as never,
+      }),
     );
-    expect(result.current.orders.map((o) => o.id)).toEqual(['b', 'c']);
-    expect(result.current.loading).toBe(false);
+    expect(renderHook(() => useTrades()).result.current.trades.map((t) => t.id)).toEqual(['t3', 't2', 't1']);
+    expect(renderHook(() => useTrades(2)).result.current.trades.map((t) => t.id)).toEqual(['t3', 't2']);
+    expect(renderHook(() => useOrders()).result.current.orders.map((o) => o.id)).toEqual(['o2', 'o1']);
   });
 
-  it('useNews orders by firedAt and reports listener errors', () => {
-    const { result } = renderHook(() => useNews(10));
-    expect(fsMock.active()).toEqual(['news?order:firedAt:desc&limit:10']);
-    act(() => fsMock.emitError('news?order:firedAt:desc&limit:10', 'permission-denied'));
-    expect(result.current).toMatchObject({ news: [], loading: false, error: 'permission-denied' });
+  it('useNews orders by firedAt and honours the limit', () => {
+    const { result, rerender } = renderHook(({ n }: { n?: number }) => useNews(n), { initialProps: {} as { n?: number } });
+    act(() => liveMock.push({ news: [{ id: 'a', firedAt: 1 }, { id: 'c', firedAt: 3 }, { id: 'b', firedAt: 2 }] as never }));
+    expect(result.current.news.map((n) => n.id)).toEqual(['c', 'b', 'a']);
+    rerender({ n: 1 });
+    expect(result.current.news.map((n) => n.id)).toEqual(['c']);
   });
 
-  it('useAdminTeams only listens for the host', () => {
-    const crew = renderHook(() => useAdminTeams());
-    expect(crew.result.current).toMatchObject({ teams: [], loading: false });
-    expect(fsMock.active()).toEqual([]);
-    crew.unmount();
-    authState.value = { teamId: null, role: 'admin' };
-    const host = renderHook(() => useAdminTeams());
-    expect(fsMock.active()).toEqual(['teams']);
-    act(() => fsMock.emitQuery('teams', [{ id: 'b', data: { name: 'Zeta' } }, { id: 'a', data: { name: 'Alpha' } }]));
-    expect(host.result.current.teams.map((t) => t.name)).toEqual(['Alpha', 'Zeta']);
-    host.unmount();
-    expect(fsMock.active()).toEqual([]);
+  it('keeps exactly one subscription per component under StrictMode double effects', () => {
+    const { unmount } = renderHook(() => useCompanies(), { wrapper: strict });
+    expect(liveMock.subscribers()).toBe(1);
+    unmount();
+    expect(liveMock.subscribers()).toBe(0);
   });
 });
 
 describe('useAllFundamentals', () => {
   beforeEach(() => invalidateAllFundamentals());
 
-  it('loads every company fundamentals doc once, keyed by company id', async () => {
-    fsMock.setGetDocs('**/fundamentals', [
-      { path: 'companies/kraken/fundamentals/data', data: { revenue: 1 } },
-      { path: 'companies/astrolabe/fundamentals/data', data: { revenue: 2 } },
-      { path: 'elsewhere/x/fundamentals/data', data: { revenue: 3 } },
-    ]);
-    const { result } = renderHook(() => useAllFundamentals());
-    expect(result.current.loading).toBe(true);
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(Object.keys(result.current.byId).sort()).toEqual(['astrolabe', 'kraken']);
-    expect(fsMock.active()).toEqual([]);
-  });
-
-  it('shares one load between instances and reloads when the market changes', async () => {
-    fsMock.setGetDocs('**/fundamentals', [{ path: 'companies/kraken/fundamentals/data', data: { revenue: 1 } }]);
-    const a = renderHook(({ market }: { market: number }) => useAllFundamentals(market), { initialProps: { market: 1 } });
+  it('reads every profile once, keyed by company id, and shares the load between instances', async () => {
+    apiGetMock.mockResolvedValue({ fundamentals: { kraken: { grade: 'A' } } });
+    const a = renderHook(() => useAllFundamentals());
+    const b = renderHook(() => useAllFundamentals());
+    expect(a.result.current).toMatchObject({ byId: {}, loading: true });
     await waitFor(() => expect(a.result.current.loading).toBe(false));
-    const b = renderHook(() => useAllFundamentals(1));
-    expect(b.result.current).toMatchObject({ loading: false, byId: { kraken: { revenue: 1 } } });
-    fsMock.setGetDocs('**/fundamentals', [{ path: 'companies/astrolabe/fundamentals/data', data: { revenue: 2 } }]);
-    a.rerender({ market: 2 });
-    await waitFor(() => expect(Object.keys(a.result.current.byId)).toEqual(['astrolabe']));
+    expect(a.result.current.byId.kraken).toEqual({ grade: 'A' });
+    expect(b.result.current.byId.kraken).toEqual({ grade: 'A' });
+    expect(apiGetMock).toHaveBeenCalledTimes(1);
+    expect(apiGetMock).toHaveBeenCalledWith('/api/fundamentals');
   });
 
-  it('reports a failed load and retries on the next mount', async () => {
-    fsMock.setGetDocs('**/fundamentals', { code: 'permission-denied' });
-    fsMock.setGetDocs('companies', { code: 'unavailable' });
-    const failed = renderHook(() => useAllFundamentals());
-    await waitFor(() => expect(failed.result.current.loading).toBe(false));
-    expect(failed.result.current).toMatchObject({ byId: {}, error: 'unavailable' });
-    failed.unmount();
-    fsMock.setGetDocs('**/fundamentals', [{ path: 'companies/kraken/fundamentals/data', data: { revenue: 5 } }]);
-    const retry = renderHook(() => useAllFundamentals());
-    await waitFor(() => expect(retry.result.current.byId).toEqual({ kraken: { revenue: 5 } }));
-  });
-
-  it('falls back to per-company reads when collection-group reads are not allowed', async () => {
-    fsMock.setGetDocs('**/fundamentals', { code: 'permission-denied' });
-    fsMock.setGetDocs('companies', [{ path: 'companies/kraken', data: { id: 'kraken' } }]);
-    fsMock.setGetDoc('companies/kraken/fundamentals/data', { revenue: 9 });
-    const { result } = renderHook(() => useAllFundamentals());
+  it('reloads when the market changes', async () => {
+    apiGetMock.mockResolvedValue({ fundamentals: {} });
+    const { rerender, result } = renderHook(({ key }: { key: number }) => useAllFundamentals(key), { initialProps: { key: 1 } });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.byId).toEqual({ kraken: { revenue: 9 } });
+    rerender({ key: 2 });
+    await waitFor(() => expect(apiGetMock).toHaveBeenCalledTimes(2));
+  });
+
+  it('reports a failed read and retries on the next mount', async () => {
+    apiGetMock.mockRejectedValueOnce(new Error('permission denied'));
+    const first = renderHook(() => useAllFundamentals());
+    await waitFor(() => expect(first.result.current.error).toBe('permission denied'));
+    expect(first.result.current.byId).toEqual({});
+    apiGetMock.mockResolvedValue({ fundamentals: { kraken: { grade: 'B' } } });
+    const second = renderHook(() => useAllFundamentals());
+    await waitFor(() => expect(second.result.current.byId.kraken).toEqual({ grade: 'B' }));
+  });
+});
+
+describe('host hooks', () => {
+  it('useAdminTeams reads /admin/teams for the host only', async () => {
+    apiGetMock.mockResolvedValue({ teams: [{ id: 'b', name: 'Windward' }, { id: 'a', name: 'Anchor' }] });
+    const crew = renderHook(() => useAdminTeams());
+    await flush();
+    expect(crew.result.current).toMatchObject({ teams: [], loading: false });
+    expect(apiGetMock).not.toHaveBeenCalled();
+    crew.unmount();
+
+    authState.value = { teamId: null, role: 'admin' };
+    const host = renderHook(() => useAdminTeams());
+    expect(host.result.current.loading).toBe(true);
+    await waitFor(() => expect(host.result.current.teams.map((t) => t.id)).toEqual(['a', 'b']));
+    expect(apiGetMock).toHaveBeenCalledWith('/admin/teams');
   });
 });
 

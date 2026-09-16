@@ -10,8 +10,12 @@ export const HOST_SETTINGS = {
   gameLength: {
     label: 'Game length',
     help: 'How long trading lasts. Every game has 8 sessions, and prices update every 5 to 30 seconds depending on length.',
-    derived: '{hours}-hour game · updates every {tickSeconds} seconds · {totalTicks} ticks',
+    derived: '{length} game · updates every {tickSeconds} seconds · {totalTicks} ticks',
     options: {
+      600000: '10 minutes',
+      900000: '15 minutes',
+      1200000: '20 minutes',
+      1800000: '30 minutes',
       3600000: '1 hour',
       7200000: '2 hours',
       14400000: '4 hours',

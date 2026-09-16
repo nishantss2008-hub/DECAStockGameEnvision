@@ -14,7 +14,6 @@
     "@base-ui/react": "1.8.0",
     "@deca/shared": "*",
     "d3-hierarchy": "^3.1.2",
-    "firebase": "^10.12.4",
     "lucide-react": "^1.46.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
