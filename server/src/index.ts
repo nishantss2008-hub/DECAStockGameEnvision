@@ -22,8 +22,9 @@ import { orderRoutes } from './routes/orders';
 import { adminRoutes } from './routes/admin';
 import { apiRoutes } from './routes/api';
 import { closeAll } from './realtime/hub';
-import { closeStore } from './store';
+import { closeStore, store } from './store';
 import { applyAdminPasswordFromEnv } from './services/hostPassword';
+import { createMarket } from './services/market';
 
 /** Paths the SPA fallback must never swallow: they are API surface, and a 404 there is a 404. */
 export const API_PREFIXES = ['/api', '/auth', '/orders', '/health'];
@@ -198,6 +199,11 @@ async function main(): Promise<void> {
   await applyAdminPasswordFromEnv(config.adminPassword, { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) });
 
   await engine.load();
+  if (!store.game.get()) {
+    app.log.info('no market found in database — creating initial market in lobby');
+    await createMarket({ keepCrews: true });
+    await engine.reload();
+  }
   engine.start();
 
   const shutdown = (signal: string): void => {

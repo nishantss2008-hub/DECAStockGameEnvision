@@ -12,6 +12,7 @@ import { NavBarButton } from '../../components/ios/LargeTitleNavBar';
 import { Menu } from '../../components/ios/Menu';
 import { useGame } from '../../hooks/useGame';
 import { useAuth } from '../../lib/auth';
+import { EmptyState } from '../../components/ios/EmptyState';
 import { useDocumentTitle } from '../../shell/StubPage';
 import { GameControlCard } from '../../components/admin/GameControlCard';
 import { SettingsCard } from '../../components/admin/SettingsCard';
@@ -53,8 +54,17 @@ export default function ControlPage() {
       <div className="bx-page bx-host-page">
         {loading && !game ? (
           <HostLoading rows={4} />
-        ) : !game ? (
+        ) : error ? (
           <HostLoadError message={error} onRetry={() => window.location.reload()} />
+        ) : !game ? (
+          <div className="bx-host-console">
+            <EmptyState
+              title="No market created yet"
+              body="Create a new game to build the stock market and start trading."
+              action={{ label: "Start new game", onClick: () => setNewGameOpen(true) }}
+            />
+            <NewGameSheet game={game} open={newGameOpen} onClose={() => setNewGameOpen(false)} />
+          </div>
         ) : (
           <div className="bx-host-console">
             <div className="bx-host-console__main">
