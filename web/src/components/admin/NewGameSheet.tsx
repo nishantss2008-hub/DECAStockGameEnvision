@@ -1,9 +1,12 @@
 /**
  * New game… (MOBILE §7.18, COPY §11 newGame): large sheet with the plain consequence, ToggleRow "Keep crews and
  * passwords" (default on) and its when-on / when-off line, then a typed NEW GAME alert → POST /admin/game/new.
+ *
+ * `game` is null before the first market exists (Control's empty state opens this same sheet to build one); the
+ * starting-cash line then quotes the defaults the new game will be created with.
  */
 import { useState } from 'react';
-import type { GameState } from '@deca/shared';
+import { CURRENCY, DEFAULT_STARTING_CAPITAL, type GameState } from '@deca/shared';
 import { Sheet } from '../ios/Sheet';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
 import { ToggleRow } from '../ios/ListRow';
@@ -18,10 +21,13 @@ import { useHostAction } from './useHostData';
 
 const N = HOST_SETTINGS.newGame;
 
-export function NewGameSheet({ game, open, onClose }: { game: GameState; open: boolean; onClose: () => void }) {
+export function NewGameSheet({ game, open, onClose }: { game: GameState | null; open: boolean; onClose: () => void }) {
   const [keepCrews, setKeepCrews] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const { run, pending } = useHostAction();
+
+  const startingCash = formatMoney(game?.startingCapital ?? DEFAULT_STARTING_CAPITAL, { symbol: game?.currency.symbol ?? CURRENCY.symbol });
+  const keepCrewsLine = keepCrews ? fill(HOST_SETTINGS.keepCrews.whenOn, { startingCash }) : HOST_SETTINGS.keepCrews.whenOff;
 
   const start = async () => {
     setConfirming(false);
@@ -51,7 +57,7 @@ export function NewGameSheet({ game, open, onClose }: { game: GameState; open: b
           <InsetGroupedList surface="sheet" aria-label={HOST_SETTINGS.keepCrews.label}>
             <ToggleRow
               title={HOST_SETTINGS.keepCrews.label}
-              subtitle={keepCrews ? fill(HOST_SETTINGS.keepCrews.whenOn, { startingCash: formatMoney(game.startingCapital, { symbol: game.currency.symbol }) }) : HOST_SETTINGS.keepCrews.whenOff}
+              subtitle={keepCrewsLine}
               checked={keepCrews}
               onChange={setKeepCrews}
             />
@@ -63,7 +69,7 @@ export function NewGameSheet({ game, open, onClose }: { game: GameState; open: b
         open={confirming}
         onOpenChange={(next) => !next && setConfirming(false)}
         title={N.confirmTitle}
-        message={keepCrews ? fill(HOST_SETTINGS.keepCrews.whenOn, { startingCash: formatMoney(game.startingCapital, { symbol: game.currency.symbol }) }) : HOST_SETTINGS.keepCrews.whenOff}
+        message={keepCrewsLine}
         cancelLabel={N.cancel}
         confirmLabel={N.confirmButton}
         destructive

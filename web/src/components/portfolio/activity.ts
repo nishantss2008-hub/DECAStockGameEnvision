@@ -3,7 +3,7 @@
  * Order detail lines and Balances lines. Labels are COPY §1.3 `activity.*` / `portfolio.*`; rejection
  * titles are COPY §9 `ticket-errors.*.title`. Money is integer cents.
  */
-import type { Company, OrderRecord, OrderSide, Trade } from '@deca/shared';
+import type { Instrument, OrderRecord, OrderSide, Trade } from '@deca/shared';
 import { formatMoney, formatNumber, formatPct, formatTickTime } from '../../lib/format';
 import { sessionInfo } from '../../lib/gameTime';
 import { orderNumber } from '../../lib/orderId';
@@ -58,14 +58,14 @@ export function rejectionTitle(code: string | undefined): string {
   return (code && REJECTION_TITLES[code]) || REJECTION_TITLES.unknown_error!;
 }
 
-const tickerOf = (companyId: string, byId: Record<string, Company>): string => byId[companyId]?.ticker ?? companyId.toUpperCase();
+const tickerOf = (companyId: string, byId: Record<string, Instrument>): string => byId[companyId]?.ticker ?? companyId.toUpperCase();
 
 function tradeNet(t: Pick<Trade, 'side' | 'quantity' | 'price' | 'fee'>): number {
   const notional = t.quantity * t.price;
   return t.side === 'buy' ? -(notional + t.fee) : notional - t.fee;
 }
 
-function filledItem(trade: Trade, order: OrderRecord | null, byId: Record<string, Company>, sessionTicks: number): ActivityItem {
+function filledItem(trade: Trade, order: OrderRecord | null, byId: Record<string, Instrument>, sessionTicks: number): ActivityItem {
   const ticker = tickerOf(trade.companyId, byId);
   return {
     orderNumber: orderNumber(trade.clientOrderId),
@@ -87,7 +87,7 @@ function filledItem(trade: Trade, order: OrderRecord | null, byId: Record<string
   };
 }
 
-function orderItem(order: OrderRecord, byId: Record<string, Company>, sessionTicks: number): ActivityItem {
+function orderItem(order: OrderRecord, byId: Record<string, Instrument>, sessionTicks: number): ActivityItem {
   const ticker = tickerOf(order.companyId, byId);
   const rejected = order.status === 'rejected';
   const reasonTitle = rejected ? rejectionTitle(order.code) : null;
@@ -117,7 +117,7 @@ function orderItem(order: OrderRecord, byId: Record<string, Company>, sessionTic
 export function buildActivity(
   orders: readonly OrderRecord[],
   trades: readonly Trade[],
-  byId: Record<string, Company>,
+  byId: Record<string, Instrument>,
   sessionTicks: number,
 ): ActivityItem[] {
   const tradeById = new Map(trades.map((t) => [t.id, t]));

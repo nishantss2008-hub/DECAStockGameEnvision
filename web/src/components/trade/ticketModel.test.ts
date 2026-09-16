@@ -245,6 +245,13 @@ describe('ticket outcomes', () => {
     expect(apiProblem({ code: 'trading_disabled', status: 400, message: 'x' }, buy('5'), KRKN, 'live')).toMatchObject({ title: 'Trading turned off for your crew', fix: null });
     expect(apiProblem({ code: 'no_team', status: 400, message: 'x' }, buy('5'), KRKN, 'live')).toMatchObject({ fix: { label: 'Sign out', action: { kind: 'signOut' } } });
     expect(apiProblem({ code: 'unknown_company', status: 400, message: 'x' }, buy('5'), KRKN, 'live')).toMatchObject({ fix: { label: 'Search companies', action: { kind: 'navigate', to: '/markets' } } });
+    // The "Meet the market" gate (design 2026-09-16 §6): the fix is a route into the flow, not a retry.
+    expect(apiProblem({ code: 'intro_required', status: 400, message: 'Meet the market first. Finish the short Meet the market tour, then place this order again. It takes about a minute, and nothing else is locked.' }, buy('5'), KRKN, 'live')).toEqual({
+      code: 'intro_required',
+      title: 'Meet the market first',
+      message: 'Finish the short Meet the market tour, then place this order again. It takes about a minute, and nothing else is locked.',
+      fix: { label: 'Start Meet the market', action: { kind: 'navigate', to: '/learn/meet-the-market' } },
+    });
     expect(apiProblem({ code: 'bad_quantity', status: 400, message: 'x' }, buy('5'), KRKN, 'live')).toMatchObject({ fix: { label: 'Clear', action: { kind: 'clear' } } });
     const funds = apiProblem(
       { code: 'insufficient_funds', status: 400, message: 'Not enough cash. This order is Ð1.00 more than your cash available to trade (Ð2.00). Lower the shares or amount, or use the most you can afford.' },

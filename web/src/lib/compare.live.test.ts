@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Company, Fundamentals } from '@deca/shared';
 import { COPY_DATA } from './glossary.data';
-import { explainMetric, formatMetricValue, metricValue, METRIC_IDS, MONEY_METRICS, type MetricId, type SectorAverage } from './compare';
+import { explainMetric, formatMetricValue, metricValue, METRIC_IDS, MONEY_METRICS, type MetricId, type PeerComparison } from './compare';
 import { formatMoney, formatNumber, formatPct } from './format';
 
 const ex = COPY_DATA.exampleCompany;
@@ -70,10 +70,10 @@ const krknC = {
   beta: num('beta'),
 } as unknown as Company;
 
-const avgFor = (id: MetricId): SectorAverage => {
+const avgFor = (id: MetricId): PeerComparison => {
   const v = ex.sectorAverages[id];
   const value = v === undefined ? null : MONEY_METRICS.has(id) ? cents(v) : v;
-  return { scope: 'sector', sector: ex.sector as Company['sector'], value, count: 5 };
+  return { scope: 'sector', sector: ex.sector as Company['sector'], value, count: 2 };
 };
 
 /**
@@ -119,7 +119,7 @@ describe('COPY §3 examples reproduced from the KRKN company data (live valuatio
 });
 
 describe('COPY §3 format tokens round half-up like lib/format', () => {
-  const avg: SectorAverage = { scope: 'sector', sector: 'Naval Arms', value: null, count: 0 };
+  const avg: PeerComparison = { scope: 'sector', sector: 'Naval Arms', value: null, count: 0 };
 
   it('pct1 rounds negative halves away from zero and has no binary drift', () => {
     expect(formatMetricValue('netMargin', -0.0355, 'Ð')).toBe(formatPct(-0.0355, { digits: 1 }));
@@ -146,6 +146,6 @@ describe('COPY §3 format tokens round half-up like lib/format', () => {
   });
 
   it('averages use the same rounding', () => {
-    expect(explainMetric('debtToEquity', 1, { ...avg, value: 0.145 }, 'Ð').averageText).toBe('Sector average: 0.15');
+    expect(explainMetric('debtToEquity', 1, { ...avg, value: 0.145 }, 'Ð').averageText).toBe('Rest of Naval Arms: 0.15');
   });
 });

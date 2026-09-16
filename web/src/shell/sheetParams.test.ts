@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSheet, withSheet, withoutSheet } from './sheetParams';
+import { PAGE_OWNED_SHEETS, parseSheet, withSheet, withoutSheet } from './sheetParams';
 
 describe('parseSheet', () => {
   it.each([
@@ -14,6 +14,9 @@ describe('parseSheet', () => {
     ['?sheet=welcome&view=price', { kind: 'welcome' }],
     ['?sheet=help&set=markets-basics', { kind: 'help', set: 'markets-basics' }],
     ['?sheet=help&set=statements-cashflow', { kind: 'help', set: 'statements-cashflow' }],
+    ['?sheet=help&set=company-analyst', { kind: 'help', set: 'company-analyst' }],
+    ['?sheet=stat&id=peRatio', { kind: 'stat', id: 'peRatio' }],
+    ['?sheet=stat&id=sessionRange', { kind: 'stat', id: 'sessionRange' }],
   ])('%s', (search, expected) => {
     expect(parseSheet(search)).toEqual(expected);
   });
@@ -26,6 +29,8 @@ describe('parseSheet', () => {
     ['?sheet=term'],
     ['?sheet=term&id=a%20b'],
     ['?sheet=crew'],
+    ['?sheet=stat'],
+    ['?sheet=stat&id=pe ratio'],
     ['?sheet=help&set=everything'],
     ['?sheet=ACCOUNT'],
   ])('%s is not a sheet', (search) => {
@@ -54,8 +59,13 @@ describe('withSheet / withoutSheet', () => {
       { kind: 'status' },
       { kind: 'welcome' },
       { kind: 'help', set: 'positions' },
+      { kind: 'stat', id: 'marketCap' },
     ] as const;
     for (const r of reqs) expect(parseSheet(withSheet('', r))).toEqual(r);
+  });
+
+  it('names the sheets a page renders itself, because their content needs the page data', () => {
+    expect([...PAGE_OWNED_SHEETS].sort()).toEqual(['help', 'stat']);
   });
 
   it('removes only sheet params', () => {

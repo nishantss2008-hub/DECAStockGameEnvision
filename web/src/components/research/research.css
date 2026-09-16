@@ -3,11 +3,9 @@
 .rs-page--actions { padding-bottom: 96px; }
 .rs-section { margin-block-start: 16px; }
 .rs-secondary { color: var(--label-2); }
-.rs-tertiary { color: var(--label-3); }
 .rs-heading { margin: 0; color: var(--label); }
 .rs-subtitle { margin: 0; }
 .rs-lead { margin: 0 0 4px; color: var(--label-2); }
-.rs-summary { margin: 0 0 12px; }
 .rs-units { margin: 8px 16px 0; }
 .rs-group-title { margin: 24px 0 2px; }
 .rs-group-note { margin: 0; }
@@ -37,23 +35,87 @@
   font-size: var(--t-subhead);
   text-decoration: none;
 }
-.rs-section-header { display: flex; align-items: center; gap: 4px; min-height: 44px; padding-inline: 4px; }
-.rs-label-with-tip { display: inline-flex; align-items: center; gap: 2px; }
 
-/* Session range row inside Key stats. */
-.rs-range-row { display: block; padding: 8px 16px 12px; }
-.rs-range-row[data-highlighted] { background: var(--tint-soft); }
-.rs-range-row__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
-.rs-range-row__ends { display: flex; justify-content: space-between; color: var(--label-3); margin-top: 4px; }
+/* ─── Stat grid (MOBILE §7.7): two columns of scannable numbers, explanation one tap away. ─── */
+.rs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rs-grid__item { min-width: 0; }
+.rs-grid__item[data-highlighted] .rs-stat { background: var(--tint-soft); }
+/* One cell per row once the label and value stop fitting side by side (large text, small phones). */
+@media (max-width: 359px) {
+  .rs-grid { grid-template-columns: minmax(0, 1fr); }
+}
+html[data-large-text] .rs-grid { grid-template-columns: minmax(0, 1fr); }
 
-/* Analyst view. */
+.rs-stat {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--cell);
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.rs-stat:focus-visible { outline: 2px solid var(--focus, var(--tint)); outline-offset: 2px; }
+.rs-stat__label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  color: var(--label-2);
+}
+.rs-stat__glyph { flex: none; color: var(--tint); }
+.rs-stat__value { color: var(--label); overflow-wrap: anywhere; }
+.rs-stat__caption { color: var(--label-3); overflow-wrap: anywhere; }
+/* Press feedback, like .ios-row--interactive:active, layered over the cell rather than replacing it. */
+.rs-stat:active {
+  background: linear-gradient(var(--fill-2), var(--fill-2)) var(--cell);
+  transition-duration: var(--dur-press, 100ms);
+}
+@media (forced-colors: active) {
+  .rs-stat { border: 1px solid CanvasText; }
+}
+
+/* Session range bar, full width under the Key stats grid. */
+.rs-stats .rs-grid + .rs-range { margin-block-start: 9px; }
+.rs-range { padding: 14px 16px; }
+
+/* Analyst view (a sheet behind the "Analyst view" row). */
+.rs-analyst__body { display: grid; gap: 8px; padding-block: 4px 8px; }
+.rs-analyst__body > p { margin: 0; }
 .rs-analyst__target { display: flex; align-items: center; gap: 4px; }
 .rs-analyst__target .ios-num { margin-inline-start: auto; color: var(--label); }
 
-/* News rows. */
-.rs-news-sub { display: grid; gap: 2px; }
+/* One stat explained (`?sheet=stat&id=…`). */
+.rs-stat-sheet__card { margin: 0; padding: 0; list-style: none; border-radius: var(--r-card); background: var(--elevated-cell); overflow: clip; }
+.rs-stat-sheet__actions { display: flex; padding-top: 20px; }
+.rs-stat-sheet__actions .ios-button { text-decoration: none; }
+
+/* News rows: two single lines (meta, then "What this means") inside one ListRow subtitle.
+   `.ios-row__subtitle` truncates with an ellipsis, but that rule reaches inline content only — a
+   grid nested inside it escapes both the nowrap and the ellipsis. Left implicit, the column is
+   `auto` over items whose `min-width` is `auto`, so it grew to MAX-content (940px measured on
+   KRKN) and `.ios-list__card`'s `overflow-x: clip` cut both lines mid-word with no ellipsis at
+   all. Cap the track and give each line the truncation its parent can no longer apply. */
+.rs-news-sub { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.rs-news-sub > * { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* At Larger Text the rows stack and `.ios-row__subtitle` wraps instead of truncating (ListRow.css);
+   these lines follow it, or the affordance would stop at the news section. */
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .rs-news-sub > * { white-space: normal; overflow: visible; }
 .rs-news-meaning { color: var(--label-2); }
-.rs-trailing-stack { display: grid; justify-items: end; gap: 2px; }
 
 /* Floating Buy / Sell above the tab bar (MOBILE §7.7), with a 20px edge fade behind. */
 .rs-float {
@@ -155,3 +217,18 @@
 .rs-help { display: grid; gap: 20px; padding: 4px 16px 24px; }
 .rs-help__item h3 { margin: 0 0 4px; }
 .rs-about { white-space: pre-line; }
+
+/* ─── A fund's "What this fund holds" (spec 2026-09-16 §3) ──────────────────── */
+
+.rs-holdings__lead {
+  margin: 0 0 9px;
+  color: var(--label-2);
+}
+.rs-holdings__card + .rs-range { margin-block-start: 9px; }
+
+/* Weight sits above the change pill, right-aligned and tabular so the column reads as a column. */
+.rs-holdings__weight {
+  font-size: var(--t-subhead);
+  font-weight: 600;
+  color: var(--label);
+}

@@ -34,7 +34,8 @@ export type { StockHeaderScrub };
 export interface StockHeaderProps {
   name: string;
   ticker: string;
-  sector: Sector;
+  /** Absent on the broad fund, which tracks the whole market rather than one sector. */
+  sector?: Sector;
   /** Last price, integer cents. */
   price: number;
   /** Session open price, integer cents (for the money change). */

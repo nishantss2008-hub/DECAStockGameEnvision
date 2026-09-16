@@ -81,6 +81,15 @@ export interface ExplainExtraCopy {
     unitsNote: string;
     examples: string[];
   };
+  /** COPY §3.2 `statGrid`: the two-column Key stats / All stats grid (MOBILE §7.7). */
+  statGrid: {
+    sector: string;
+    market: string;
+    tapHint: string;
+    formatRule: string;
+    groups: Record<string, { label: string; note: string }>;
+    examples: string[];
+  };
   analystCard: {
     title: string;
     summaryAbove: string;
@@ -108,6 +117,7 @@ export interface ExplainExtraCopy {
     helper: string;
     fiveQuestionsPanel: string;
     fiveQuestionsNote: string;
+    more: string;
     flavor: string;
     views: Record<string, { label: string; help: string }>;
   };
@@ -123,6 +133,10 @@ export interface NewsExtraCopy {
   sinceReport: string;
   sinceReportHelp: string;
   companyCount: string;
+  /** COPY §4: the row tag for a dispatch that moved the whole market. */
+  marketWide: string;
+  /** Same, on one company's page: "Whole market, including KRKN". */
+  marketWideHere: string;
   sourceHost: string;
   filters: { all: string; holdings: string; watchlist: string };
   tradeLink: string;

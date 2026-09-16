@@ -105,3 +105,8 @@
 
 .tk-choose { display: grid; gap: 8px; }
 .tk-section { margin-top: 8px; }
+
+/* What a fund order does to the companies inside it (COPY §13 `funds-extra.trading`). */
+.tk-fund-note {
+  margin: 0 0 12px;
+}

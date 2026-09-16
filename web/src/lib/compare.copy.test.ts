@@ -12,9 +12,9 @@ import {
   formatMetricValue,
   isNotMeaningful,
   metricValue,
-  sectorAverages,
+  peerComparisons,
   type MetricId,
-  type SectorAverage,
+  type PeerComparison,
 } from './compare';
 
 const toInternal = (id: MetricId, v: number | null) => (v === null ? null : MONEY_METRICS.has(id) ? Math.round(v * 100) : v);
@@ -27,7 +27,7 @@ describe('explainMetric reproduces every COPY §3.1 example', () => {
   for (const template of COPY_DATA.explain) {
     const id = template.id as MetricId;
     const sectorAvg = COPY_DATA.exampleCompany.sectorAverages[id];
-    const avg: SectorAverage = { scope: 'sector', sector: 'Shipping & Salvage', value: toInternal(id, sectorAvg ?? null), count: 5 };
+    const avg: PeerComparison = { scope: 'sector', sector: 'Shipping & Salvage', value: toInternal(id, sectorAvg ?? null), count: 2 };
     for (const key of ['example', 'lossExample', 'nullExample', 'zeroExample'] as const) {
       const ex = template[key];
       if (!ex) continue;
@@ -44,18 +44,19 @@ describe('explainMetric reproduces every COPY §3.1 example', () => {
 });
 
 describe('explainMetric details', () => {
-  const sector: SectorAverage = { scope: 'sector', sector: 'Naval Arms', value: 22.1, count: 3 };
+  const sector: PeerComparison = { scope: 'sector', sector: 'Naval Arms', value: 22.1, count: 2 };
 
-  it('uses the market line and a dash for a missing average', () => {
-    expect(explainMetric('peRatio', 17.8, { ...sector, scope: 'market', value: 21.4 }, 'Ð').averageText).toBe('Market average: 21.4');
-    expect(explainMetric('peRatio', 17.8, { ...sector, value: null }, 'Ð').averageText).toBe('Sector average: —');
+  it('names the sector, and uses the market line and a dash when there is no sector comparison', () => {
+    expect(explainMetric('peRatio', 17.8, sector, 'Ð').averageText).toBe('Rest of Naval Arms: 22.1');
+    expect(explainMetric('peRatio', 17.8, { ...sector, scope: 'market', value: 21.4 }, 'Ð').averageText).toBe('Rest of the market: 21.4');
+    expect(explainMetric('peRatio', 17.8, { ...sector, value: null }, 'Ð').averageText).toBe('Rest of Naval Arms: —');
   });
 
   it('fills a renamed currency symbol', () => {
     expect(explainMetric('peRatio', 17.8, sector, '$').sentence).toBe('You pay $17.80 for every $1 of yearly profit.');
     expect(explainMetric('marketCap', 2_036_000_000_000, { ...sector, value: 984_000_000_000 }, '$')).toMatchObject({
       valueText: '$20.36B',
-      averageText: 'Sector average: $9.84B',
+      averageText: 'Rest of Naval Arms: $9.84B',
     });
   });
 
@@ -156,21 +157,33 @@ describe('metricValue: live valuation (COPY §0.6)', () => {
   });
 });
 
-describe('sectorAverages details', () => {
+describe('peerComparisons details', () => {
   const f = (pe: number, ni = 100) => ({ peRatio: pe, netIncome: ni, revenue: 1000, netMargin: ni / 1000 }) as unknown as Fundamentals;
   const c = (id: string, sector: string) => ({ id, sector }) as unknown as Company;
+  const arms = ['a', 'b', 'd', 'e'].map((id) => c(id, 'Naval Arms'));
+  const bank = c('g', 'Treasure Banking');
+  const all = Object.fromEntries([...arms, bank].map((x) => [x.id, x]));
 
-  it('leaves n/m and missing values out of the median', () => {
-    const avg = sectorAverages(
-      { a: f(10), b: f(20), d: f(900), e: f(0, -50), g: f(30) },
-      { a: c('a', 'Naval Arms'), b: c('b', 'Naval Arms'), d: c('d', 'Naval Arms'), e: c('e', 'Naval Arms'), g: c('g', 'Cursed Relics') },
-    );
-    expect(avg('peRatio', 'Naval Arms')).toEqual({ scope: 'sector', sector: 'Naval Arms', value: 15, count: 2 });
-    expect(avg('peRatio', 'Cursed Relics')).toEqual({ scope: 'market', sector: 'Cursed Relics', value: 20, count: 3 });
+  it('leaves n/m and missing values out, and leaves the company itself out', () => {
+    // d is n/m (900) and e has no P/E (a loss), so a's peers are just b (20); b's are just a (10).
+    const avg = peerComparisons({ a: f(10), b: f(20), d: f(900), e: f(0, -50), g: f(30) }, all);
+    expect(avg('peRatio', arms[0]!)).toEqual({ scope: 'sector', sector: 'Naval Arms', value: 20, count: 1 });
+    expect(avg('peRatio', arms[1]!)).toEqual({ scope: 'sector', sector: 'Naval Arms', value: 10, count: 1 });
+    // d's own 900 is n/m, so it is out of every pool; d still reads its two peers, 10 and 20.
+    expect(avg('peRatio', arms[2]!)).toEqual({ scope: 'sector', sector: 'Naval Arms', value: 15, count: 2 });
+    // g is alone in its sector, so it falls back to every OTHER company: 10, 20 (30 is its own).
+    expect(avg('peRatio', bank)).toEqual({ scope: 'market', sector: 'Treasure Banking', value: 15, count: 2 });
+  });
+
+  it('falls back to the market when no peer in the sector has the number', () => {
+    // Only a has a P/E in Naval Arms, so a itself has no sector peer and reads the market instead.
+    const avg = peerComparisons({ a: f(10), b: f(0, -50), d: f(0, -50), g: f(30) }, all);
+    expect(avg('peRatio', arms[0]!)).toEqual({ scope: 'market', sector: 'Naval Arms', value: 30, count: 1 });
+    expect(avg('peRatio', arms[1]!)).toEqual({ scope: 'sector', sector: 'Naval Arms', value: 10, count: 1 });
   });
 
   it('ignores companies without fundamentals and reports null when nothing is usable', () => {
-    const avg = sectorAverages({}, { a: c('a', 'Naval Arms') });
-    expect(avg('peRatio', 'Naval Arms')).toEqual({ scope: 'market', sector: 'Naval Arms', value: null, count: 0 });
+    const avg = peerComparisons({}, { a: c('a', 'Naval Arms') });
+    expect(avg('peRatio', c('a', 'Naval Arms'))).toEqual({ scope: 'market', sector: 'Naval Arms', value: null, count: 0 });
   });
 });

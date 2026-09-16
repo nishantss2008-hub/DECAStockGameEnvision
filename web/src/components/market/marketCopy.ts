@@ -3,6 +3,7 @@
  * the rest come from COPY.md (§1.1, §1.5, §3.2 research, §4 news-extra, §12 empty/loading/errors).
  * Placeholders are filled with `fill()` from shell/copy.
  */
+import { FUNDS_EXTRA, MARKETS_EXTRA } from '../../lib/fundCopy';
 import { COPY_DATA, NEWS_EXTRA } from '../../lib/glossary';
 
 const research = COPY_DATA.explainExtra.research;
@@ -24,12 +25,13 @@ export const ERRORS = {
 
 export const MARKETS = {
   title: 'Markets',
-  searchCompanies: 'Search {n} companies',
+  /** {n} is companies + funds, counted from the live roster — never a literal. */
+  searchCompanies: MARKETS_EXTRA.list.searchPlaceholder,
   recent: 'Recent',
   removeRecent: 'Remove {ticker}',
   results: '{n} results',
   oneResult: '1 result',
-  searchEmpty: { title: 'No companies match “{query}”', body: 'Try a symbol like KRKN or part of a company name.' },
+  searchEmpty: { title: MARKETS_EXTRA.list.searchEmptyTitle, body: MARKETS_EXTRA.list.searchEmptyBody },
   compositeLabel: 'Whole-market index',
   compositeName: 'Pirate Composite',
   thisSession: 'this session',
@@ -43,7 +45,15 @@ export const MARKETS = {
   watchlist: 'Watchlist',
   watchlistEmpty: { title: 'Your watchlist is empty', body: 'Tap the star on a company page to follow it here.' },
   allCompanies: 'All companies',
-  viewLabel: 'Markets view',
+  funds: FUNDS_EXTRA.fund.sectionTitle,
+  fundsNote: FUNDS_EXTRA.fund.whatItIs,
+  fundBadge: MARKETS_EXTRA.list.fundBadge,
+  compare: MARKETS_EXTRA.compare.link,
+  compareTitle: MARKETS_EXTRA.compare.title,
+  compareIntro: MARKETS_EXTRA.compare.intro,
+  compareOpen: MARKETS_EXTRA.compare.menuItem,
+  seeGroup: MARKETS_EXTRA.list.seeGroup,
+  viewLabel: 'Compare view',
   viewMenuLabel: 'View',
   views: { basics: 'Basics', price: 'Price', value: 'Value', health: 'Health', analysts: 'Analysts' },
   viewHelp: {
@@ -65,7 +75,7 @@ export const MARKETS = {
   noCompanies: 'No companies in this group yet.',
   pricesFooter: 'Prices update every {tickSeconds} seconds · as of {time}',
   seeAllCompanies: 'See in All companies',
-  companies: 'Companies',
+  companies: MARKETS_EXTRA.list.companies,
   sectorNotFound: { title: 'No industry group by that name', action: 'Open Markets' },
   usuallyGood: 'Usually a good sign when ',
 } as const;

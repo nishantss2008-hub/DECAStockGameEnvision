@@ -6,7 +6,7 @@
  * staleness flag and the crew's rows on each render.
  */
 
-import type { Company, GameState, Holding, Leaderboard, MarketSummary, NewsEvent, OrderRecord, Team, Trade } from '@deca/shared';
+import type { Company, Fund, GameState, Holding, Leaderboard, MarketSummary, NewsEvent, OrderRecord, Team, Trade } from '@deca/shared';
 import type { LiveState } from '../lib/liveStore';
 
 /** The signed-in crew's own rows, as the server's `portfolio` event carries them. */
@@ -30,6 +30,8 @@ export interface LiveSnapshot {
   game: GameState | null;
   /** The roster in the order the server sent it. */
   companies: Company[];
+  /** The tradeable baskets, in the order the server sent them (broad fund first). */
+  funds: Fund[];
   market: MarketSummary | null;
   leaderboard: Leaderboard | null;
   news: NewsEvent[];
@@ -37,6 +39,7 @@ export interface LiveSnapshot {
 }
 
 const NO_COMPANIES: Company[] = [];
+const NO_FUNDS: Fund[] = [];
 const NO_NEWS: NewsEvent[] = [];
 const NO_HOLDINGS: Holding[] = [];
 const NO_TRADES: Trade[] = [];
@@ -51,6 +54,7 @@ export const EMPTY_LIVE: LiveSnapshot = {
   serverTime: 0,
   game: null,
   companies: NO_COMPANIES,
+  funds: NO_FUNDS,
   market: null,
   leaderboard: null,
   news: NO_NEWS,
@@ -70,6 +74,8 @@ export function normalizeLive(state: LiveState | null | undefined): LiveSnapshot
   if (!state) return EMPTY_LIVE;
   const ids = Array.isArray(state.companyIds) ? state.companyIds : [];
   const companies = ids.map((id) => state.companies?.[id]).filter((c): c is Company => Boolean(c));
+  const fundIds = Array.isArray(state.fundIds) ? state.fundIds : [];
+  const funds = fundIds.map((id) => state.funds?.[id]).filter((f): f is Fund => Boolean(f));
   return {
     ready: Boolean(state.ready),
     stale: isStale(state),
@@ -77,6 +83,7 @@ export function normalizeLive(state: LiveState | null | undefined): LiveSnapshot
     serverTime: typeof state.serverTime === 'number' ? state.serverTime : 0,
     game: state.game ?? null,
     companies: companies.length ? companies : NO_COMPANIES,
+    funds: funds.length ? funds : NO_FUNDS,
     market: state.market ?? null,
     leaderboard: state.leaderboard ?? null,
     news: state.news ?? NO_NEWS,

@@ -28,8 +28,9 @@ describe('useWatchlist', () => {
 
   it('works in memory without a crew and when storage throws', () => {
     const { result } = renderHook(() => useWatchlist(null));
-    act(() => result.current.toggle('astrolabe'));
-    expect(result.current.has('astrolabe')).toBe(false);
+    // 'grand-fleet' starts starred (DEFAULT_WATCHLIST), so one toggle un-stars it.
+    act(() => result.current.toggle('grand-fleet'));
+    expect(result.current.has('grand-fleet')).toBe(false);
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {
       throw new Error('quota');

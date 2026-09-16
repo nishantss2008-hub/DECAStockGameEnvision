@@ -27,6 +27,13 @@ describe('gateFor', () => {
     expect(gateFor('host', host, loc('/admin/tape'))).toEqual({ kind: 'allow' });
   });
 
+  it('lets the host open the projector and keeps crews off it (MOBILE §7.19)', () => {
+    expect(gateFor('host', host, loc('/admin/projector'))).toEqual({ kind: 'allow' });
+    expect(gateFor('host', crew, loc('/admin/projector'))).toEqual({ kind: 'redirect', to: '/portfolio' });
+    // One login: a host already signed in on this browser walks straight onto the wall.
+    expect(gateFor('login', host, loc('/login', '?next=%2Fadmin%2Fprojector'))).toEqual({ kind: 'redirect', to: '/admin/projector' });
+  });
+
   it('a signed-in account without a role cannot enter either area', () => {
     const noRole = { loading: false, signedIn: true, role: null } as const;
     expect(gateFor('crew', noRole, loc('/news'))).toEqual({ kind: 'redirect', to: '/login' });

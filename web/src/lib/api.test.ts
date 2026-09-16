@@ -136,7 +136,12 @@ describe('api', () => {
   it('sends no content-type or body for an empty POST, and supports GET and DELETE', async () => {
     fetchMock.mockImplementation(async () => respond(200, { ok: true }));
     await apiPost('admin/game/start');
-    expect(String(fetchMock.mock.calls[0]![0])).toMatch(/[^/]\/admin\/game\/start$/);
+    // Base-agnostic: VITE_API_BASE is empty in production (the server serves the app from its own
+    // origin) and may be an absolute URL in local development. Either way, joining it to a path that
+    // carries no leading slash must not produce a double slash.
+    const startUrl = String(fetchMock.mock.calls[0]![0]);
+    expect(startUrl.endsWith('/admin/game/start')).toBe(true);
+    expect(startUrl).not.toMatch(/[^:]\/\/admin\/game\/start/);
     expect(fetchMock.mock.calls[0]![1].headers['Content-Type']).toBeUndefined();
     expect(fetchMock.mock.calls[0]![1].body).toBeUndefined();
     await apiGet('/api/market');

@@ -21,7 +21,7 @@ import { StatusLine } from '../components/ios/LargeTitleNavBar';
 import { WaxSeal } from '../components/ios/WaxSeal';
 import { Sparkline } from '../components/charts/Sparkline';
 import { formatMoneyCents } from '../components/ios/signedText';
-import { ACCOUNT, ACCOUNT_VALUE, STANDINGS } from './kitData';
+import { ACCOUNT, ACCOUNT_VALUE, AS_OF_TICK, STANDINGS } from './kitData';
 import { KitDemo, KitSection, OpenTermContext, Tip, explainLabel } from './kitShared';
 
 export const OVERLAY_IDS = [
@@ -345,10 +345,10 @@ export function OverlaysSection({ initial }: OverlayDemosProps) {
           <Sheet open={is('status')} onOpenChange={(o) => !o && close()} title="Market status" headerLayout="leading" detents="medium" scrim="info">
             <div className="kit-sheet-body">
               <StatusLine tone="open">Market open · Sails up</StatusLine>
-              <p className="t-body">Trading is open. Prices update every 30 seconds.</p>
+              <p className="t-body">Trading is open. Prices update every 5 seconds.</p>
               <InsetGroupedList aria-label="Game clock" surface="sheet">
                 <KeyValueRow label="Time left" info={<Tip id="session" />} value="37:17:42" />
-                <KeyValueRow label="Tick" info={<Tip id="tick" />} value={`${formatNumber(1284)} of ${formatNumber(5760)}`} />
+                <KeyValueRow label="Tick" info={<Tip id="tick" />} value={`${formatNumber(AS_OF_TICK)} of ${formatNumber(360)}`} />
                 <KeyValueRow label="Session" value="2 of 8" />
               </InsetGroupedList>
             </div>
@@ -391,8 +391,8 @@ export function OverlaysSection({ initial }: OverlayDemosProps) {
             <div className="kit-sheet-body kit-welcome">
               <p className="t-title-1 t-emph">Welcome aboard, Saltwind Traders</p>
               <ul className="kit-welcome__list" role="list">
-                <li className="t-body">You start with Ð1,000,000.00 in cash.</li>
-                <li className="t-body">Prices update every 30 seconds for the whole game.</li>
+                <li className="t-body">You start with Ð250,000.00 in cash.</li>
+                <li className="t-body">Prices update every 5 seconds for the whole game.</li>
                 <li className="t-body">Healthier companies tend to do better over time, but news and luck matter.</li>
               </ul>
               <Button fullWidth onClick={close}>

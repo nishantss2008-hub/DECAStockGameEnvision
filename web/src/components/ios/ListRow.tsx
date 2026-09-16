@@ -24,6 +24,8 @@ interface RowAction {
 interface RowFrameProps extends RowAction {
   className?: string;
   ariaLabel?: string;
+  /** "dialog" on rows that open a sheet instead of navigating. */
+  ariaHasPopup?: 'dialog';
   /** Separator start inset in px: 16, or aligned to the text after a leading element (16 + width + 12). */
   separatorInset?: number;
   /** Width of the leading element, so stacked (large-text) trailing content aligns with the text. */
@@ -41,6 +43,7 @@ function RowFrame({
   onClick,
   className,
   ariaLabel,
+  ariaHasPopup,
   separatorInset,
   leadingWidth,
   stacked,
@@ -71,7 +74,7 @@ function RowFrame({
     );
   } else if (onClick) {
     body = (
-      <button type="button" className={classes} aria-label={ariaLabel} onClick={onClick} {...dataAttributes}>
+      <button type="button" className={classes} aria-label={ariaLabel} aria-haspopup={ariaHasPopup} onClick={onClick} {...dataAttributes}>
         {children}
       </button>
     );
@@ -308,19 +311,31 @@ export interface DisclosureRowProps extends RowAction {
   /** 29px tile icon (decorative). */
   icon?: LucideIcon;
   'aria-label'?: string;
+  /** "dialog" when the row opens a sheet rather than navigating. */
+  'aria-haspopup'?: 'dialog';
   stacked?: boolean;
   id?: string;
   className?: string;
 }
 
 /** DisclosureRow (MOBILE §5.5): optional icon tile · title over subtitle · detail · chevron when it opens something. */
-export function DisclosureRow({ title, subtitle, detail, icon: Icon, 'aria-label': ariaLabel, className, ...frame }: DisclosureRowProps) {
+export function DisclosureRow({
+  title,
+  subtitle,
+  detail,
+  icon: Icon,
+  'aria-label': ariaLabel,
+  'aria-haspopup': ariaHasPopup,
+  className,
+  ...frame
+}: DisclosureRowProps) {
   const opens = frame.to !== undefined || frame.onClick !== undefined;
   return (
     <RowFrame
       {...frame}
       className={cx('ios-row--disclosure', subtitle !== undefined && 'ios-row--two-line', className)}
       ariaLabel={ariaLabel}
+      ariaHasPopup={ariaHasPopup}
       separatorInset={Icon ? 57 : 16}
       leadingWidth={Icon ? 29 : undefined}
     >

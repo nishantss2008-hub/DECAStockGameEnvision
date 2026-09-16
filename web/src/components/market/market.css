@@ -6,8 +6,13 @@
 }
 .bx-muted { color: var(--label-2); }
 .bx-section { margin-block-start: 32px; }
-.bx-stack { display: grid; gap: 16px; }
-.bx-stack > .ios-list { margin: 0; }
+/* One column that can never be wider than the page. A grid item's `min-width` is `auto`, so an
+   implicit `auto` column grows to its content's MIN-content width and takes the page with it: a
+   sector group whose header reads "Cartography & Navigation · See Cartography & Navigation" (nowrap)
+   measured 388px inside a 343px column and scrolled all of Markets sideways at 375px, never mind the
+   320px reflow floor. `minmax(0, 1fr)` caps the track and lets the rows ellipsize as they are built to. */
+.bx-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.bx-stack > .ios-list { margin: 0; min-width: 0; }
 .bx-label-q { display: inline-flex; align-items: center; min-width: 0; }
 .bx-tip { color: var(--label-2); }
 .bx-card {
@@ -64,6 +69,37 @@
   line-height: 1.294;
   font-weight: 600;
   color: var(--label);
+}
+
+/* ─── Markets list: Funds, then Companies by sector (spec 2026-09-16 §4) ─────── */
+
+/* The sort menu sits on its own row above the two sections, so neither section owns it. */
+.bx-markets__list-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: 16px;
+}
+
+.bx-sector-groups .bx-stack > .ios-list + .ios-list { margin-block-start: 0; }
+
+/* Trailing header links (a sector group, "Compare"): tinted, with a 44pt target that does not
+   move the header baseline (MOBILE §4.4). */
+.bx-group-link,
+.bx-section__action {
+  position: relative;
+  margin-inline-start: auto;
+  color: var(--tint);
+  font-size: var(--t-subhead);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bx-group-link::before,
+.bx-section__action::before { content: ''; position: absolute; inset: -12px -8px; }
+
+/* Compare: the dense table screen the five-way metric control moved to. */
+.bx-compare__intro {
+  margin: 0 0 8px;
+  color: var(--label-2);
 }
 
 /* Search */

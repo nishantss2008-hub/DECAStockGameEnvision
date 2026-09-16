@@ -23,6 +23,7 @@ import '../../components/portfolio/portfolio.css';
 import { ERRORS, LOADING } from '../../shell/copy';
 import { useDocumentTitle, useStackBack } from '../../shell/StubPage';
 import { useSheet } from '../../shell/useSheet';
+import { useIntroGate } from '../../shell/useIntroGate';
 
 const SORTS: { id: PositionSort; label: string }[] = [
   { id: 'value', label: 'Value' },
@@ -38,6 +39,7 @@ export default function PositionsPage() {
   const back = useStackBack('/portfolio');
   const navigate = useNavigate();
   const { sheet, open, close } = useSheet();
+  const { openTrade } = useIntroGate();
   const [params, setParams] = useSearchParams();
   const sort = (SORTS.find((s) => s.id === params.get('sort'))?.id ?? 'value') as PositionSort;
   const { team, rows, totals, currency, loading, error } = usePortfolioView();
@@ -133,7 +135,7 @@ export default function PositionsPage() {
               key={r.companyId}
               row={r}
               currency={currency}
-              onTrade={(ticker, side) => open({ kind: 'trade', ticker, side })}
+              onTrade={(ticker, side) => openTrade({ ticker, side })}
               onOpen={(ticker) => navigate(companyPath(ticker))}
             />
           ))}

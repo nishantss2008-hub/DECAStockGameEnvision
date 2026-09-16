@@ -14,16 +14,18 @@ export type CrewScreenId =
   | 'financials'
   | 'stats'
   | 'markets'
+  | 'compare'
   | 'sector'
   | 'news'
   | 'dispatch'
   | 'standings'
   | 'results'
   | 'learn'
+  | 'meetTheMarket'
   | 'guideChapter'
   | 'glossaryTerm';
 
-export type HostScreenId = 'control' | 'crews' | 'market' | 'newsDesk' | 'tape' | 'audit';
+export type HostScreenId = 'control' | 'crews' | 'market' | 'newsDesk' | 'tape' | 'audit' | 'projector';
 export type ScreenId = CrewScreenId | HostScreenId;
 
 export interface ScreenRoute<Id extends ScreenId = ScreenId> {
@@ -49,12 +51,14 @@ export const CREW_SCREENS: readonly ScreenRoute<CrewScreenId>[] = [
   { id: 'orderDetail', path: '/portfolio/activity/:orderId', title: 'Order detail' },
   { id: 'balances', path: '/portfolio/balances', title: 'Balances' },
   { id: 'markets', path: '/markets', title: 'Markets' },
+  { id: 'compare', path: '/markets/compare', title: 'Compare companies' },
   { id: 'sector', path: '/markets/sector/:sectorId', title: 'Sector' },
   { id: 'news', path: '/news', title: 'News' },
   { id: 'dispatch', path: '/news/:newsId', title: 'Dispatch' },
   { id: 'standings', path: '/standings', title: 'Standings' },
   { id: 'results', path: '/standings/results', title: 'Final results' },
   { id: 'learn', path: '/learn', title: 'Learn' },
+  { id: 'meetTheMarket', path: '/learn/meet-the-market', title: 'Meet the market' },
   { id: 'guideChapter', path: '/learn/guide', title: 'How the game works' },
   { id: 'guideChapter', path: '/learn/five-questions', title: '5 questions' },
   { id: 'guideChapter', path: '/learn/basics', title: 'Trading basics' },
@@ -71,12 +75,36 @@ export const HOST_SCREENS: readonly ScreenRoute<HostScreenId>[] = [
   { id: 'audit', path: '/admin/audit', title: 'Audit' },
 ];
 
-const ALL = [...CREW_SCREENS, ...HOST_SCREENS];
+/**
+ * Host screens rendered OUTSIDE HostShell's chrome (MOBILE §7.19): no tab bar, no nav bar, nothing
+ * tappable. The projector is the room's screen, not the host's, and one fat-fingered tab during a
+ * round would put the standings somewhere else. Kept out of HOST_SCREENS so it can never
+ * accidentally grow chrome; still a `/admin/*` path, so `gate.ts` keeps crews out of it.
+ */
+export const HOST_FULLSCREEN_SCREENS: readonly ScreenRoute<HostScreenId>[] = [{ id: 'projector', path: '/admin/projector', title: 'Projector' }];
+
+const ALL = [...CREW_SCREENS, ...HOST_SCREENS, ...HOST_FULLSCREEN_SCREENS];
 const MATCHABLE = ALL.map((s) => ({ path: s.path, screen: s }));
 
 export function matchScreen(pathname: string): ScreenRoute | null {
   const hit = matchRoutes(MATCHABLE, pathname);
   return hit?.[hit.length - 1]?.route.screen ?? null;
+}
+
+/**
+ * Crew screens that fill the phone with the shell's chrome hidden (`html[data-intro]`, intro.css):
+ * today only the required-once "Meet the market" flow (design 2026-09-16 §6). They still live in a
+ * tab's path space — the flow is replayable from Learn — but a step inside a flow is not a place in
+ * that tab's stack, so tab memory neither stores nor restores one (nav.ts). Without that, pressing
+ * Learn after the flow drops the crew straight back into the walkthrough it has already finished,
+ * with no tab bar to leave by.
+ */
+export const CHROMELESS_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['meetTheMarket']);
+
+/** True when the shell renders `pathname` without its tab bar / sidebar. */
+export function isChromeless(pathname: string): boolean {
+  const screen = matchScreen(pathname);
+  return screen ? CHROMELESS_SCREENS.has(screen.id) : false;
 }
 
 /** Patterns router.tsx mounts <LegacyRedirect/> on. */

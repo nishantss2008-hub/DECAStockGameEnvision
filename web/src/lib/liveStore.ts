@@ -13,15 +13,23 @@
  *   - live points are appended to short, capped series (`priceSeries`, `compositeSeries`,
  *     `teamSeries`) so charts keep moving between REST range reads.
  *
+ * FUNDS ride the same rails as companies. The server prices every fund from its constituents and
+ * fans its quote out in the same `tick.prices` map keyed by instrument id, so a fund folds through
+ * `applyQuote` exactly like a company — it simply has no market cap to re-derive. Keeping them in
+ * their own `funds`/`fundIds` slice (rather than mixing them into `companies`) means every screen
+ * that only ever means companies — sector groups, fundamentals, news — keeps its narrow type.
+ *
  * Hidden company data (`reveal`) is stripped server-side before the game ends; the client never
- * sees it, so there is nothing to hide here.
+ * sees it, so there is nothing to hide here. A fund's holdings and weights are PUBLIC by design.
  */
 
 import type {
   Company,
+  Fund,
   Fundamentals,
   GameState,
   Holding,
+  InstrumentQuote,
   Leaderboard,
   MarketSummary,
   NewsEvent,
@@ -61,6 +69,8 @@ export interface Snapshot {
   serverTime: number;
   game: GameState | null;
   companies: Company[];
+  /** The tradeable baskets. Absent on a server older than the funds release. */
+  funds?: Fund[];
   market: MarketSummary | null;
   leaderboard: Leaderboard | null;
   news: NewsEvent[];
@@ -90,6 +100,12 @@ export type StreamEvent =
 
 export interface CompaniesResponse {
   companies: Company[];
+}
+export interface FundsResponse {
+  funds: Fund[];
+}
+export interface FundDetailResponse {
+  fund: Fund;
 }
 export interface CompanyDetailResponse {
   company: Company;
@@ -160,7 +176,10 @@ export interface LiveState {
   companies: Record<string, Company>;
   /** Roster order as the server sent it, so lists stay stable. */
   companyIds: string[];
-  /** companyId → last price in integer cents. */
+  funds: Record<string, Fund>;
+  /** Fund order as the server sent it (broad fund first). */
+  fundIds: string[];
+  /** Instrument id (company or fund) → last price in integer cents. */
   prices: Record<string, number>;
   market: MarketSummary | null;
   leaderboard: Leaderboard | null;
@@ -189,6 +208,8 @@ export const initialLiveState: LiveState = {
   game: null,
   companies: {},
   companyIds: [],
+  funds: {},
+  fundIds: [],
   prices: {},
   market: null,
   leaderboard: null,
@@ -205,26 +226,33 @@ export const initialLiveState: LiveState = {
 // ─── pure folding helpers ──────────────────────────────────────────────────────────────────────
 
 /**
- * Re-derives a company row from a new last price. A tick carries prices only, so the session and
- * voyage fields every screen shows would otherwise freeze between snapshots.
+ * Re-derives any quote — a company's or a fund's — from a new last price. A tick carries prices
+ * only, so the session and voyage fields every screen shows would otherwise freeze between
+ * snapshots. Returns the same object when nothing changed, so React skips the re-render.
  */
-export function applyPrice(company: Company, price: number, tick: number): Company {
-  if (!Number.isFinite(price) || price === company.currentPrice) {
-    return tick > company.lastTick ? { ...company, lastTick: tick } : company;
+export function applyQuote<T extends InstrumentQuote>(quote: T, price: number, tick: number): T {
+  if (!Number.isFinite(price) || price === quote.currentPrice) {
+    return tick > quote.lastTick ? { ...quote, lastTick: tick } : quote;
   }
-  const sessionOpen = company.sessionOpen || company.startPrice;
+  const sessionOpen = quote.sessionOpen || quote.startPrice;
   return {
-    ...company,
+    ...quote,
     currentPrice: price,
-    lastTick: Math.max(tick, company.lastTick),
-    sessionHigh: Math.max(company.sessionHigh, price),
-    sessionLow: company.sessionLow ? Math.min(company.sessionLow, price) : price,
-    voyageHigh: Math.max(company.voyageHigh, price),
-    voyageLow: company.voyageLow ? Math.min(company.voyageLow, price) : price,
+    lastTick: Math.max(tick, quote.lastTick),
+    sessionHigh: Math.max(quote.sessionHigh, price),
+    sessionLow: quote.sessionLow ? Math.min(quote.sessionLow, price) : price,
+    voyageHigh: Math.max(quote.voyageHigh, price),
+    voyageLow: quote.voyageLow ? Math.min(quote.voyageLow, price) : price,
     sessionChange: sessionOpen ? (price - sessionOpen) / sessionOpen : 0,
-    voyageChange: company.startPrice ? (price - company.startPrice) / company.startPrice : 0,
-    marketCap: price * company.sharesOutstanding,
+    voyageChange: quote.startPrice ? (price - quote.startPrice) / quote.startPrice : 0,
   };
+}
+
+/** `applyQuote` plus the one field only a company has: market cap = price × shares. */
+export function applyPrice(company: Company, price: number, tick: number): Company {
+  const next = applyQuote(company, price, tick);
+  if (next === company || next.currentPrice === company.currentPrice) return next;
+  return { ...next, marketCap: price * company.sharesOutstanding };
 }
 
 /** Appends a point, replacing a repeat of the same tick, and keeps the series bounded. */
@@ -262,6 +290,11 @@ export const selectCompany =
   (id: string) =>
   (s: LiveState): Company | null =>
     s.companies[id] ?? null;
+export const selectFunds = (s: LiveState): Fund[] => s.fundIds.map((id) => s.funds[id]!).filter(Boolean);
+export const selectFund =
+  (id: string) =>
+  (s: LiveState): Fund | null =>
+    s.funds[id] ?? null;
 export const selectMarket = (s: LiveState): MarketSummary | null => s.market;
 export const selectLeaderboard = (s: LiveState): Leaderboard | null => s.leaderboard;
 export const selectNews = (s: LiveState): NewsEvent[] => s.news;
@@ -320,6 +353,13 @@ export function createLiveStore(initial: Partial<LiveState> = {}): LiveStore {
           prices[c.id] = c.currentPrice;
           companyIds.push(c.id);
         }
+        const funds: Record<string, Fund> = {};
+        const fundIds: string[] = [];
+        for (const f of snap.funds ?? []) {
+          funds[f.id] = f;
+          prices[f.id] = f.currentPrice;
+          fundIds.push(f.id);
+        }
         const portfolio = snap.portfolio;
         return {
           ...current,
@@ -331,6 +371,8 @@ export function createLiveStore(initial: Partial<LiveState> = {}): LiveStore {
           game: snap.game ?? null,
           companies,
           companyIds,
+          funds,
+          fundIds,
           prices,
           market: snap.market ?? null,
           leaderboard: snap.leaderboard ?? null,
@@ -344,12 +386,17 @@ export function createLiveStore(initial: Partial<LiveState> = {}): LiveStore {
       case 'tick': {
         const t = event.data;
         const companies = { ...current.companies };
+        const funds = { ...current.funds };
         const prices = { ...current.prices };
         const priceSeries = { ...current.priceSeries };
         for (const [id, price] of Object.entries(t.prices ?? {})) {
           prices[id] = price;
           const company = companies[id];
           if (company) companies[id] = applyPrice(company, price, t.tick);
+          // A fund's quote arrives in the same map: the server recomputed the basket from its
+          // moved constituents, so the client never re-prices a fund itself.
+          const fund = funds[id];
+          if (fund) funds[id] = applyQuote(fund, price, t.tick);
           priceSeries[id] = appendPoint(priceSeries[id] ?? [], { tick: t.tick, price, volume: 0 });
         }
         const composite = t.market?.composite?.value;
@@ -360,6 +407,7 @@ export function createLiveStore(initial: Partial<LiveState> = {}): LiveStore {
           serverTime: t.serverTime ?? current.serverTime,
           receivedAt: Date.now(),
           companies,
+          funds,
           prices,
           priceSeries,
           market: t.market ?? current.market,

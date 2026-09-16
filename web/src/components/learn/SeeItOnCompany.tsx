@@ -7,7 +7,7 @@ import { useMemo } from 'react';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
 import { DisclosureRow, ExplainRow } from '../ios/ListRow';
 import { SkeletonGroup, SkeletonRow } from '../ios/Skeleton';
-import { explainMetric, metricValue, sectorAverages } from '../../lib/compare';
+import { explainMetric, metricValue, peerComparisons } from '../../lib/compare';
 import { useCompanies } from '../../hooks/useCompanies';
 import { useAllFundamentals } from '../../hooks/useAllFundamentals';
 import { useShellGame } from '../../shell/ShellData';
@@ -21,7 +21,7 @@ export function SeeItOnCompany({ termId }: { termId: string }) {
   const { companies, byId, loading, error } = useCompanies();
   const fundamentals = useAllFundamentals(game?.marketCreatedAt ?? null);
   const company = exampleCompany(companies);
-  const averageFor = useMemo(() => sectorAverages(fundamentals.byId, byId), [fundamentals.byId, byId]);
+  const averageFor = useMemo(() => peerComparisons(fundamentals.byId, byId), [fundamentals.byId, byId]);
 
   if (!metric) return null;
   const busy = loading || fundamentals.loading;
@@ -47,7 +47,7 @@ export function SeeItOnCompany({ termId }: { termId: string }) {
   const f = fundamentals.byId[company.id];
   const symbol = game?.currency?.symbol ?? 'Ð';
   const value = f ? metricValue(metric, f, company) : null;
-  const explained = explainMetric(metric, value, averageFor(metric, company.sector), symbol);
+  const explained = explainMetric(metric, value, averageFor(metric, company), symbol);
 
   return (
     <InsetGroupedList header={LEARN_MOBILE.seeItOnCompany} footer={fundamentals.error ? ERRORS.pageLoad.title : undefined} className="bx-learn-see">

@@ -4,7 +4,7 @@
  * The query lives in `?q=` (replace) so Back from a term keeps the search.
  */
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeftRight, BookOpen, Compass, Play } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Compass, Play, Ship } from 'lucide-react';
 import { SearchField } from '../../components/ios/SearchField';
 import { InsetGroupedList } from '../../components/ios/InsetGroupedList';
 import { DisclosureRow } from '../../components/ios/ListRow';
@@ -15,6 +15,7 @@ import { useWalkthrough } from '../../shell/useWalkthrough';
 import { GlossaryBrowser, glossaryResultsText } from '../../components/learn/GlossaryBrowser';
 import { chapterSubtitles, LEARN_MOBILE, LEARN_PATHS, searchTermsPlaceholder } from '../../components/learn/learnLogic';
 import { FIVE_QUESTIONS_TITLE, GUIDE_COPY, TRADING_BASICS_TITLE } from '../../components/learn/learnCopy';
+import { INTRO } from '../../components/learn/introCopy';
 import '../../components/learn/learn.css';
 
 export default function LearnPage() {
@@ -48,6 +49,8 @@ export default function LearnPage() {
         </div>
         {!searching && (
           <InsetGroupedList aria-label={LEARN_MOBILE.chapters} className="bx-learn-chapters">
+            {/* Replayable any time (design §6): the same flow a crew must finish before its first order. */}
+            <DisclosureRow icon={Ship} title={INTRO.learnRow} subtitle={subtitles.meetTheMarket} to={LEARN_PATHS.meetTheMarket} />
             <DisclosureRow
               icon={Play}
               title={LEARN_MOBILE.howToPlay}

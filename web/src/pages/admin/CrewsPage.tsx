@@ -3,6 +3,11 @@
  * rank and value, "Trading off" tag) → Crew detail (`?crew=id`, pushed look): value/cash/return/trades/rank with "?",
  * ToggleRow "Trading allowed", holdings, "Reset password…", destructive "Remove crew…" (action sheet).
  * At ≥744 the list is a table (spec §8 crews table). Empty: COPY §12 empty.hostCrews.
+ *
+ * The "Meet the market" gate (design 2026-09-16 §6, COPY §14 `intro-host`) is shown here too: which crews have
+ * finished, and one action to mark a crew finished or send it back through. It is an ACTION with an Undo toast,
+ * not a switch, because it is a rescue — a crew whose phone died must not be locked out of a competition — and
+ * a switch invites idle flipping. `POST /api/admin/teams/:id/intro` is the only writer.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -27,10 +32,12 @@ import { useDocumentTitle } from '../../shell/StubPage';
 import { useShellLayout } from '../../shell/useShellLayout';
 import { filterCrews, returnPct } from '../../components/admin/adminFormat';
 import { crewInitials } from '../../components/admin/hostLogic';
-import { HOST_EMPTY, HOST_PHONE } from '../../components/admin/hostCopy';
+import { HOST_EMPTY, HOST_PHONE, INTRO_HOST } from '../../components/admin/hostCopy';
 import { HostInfo, HostLoadError, HostLoading, HostNavBar, MetricLabel, MetricLegend } from '../../components/admin/HostUi';
 import { AddCrewSheet, ResetPasswordSheet } from '../../components/admin/CrewSheets';
 import { useHostAction } from '../../components/admin/useHostData';
+import { useToast } from '../../components/ios/Toast';
+import { introComplete } from '../../components/learn/introFlow';
 
 const C = HOST_PHONE.crews;
 
@@ -38,12 +45,12 @@ export default function CrewsPage() {
   const [params, setParams] = useSearchParams();
   const crewId = params.get('crew');
   const { game } = useGame();
-  const { teams, loading, error } = useAdminTeams();
+  const { teams, loading, error, refresh } = useAdminTeams();
   const team = crewId ? teams.find((t) => t.id === crewId) ?? null : null;
   useDocumentTitle(team ? team.name : 'Crews');
 
   if (crewId && team) {
-    return <CrewDetail team={team} game={game} onBack={() => setParams({}, { replace: false })} />;
+    return <CrewDetail team={team} game={game} onBack={() => setParams({}, { replace: false })} onChanged={refresh} />;
   }
   return <CrewList teams={teams} loading={loading} error={error} game={game} focusSearch={params.get('find') === '1'} onOpen={(id) => setParams({ crew: id })} />;
 }
@@ -93,6 +100,7 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
                   <th scope="col" className="num-col"><MetricLabel label={C.returnPct} termId="returnPct" /></th>
                   <th scope="col" className="num-col"><MetricLabel label={C.trades} termId="tradeCount" /></th>
                   <th scope="col" className="num-col"><MetricLabel label={C.rank} termId="rank" /></th>
+                  <th scope="col">{INTRO_HOST.label}</th>
                   <th scope="col"><span className="ios-sr-only">Manage</span></th>
                 </tr>
               </thead>
@@ -111,6 +119,7 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
                     <td className="num">{formatPct(returnPct(t.totalValue, start), { signed: true })}</td>
                     <td className="num">{formatNumber(t.tradeCount)}</td>
                     <td className="num">{t.rank ? formatNumber(t.rank) : '—'}</td>
+                    <td>{introComplete(t) ? INTRO_HOST.done : INTRO_HOST.pending}</td>
                     <td>
                       <Button variant="gray" size="small" onClick={() => onOpen(t.id)} aria-label={`Manage ${t.name}`}>
                         Manage
@@ -133,7 +142,12 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
                 title={t.name}
                 subtitle={`${C.rank} ${t.rank ? formatNumber(t.rank) : '—'} · ${formatPct(returnPct(t.totalValue, start), { signed: true })}`}
                 detail={<span className="num">{formatMoney(t.totalValue, { symbol: sym })}</span>}
-                trailing={t.tradingDisabled ? <TagPill>{C.tradingOff}</TagPill> : undefined}
+                trailing={
+                  <>
+                    {!introComplete(t) && <TagPill>{INTRO_HOST.pendingTag}</TagPill>}
+                    {t.tradingDisabled && <TagPill>{C.tradingOff}</TagPill>}
+                  </>
+                }
                 chevron
                 onClick={() => onOpen(t.id)}
               />
@@ -147,10 +161,11 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
   );
 }
 
-function CrewDetail({ team, game, onBack }: { team: Team; game: GameState | null; onBack: () => void }) {
+function CrewDetail({ team, game, onBack, onChanged }: { team: Team; game: GameState | null; onBack: () => void; onChanged: () => void }) {
   const [resetOpen, setResetOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const { run } = useHostAction();
+  const toast = useToast();
   const { holdings, loading } = useAdminHoldings(team.id);
   const { byId } = useCompanies();
   const sym = game?.currency.symbol;
@@ -159,6 +174,22 @@ function CrewDetail({ team, game, onBack }: { team: Team; game: GameState | null
     void run('trading', () => apiPost(`/api/admin/teams/${encodeURIComponent(team.id)}/trading`, { enabled }), {
       success: `${team.name}: ${enabled ? C.tradingAllowed : C.tradingOff}`,
     });
+  const introDone = introComplete(team);
+  /**
+   * Marks the intro finished, or sends the crew back through it. Every call offers the exact inverse as
+   * an Undo, so a mis-tap on the wrong crew costs one tap, not a crew's game.
+   */
+  const setIntro = async (completed: boolean, withUndo = true) => {
+    const result = await run('intro', () => apiPost(`/api/admin/teams/${encodeURIComponent(team.id)}/intro`, { completed }));
+    if (!result.ok) return;
+    onChanged();
+    const message = fill(completed ? INTRO_HOST.markDoneToast : INTRO_HOST.sendAgainToast, { crew: team.name });
+    toast.show({
+      title: message,
+      ...(withUndo ? { action: { label: INTRO_HOST.undo, onAction: () => void setIntro(!completed, false) } } : {}),
+    });
+  };
+
   const remove = async () => {
     const result = await run('remove', () => apiDelete(`/api/admin/teams/${encodeURIComponent(team.id)}`), { success: fill(C.removed, { crew: team.name }) });
     if (result.ok) onBack();
@@ -177,6 +208,10 @@ function CrewDetail({ team, game, onBack }: { team: Team; game: GameState | null
         </InsetGroupedList>
         <InsetGroupedList aria-label={C.tradingAllowed}>
           <ToggleRow title={C.tradingAllowed} checked={!team.tradingDisabled} onChange={setTrading} />
+        </InsetGroupedList>
+        <InsetGroupedList header={INTRO_HOST.label} footer={INTRO_HOST.note}>
+          <KeyValueRow label={INTRO_HOST.label} value={introDone ? INTRO_HOST.done : INTRO_HOST.pending} />
+          <ActionRow onClick={() => void setIntro(!introDone)}>{introDone ? INTRO_HOST.sendAgain : INTRO_HOST.markDone}</ActionRow>
         </InsetGroupedList>
         <InsetGroupedList header={C.holdings} headerAction={<HostInfo termId="invested" />}>
           {loading ? (

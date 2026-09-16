@@ -117,10 +117,10 @@ describe('LargeTitleNavBar', () => {
 
   it('shows a pinned search in the bar only while collapsed', () => {
     const observers = stubIntersectionObserver();
-    render(<LargeTitleNavBar title="Markets" pinnedSearch={<input aria-label="Search 25 companies" />} />);
-    expect(screen.queryByRole('textbox', { name: 'Search 25 companies' })).toBeNull();
+    render(<LargeTitleNavBar title="Markets" pinnedSearch={<input aria-label="Search companies and funds" />} />);
+    expect(screen.queryByRole('textbox', { name: 'Search companies and funds' })).toBeNull();
     act(() => observers.at(-1)!.callback([{ isIntersecting: false, boundingClientRect: { top: -5 } as DOMRectReadOnly }]));
-    expect(screen.getByRole('textbox', { name: 'Search 25 companies' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search companies and funds' })).toBeInTheDocument();
   });
 
   it('renders the status line slot as a button that opens the market status sheet', async () => {

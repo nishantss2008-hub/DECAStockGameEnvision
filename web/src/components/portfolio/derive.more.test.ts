@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Company, Holding, Team } from '@deca/shared';
+import { DEFAULT_STARTING_CAPITAL, type Company, type Holding, type Team } from '@deca/shared';
 import {
   accountTotals,
   allocationItems,
@@ -66,7 +66,7 @@ describe('accountTotals', () => {
 
   it('defaults starting cash to the game default and handles a zero session-open value', () => {
     const t = accountTotals({ cashBalance: 100, totalValue: 100, sessionOpenValue: 0 } as unknown as Team, []);
-    expect(t.startingCapital).toBe(100_000_000);
+    expect(t.startingCapital).toBe(DEFAULT_STARTING_CAPITAL);
     expect(t.sessionPct).toBe(0);
     expect(t.cashPct).toBe(1);
   });

@@ -1,7 +1,7 @@
 /**
  * All companies (MOBILE §7.6 row 8): sticky view control (Basics | Price | Value | Health | Analysts) with the sort and
- * filter menu, the view caption, the sticky column header with one "?" for "What these columns mean", 25 rows and
- * the research helper footer. Also the help sheet for `?sheet=help&set=markets-*`.
+ * filter menu, the view caption, the sticky column header with one "?" for "What these columns mean", one row per
+ * company and the research helper footer. Also the help sheet for `?sheet=help&set=markets-*`.
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';

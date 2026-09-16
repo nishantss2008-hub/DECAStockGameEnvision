@@ -23,14 +23,14 @@ import { useMarket } from '../../hooks/useMarket';
 import { useAuth } from '../../lib/auth';
 import { ShellNavBar } from '../../shell/ShellNavBar';
 import { useDocumentTitle } from '../../shell/StubPage';
-import { useSheet } from '../../shell/useSheet';
+import { useIntroGate } from '../../shell/useIntroGate';
 import { WalkthroughCard } from '../../shell/WalkthroughCard';
 import { ERRORS, LOADING } from '../../shell/copy';
 
 export default function PortfolioPage() {
   useDocumentTitle('Portfolio');
   const navigate = useNavigate();
-  const { open } = useSheet();
+  const { openTrade } = useIntroGate();
   const { teamId } = useAuth();
   const view = usePortfolioView();
   const activity = useActivityItems();
@@ -39,7 +39,7 @@ export default function PortfolioPage() {
   const { team, totals, rows, game, clock, currency } = view;
 
   const trade = (
-    <NavBarButton label="Trade" icon={ArrowLeftRight} aria-haspopup="dialog" onClick={() => open({ kind: 'trade', ticker: null, side: 'buy' })} />
+    <NavBarButton label="Trade" icon={ArrowLeftRight} aria-haspopup="dialog" onClick={() => openTrade({ ticker: null, side: 'buy' })} />
   );
 
   let content;

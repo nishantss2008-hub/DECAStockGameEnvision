@@ -92,6 +92,25 @@ async function crewSignIn(page: Page, crew: string) {
   await page.waitForURL(/\/portfolio/);
 }
 
+/**
+ * "Meet the market" start to finish (design 2026-09-16 §6). Required once per crew before its first
+ * order, so every crew that trades in this file goes through it — the same ten cards a student sees.
+ */
+async function completeIntro(page: Page) {
+  await expect(page).toHaveURL(/\/learn\/meet-the-market/);
+  // The visible counter, not the sr-only live region that announces the same words.
+  const counter = page.locator('#bx-intro-step');
+  const total = Number((await counter.textContent())?.match(/of (\d+)/)?.[1] ?? 0);
+  expect(total).toBe(10); // 3 cards + 5 sectors + funds + done
+  for (let step = 1; step < total; step++) {
+    await expect(counter).toHaveText(`Step ${step} of ${total}`);
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+  }
+  await expect(counter).toHaveText(`Step ${total} of ${total}`);
+  await page.getByRole('button', { name: 'Open Markets', exact: true }).click();
+  await page.waitForURL(/\/markets/);
+}
+
 async function tab(page: Page, name: string) {
   await page.getByRole('navigation').getByRole('link', { name, exact: true }).click();
 }
@@ -144,30 +163,44 @@ test('a whole game on a phone', async ({ page, browser }) => {
     a11y.push(...(await axeBoth(page, 'sign-in')));
   }
 
-  // ── Crew: sign in, walkthrough, Markets, KRKN, "?" on P/E ─────────────────
+  // ── Crew: sign in, Meet the market, Markets, KRKN, "?" on P/E ─────────────
   await crewSignIn(page, crews[0]!);
   const welcome = page.getByRole('dialog', { name: new RegExp(`Welcome aboard, ${crews[0]}`) });
   await expect(welcome).toBeVisible();
   const startingValue = (await page.getByTestId('account-value').textContent())?.trim();
-  await welcome.getByRole('button', { name: 'Start the walkthrough' }).click();
+  // A crew that has not finished the intro is sent into it from Welcome (design §6); the walkthrough
+  // starts underneath and is waiting on Markets when the flow ends.
+  await welcome.getByRole('button', { name: 'Meet the market', exact: true }).click();
+  if (runAxe) a11y.push(...(await axeBoth(page, 'meet-the-market')));
+  await completeIntro(page);
+  // The walkthrough the Welcome sheet started is waiting on Portfolio; it still opens Markets.
+  await tab(page, 'Portfolio');
   await expect(page.getByText('Your first trade in 3 steps')).toBeVisible();
   await shot(page, '02-walkthrough');
   await page.getByRole('button', { name: 'Open Markets' }).or(page.getByRole('link', { name: 'Open Markets' })).first().click();
   await expect(page.getByRole('heading', { level: 1, name: 'Markets' })).toBeVisible();
+  // Funds first, then the five sector groups (spec §4).
+  await expect(page.getByRole('heading', { name: 'Funds', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Grand Fleet Fund, FLEET/ }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Companies', exact: true })).toBeVisible();
   if (runAxe) a11y.push(...(await axeBoth(page, 'markets')));
   await page.getByRole('searchbox').first().fill('kra');
   await page.getByRole('link', { name: /Kraken Shipping Lines, KRKN/ }).first().click();
   await expect(page).toHaveURL(/\/markets\/company\/KRKN/);
+  // Key stats is now a two-column grid of cells (spec §3): the number and its sector comparison are
+  // on the cell, and the plain-English sentence is one tap away in the stat sheet.
   await expect(page.getByRole('heading', { name: 'Key stats' })).toBeVisible();
-  const peTip = page.getByRole('button', { name: /^What is Price vs\. profit/ }).first();
-  await peTip.scrollIntoViewIfNeeded();
-  await peTip.tap();
+  const peCell = page.getByRole('button', { name: /^Price vs\. profit/ }).first();
+  await expect(peCell).toContainText('Rest of sector');
+  await peCell.scrollIntoViewIfNeeded();
+  await peCell.tap();
   const tip = page.getByRole('dialog', { name: 'Price vs. profit' });
-  await expect(tip.getByText('Why it matters')).toBeVisible();
+  await expect(tip).toBeVisible();
+  await expect(tip.getByRole('link', { name: /Learn/ }).first()).toBeVisible();
   await shot(page, '03-pe-tip');
   await tip.getByRole('button', { name: 'Close' }).click();
   await expect(tip).toBeHidden();
-  await expect(page).not.toHaveURL(/sheet=term/);
+  await expect(page).not.toHaveURL(/sheet=stat/);
   if (runAxe) a11y.push(...(await axeBoth(page, 'company')));
 
   // ── Trade: Buy 10 via Preview → Place → Filled ───────────────────────────

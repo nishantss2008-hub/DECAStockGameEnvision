@@ -17,6 +17,7 @@ import { SHEET_STATE_KEY, useSheet } from './useSheet';
 import { ShellDataProvider, useShellGame } from './ShellData';
 import { WalkthroughProvider, useWalkthrough } from './useWalkthrough';
 import { SheetHost } from './SheetHost';
+import { useIntroGate } from './useIntroGate';
 import { SailsUp } from './SailsUp';
 import { UpdatePrompt } from './UpdatePrompt';
 import { Sidebar } from './Sidebar';
@@ -56,6 +57,7 @@ function CrewFrame() {
   const { sheet, open } = useSheet();
   const { team, online } = useShellGame();
   const walkthrough = useWalkthrough();
+  const gate = useIntroGate();
   const toast = useToast();
   const onTab = useTabPress();
   // Final results open by themselves once per game when the host ends it (MOBILE §7.13), from any tab.
@@ -103,7 +105,7 @@ function CrewFrame() {
           label={SHELL.mainNav}
           isActive={(item) => item.id === activeTab}
           onItemClick={onTab}
-          onTrade={() => open({ kind: 'trade', ticker: null, side: 'buy' })}
+          onTrade={() => gate.openTrade({ ticker: null, side: 'buy' })}
           crew={team ? { name: team.name, onOpen: () => open({ kind: 'account' }) } : null}
         />
       )}

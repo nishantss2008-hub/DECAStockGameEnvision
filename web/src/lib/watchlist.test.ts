@@ -22,6 +22,7 @@ describe('watchlist (pure parts)', () => {
     expect(list).toEqual(['kraken']);
   });
   it('default matches the plan', () => {
-    expect(DEFAULT_WATCHLIST).toEqual(['kraken', 'port-royal', 'cursed-doubloon', 'astrolabe', 'galleon-goods']);
+    // The broad fund leads: funds are starrable exactly like companies (spec 2026-09-16 §3).
+    expect(DEFAULT_WATCHLIST).toEqual(['grand-fleet', 'kraken', 'port-royal', 'galleon-goods']);
   });
 });

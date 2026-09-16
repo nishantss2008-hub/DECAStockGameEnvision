@@ -1,0 +1,109 @@
+/**
+ * "Meet the market" (design 2026-09-16 §6, MOBILE §7.2b). A full-screen card flow: the tab bar and
+ * sidebar step aside while `html[data-intro]` is set, and a fixed pager holds Back / Next plus the
+ * honest note about what "Finish later" costs.
+ *
+ * Colour comes only from semantic tokens, so both appearances and `prefers-contrast: more` follow
+ * the theme. Every target is at least 44px and every size is relative, so Dynamic Type grows the
+ * whole flow rather than clipping it.
+ */
+
+html[data-intro] .ios-tabbar,
+html[data-intro] .bx-sidebar { display: none; }
+html[data-intro] .bx-main { padding-bottom: 0; }
+
+.bx-intro {
+  min-height: 100dvh;
+  padding-inline: var(--gutter-left, 16px) var(--gutter-right, 16px);
+  padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-grouped);
+  color: var(--label);
+}
+
+.bx-intro__top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding-bottom: 8px;
+  background: var(--bg-grouped);
+}
+.bx-intro__counter { margin: 0; color: var(--label-2); }
+/* The "Finish later" / Close text button keeps a 44px target without a 44px capsule. */
+.bx-intro__top .ios-button { min-height: 44px; padding-inline: 4px; }
+
+.bx-intro__track {
+  position: sticky;
+  top: calc(40px + env(safe-area-inset-top, 0px));
+  z-index: 5;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--fill-2);
+  overflow: hidden;
+}
+.bx-intro__fill {
+  display: block;
+  width: var(--bx-intro-pct, 0%);
+  height: 100%;
+  border-radius: 2px;
+  background: var(--tint);
+  transition: width var(--dur-release) var(--ease-fallback);
+}
+@media (prefers-reduced-motion: reduce) {
+  .bx-intro__fill { transition: none; }
+}
+
+.bx-intro__card { padding-top: 16px; }
+.bx-intro__title { margin: 0 0 8px; }
+.bx-intro__title:focus { outline: none; }
+.bx-intro__title:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 4px; }
+.bx-intro__body { margin: 0 0 16px; }
+
+.bx-intro__points { display: grid; gap: 10px; margin: 0 0 20px; padding: 0; list-style: none; }
+.bx-intro__points li {
+  position: relative;
+  padding-inline-start: 20px;
+  color: var(--label-2);
+}
+.bx-intro__points li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 4px;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tint);
+}
+
+/* Company and fund descriptions are full sentences, so they wrap instead of being clipped. */
+.bx-intro__list .ios-row__subtitle { white-space: normal; }
+.bx-intro__list .ios-row__trailing { align-self: flex-start; }
+.bx-intro__ticker { font-weight: 600; }
+
+.bx-intro__error { margin: 0 0 16px; color: var(--destructive-strong); }
+
+.bx-intro__pager {
+  position: fixed;
+  z-index: 30;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 10px var(--gutter-right, 16px) calc(12px + env(safe-area-inset-bottom, 0px)) var(--gutter-left, 16px);
+  background: var(--glass-solid, var(--bg-grouped));
+  box-shadow: var(--glass-edge, none);
+}
+.bx-intro__note { margin: 0 0 10px; color: var(--label-2); text-wrap: pretty; }
+.bx-intro__buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bx-intro__buttons .ios-button { min-height: 44px; }
+
+/* Split view (≥744): the flow keeps a readable measure instead of stretching. */
+@media (min-width: 744px) {
+  .bx-intro__card,
+  .bx-intro__top,
+  .bx-intro__track { max-width: 640px; margin-inline: auto; }
+  .bx-intro__pager > * { max-width: 640px; margin-inline: auto; }
+}

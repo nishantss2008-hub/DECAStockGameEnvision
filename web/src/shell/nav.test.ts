@@ -83,6 +83,18 @@ describe('tab memory (sessionStorage)', () => {
     expect(recallTabPath(broken, 'news')).toBeNull();
   });
 
+  it('never remembers or restores the full-screen "Meet the market" flow (design §6)', () => {
+    const s = memoryStorage();
+    rememberTabPath(s, { pathname: '/learn/glossary/peRatio', search: '', hash: '' });
+    rememberTabPath(s, { pathname: '/learn/meet-the-market', search: '?step=4', hash: '' });
+    // The flow is a step, not a stack position: the tab still points at the last real Learn screen.
+    expect(recallTabPath(s, 'learn')).toBe('/learn/glossary/peRatio');
+    // And a value left by an older build is rejected rather than restored.
+    s.setItem('bx.tab.learn', '/learn/meet-the-market?step=1');
+    expect(recallTabPath(s, 'learn')).toBeNull();
+    expect(tabPressTarget({ tab: CREW_TABS[4]!, pathname: '/standings', remembered: recallTabPath(s, 'learn') })).toEqual({ kind: 'navigate', to: '/learn' });
+  });
+
   it('rejects a remembered value that belongs to another tab', () => {
     const s = memoryStorage();
     s.setItem('bx.tab.news', '/markets/company/KRKN');

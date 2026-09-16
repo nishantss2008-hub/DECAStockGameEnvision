@@ -107,9 +107,9 @@ export const TRADING_BASICS: TradingBasic[] = [
     "explain": "Large orders nudge the price against you as they go through. The nudge is bigger for companies with fewer shares, and the ticket shows it before you place an order.",
     "example": [
       "Buy 500 KRKN at Ð84.12: KRKN has 242 million shares, so the nudge is under 0.01% and the estimate stays Ð84.12.",
-      "A smaller company has 70 million shares at Ð50.00. You buy 8,000 shares, and the ticket shows a price impact of 0.02%.",
-      "You pay about Ð50.01 a share: order value Ð400,083.13 + fee Ð400.08 = total cost Ð400,483.21.",
-      "Without the nudge, 8,000 shares would cost Ð400,000.00, so the nudge added Ð83.13."
+      "A smaller company has 15 million shares at Ð20.00. You buy 5,000 shares, and the ticket shows a price impact of 0.06%.",
+      "You pay about Ð20.01 a share: order value Ð100,060.63 + fee Ð100.06 = total cost Ð100,160.69.",
+      "Without the nudge, 5,000 shares would cost Ð100,000.00, so the nudge added Ð60.63."
     ],
     "caution": "Other crews' orders in the same price update also move the price, and the nudge fades, so quickly selling back usually loses money."
   },
@@ -119,9 +119,9 @@ export const TRADING_BASICS: TradingBasic[] = [
     "glossary": "avgCost",
     "explain": "Average cost is the average price you paid per share across all your buys of one company. Fees are not included, and selling does not change it.",
     "example": [
-      "You own 3,000 KRKN at an average cost of Ð73.50 and buy 500 more at Ð84.12.",
-      "Cost basis: 3,000 × Ð73.50 + 500 × Ð84.12 = Ð262,560.00, what you paid for all 3,500 shares.",
-      "New average cost: Ð262,560.00 ÷ 3,500 = Ð75.02."
+      "You own 750 KRKN at an average cost of Ð73.50 and buy 200 more at Ð84.12.",
+      "Cost basis: 750 × Ð73.50 + 200 × Ð84.12 = Ð71,949.00, what you paid for all 950 shares.",
+      "New average cost: Ð71,949.00 ÷ 950 = Ð75.74."
     ],
     "caution": "A higher average cost means the price must climb further before the holding shows a gain."
   },
@@ -131,11 +131,11 @@ export const TRADING_BASICS: TradingBasic[] = [
     "glossary": "totalGain",
     "explain": "Unrealized gain is profit or loss on shares you still own. Realized gain is profit or loss you locked in by selling, after the sale's fee.",
     "example": [
-      "You own 3,000 KRKN at an average cost of Ð73.50, and the price is now Ð84.12.",
-      "Unrealized gain: 3,000 × (Ð84.12 − Ð73.50) = Ð31,860.00.",
-      "You sell 1,000 at Ð84.12, a sale of Ð84,120.00 with a fee of Ð84.12.",
-      "Realized gain: Ð84,120.00 − (1,000 × Ð73.50) − Ð84.12 = Ð10,535.88.",
-      "The 2,000 shares you keep still show Ð21,240.00 of unrealized gain, and your average cost stays Ð73.50."
+      "You own 750 KRKN at an average cost of Ð73.50, and the price is now Ð84.12.",
+      "Unrealized gain: 750 × (Ð84.12 − Ð73.50) = Ð7,965.00.",
+      "You sell 250 at Ð84.12, a sale of Ð21,030.00 with a fee of Ð21.03.",
+      "Realized gain: Ð21,030.00 − (250 × Ð73.50) − Ð21.03 = Ð2,633.97.",
+      "The 500 shares you keep still show Ð5,310.00 of unrealized gain, and your average cost stays Ð73.50."
     ],
     "caution": "An unrealized gain can shrink or vanish if the price falls before you sell."
   },
@@ -145,8 +145,8 @@ export const TRADING_BASICS: TradingBasic[] = [
     "glossary": "diversification",
     "explain": "Diversification means spreading your money across several companies and sectors, so one bad surprise hurts your account less.",
     "example": [
-      "Put Ð400,000 into one company and it drops 20%: you lose Ð80,000.",
-      "Split Ð400,000 across four companies at Ð100,000 each. If one drops 20% and the rest hold steady, you lose Ð20,000."
+      "Put Ð100,000 into one company and it drops 20%: you lose Ð20,000.",
+      "Split Ð100,000 across four companies at Ð25,000 each. If one drops 20% and the rest hold steady, you lose Ð5,000."
     ],
     "caution": "Spreading out lowers the damage from one company, but it cannot stop losses when the whole market falls."
   }

@@ -1,7 +1,11 @@
 /**
  * Host console words: COPY.md §11 host-settings and §11.1 host-errors verbatim, COPY §12 host empty states,
- * and the phone-only host strings of MOBILE §7.17–§7.18. Placeholders are filled with shell `fill()`.
+ * COPY §14 `intro-host` (the "Meet the market" gate), and the phone-only host strings of MOBILE §7.17–§7.18.
+ * Placeholders are filled with shell `fill()`.
  */
+
+/** COPY §14 `intro-host`: what Crews says about the required-once intro, and the action that sets it. */
+export { INTRO_HOST } from '../learn/introCopy';
 
 export const HOST_SETTINGS = {
   panelTitle: 'Game settings',

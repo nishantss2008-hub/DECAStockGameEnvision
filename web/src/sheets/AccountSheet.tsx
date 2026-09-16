@@ -4,6 +4,7 @@
  * Game rules, Text size and Add to Home Screen push inside the sheet.
  */
 import { useState } from 'react';
+import { DEFAULT_TICK_INTERVAL_MS } from '@deca/shared';
 import { useNavigate } from 'react-router-dom';
 import { BookOpen, ChevronLeft, ListChecks, RotateCw, Smartphone, Type } from 'lucide-react';
 import { Sheet } from '../components/ios/Sheet';
@@ -29,7 +30,7 @@ type View = 'main' | 'rules' | 'textSize' | 'homeScreen';
 
 function GameRules() {
   const { game } = useShellGame();
-  const tickSeconds = Math.round((game?.tickIntervalMs ?? 30_000) / 1000);
+  const tickSeconds = Math.round((game?.tickIntervalMs ?? DEFAULT_TICK_INTERVAL_MS) / 1000);
   const feePct = formatPct((game?.feeBps ?? 10) / 10_000);
   const limitOn = (game?.maxPositionPct ?? 1) < 1;
   const limitPct = formatPct(game?.maxPositionPct ?? 1, { digits: 0 });

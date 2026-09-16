@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Company } from '@deca/shared';
+import { DEFAULT_STARTING_CAPITAL, DEFAULT_TICK_INTERVAL_MS, type Company } from '@deca/shared';
 import { GLOSSARY, GLOSSARY_LIST } from '../../lib/glossary';
 import {
   chapterSubtitles,
@@ -61,6 +61,7 @@ describe('chapterSubtitles', () => {
   it('uses the chapter copy the artboard shows', () => {
     expect(chapterSubtitles()).toEqual({
       howToPlay: 'Your first trade in 3 steps',
+      meetTheMarket: 'The 15 companies, the five sectors and the three funds, in about a minute.',
       guide: 'The rules of the voyage, in plain words.',
       fiveQuestions: 'Is it making money? Is it growing?',
       basics: 'Market orders · Fees · Price impact',
@@ -69,15 +70,16 @@ describe('chapterSubtitles', () => {
 });
 
 describe('guideParagraphs', () => {
-  const game = { startingCapital: 100_000_000, tickIntervalMs: 30_000, feeBps: 10, maxPositionPct: 0.25, currency: { name: 'doubloons', symbol: 'Ð' } };
+  // A real game a host can start: Ð250,000 chest, the 5-second tick every supported length lands on.
+  const game = { startingCapital: DEFAULT_STARTING_CAPITAL, tickIntervalMs: DEFAULT_TICK_INTERVAL_MS, feeBps: 10, maxPositionPct: 0.25, currency: { name: 'doubloons', symbol: 'Ð' } };
 
   it('fills settings from game/state', () => {
     const p = guideParagraphs(game);
     expect(p.map((x) => x.id)).toEqual(['start', 'ticks', 'prices', 'fees', 'impact', 'limit', 'health', 'end']);
     expect(p[0]!.body).toBe(
-      'Every crew starts with Ð1,000,000.00 in cash and no shares; Ð stands for doubloons, the game\'s money. The crew with the highest account value (cash plus shares) at the end wins.',
+      'Every crew starts with Ð250,000.00 in cash and no shares; Ð stands for doubloons, the game\'s money. The crew with the highest account value (cash plus shares) at the end wins.',
     );
-    expect(p[1]!.body).toContain('every 30 seconds');
+    expect(p[1]!.body).toContain('every 5 seconds');
     expect(p[3]!.body).toContain('a fee of 0.10% of the order value');
     expect(p[5]!.body).toContain('more than 25% of your account value');
   });
@@ -89,9 +91,10 @@ describe('guideParagraphs', () => {
   });
 
   it('falls back to defaults before game/state loads', () => {
+    // The placeholder is the cadence every supported game length actually runs at, not a stale 30s.
     const p = guideParagraphs(null);
-    expect(p[1]!.body).toContain('every 30 seconds');
-    expect(p[0]!.body).toContain('Every crew starts with Ð');
+    expect(p[1]!.body).toContain(`every ${DEFAULT_TICK_INTERVAL_MS / 1000} seconds`);
+    expect(p[0]!.body).toContain('Every crew starts with Ð250,000.00');
   });
 });
 

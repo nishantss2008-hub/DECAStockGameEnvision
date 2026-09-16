@@ -1114,6 +1114,8 @@ export const COPY_DATA: CopyData = {
     "sinceReport": "{pct} since the news",
     "sinceReportHelp": "How much the price has moved since this news came out.",
     "companyCount": "{n} companies",
+    "marketWide": "Whole market",
+    "marketWideHere": "Whole market, including {ticker}",
     "sourceHost": "Posted by the host",
     "filters": {
       "all": "All",
@@ -1137,7 +1139,7 @@ export const COPY_DATA: CopyData = {
         "value": 20360000000,
         "valueText": "Ð20.36B",
         "sentence": "All of its shares together are worth Ð20.36B at the current price.",
-        "averageText": "Sector average: Ð9.84B"
+        "averageText": "Rest of Shipping & Salvage: Ð9.84B"
       },
       "nullExample": {
         "value": null,
@@ -1158,7 +1160,7 @@ export const COPY_DATA: CopyData = {
         "value": 8140000000,
         "valueText": "Ð8.14B",
         "sentence": "It brought in Ð8.14B in sales last year.",
-        "averageText": "Sector average: Ð5.20B"
+        "averageText": "Rest of Shipping & Salvage: Ð5.20B"
       },
       "zeroExample": {
         "value": 0,
@@ -1180,7 +1182,7 @@ export const COPY_DATA: CopyData = {
         "value": 1140000000,
         "valueText": "Ð1.14B",
         "sentence": "It made Ð1.14B of profit last year after paying every cost.",
-        "averageText": "Sector average: Ð0.52B"
+        "averageText": "Rest of Shipping & Salvage: Ð0.52B"
       },
       "lossExample": {
         "value": -210000000,
@@ -1201,7 +1203,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.14,
         "valueText": "14.0%",
         "sentence": "It keeps Ð14 of profit from every Ð100 of sales.",
-        "averageText": "Sector average: 10.0%"
+        "averageText": "Rest of Shipping & Salvage: 10.0%"
       },
       "lossExample": {
         "value": -0.035,
@@ -1221,7 +1223,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.378,
         "valueText": "37.8%",
         "sentence": "After paying for what it sells, it keeps Ð37.80 of every Ð100 of sales.",
-        "averageText": "Sector average: 31.0%"
+        "averageText": "Rest of Shipping & Salvage: 31.0%"
       },
       "lossExample": {
         "value": -0.05,
@@ -1243,7 +1245,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.0719,
         "valueText": "7.2%",
         "sentence": "Sales grew about 7% a year over the last 3 years.",
-        "averageText": "Sector average: 4.9%"
+        "averageText": "Rest of Shipping & Salvage: 4.9%"
       },
       "lossExample": {
         "value": -0.042,
@@ -1257,7 +1259,7 @@ export const COPY_DATA: CopyData = {
       "valueFormat": "money2",
       "sentence": "It made {money} of profit for each share last year.",
       "money": "money2",
-      "compareNote": "Profit per share depends on how many shares a company has, so the sector average means little; compare its change over the years instead.",
+      "compareNote": "Profit per share depends on how many shares a company has, so the comparison means little; compare its change over the years instead.",
       "whenZero": "It broke even last year: no profit for each share.",
       "whenNegative": "It lost {money} for each share last year.",
       "whenNull": "Not available for this company.",
@@ -1265,7 +1267,7 @@ export const COPY_DATA: CopyData = {
         "value": 4.73,
         "valueText": "Ð4.73",
         "sentence": "It made Ð4.73 of profit for each share last year.",
-        "averageText": "Sector average: Ð2.60"
+        "averageText": "Rest of Shipping & Salvage: Ð2.60"
       },
       "lossExample": {
         "value": -1.2,
@@ -1285,7 +1287,7 @@ export const COPY_DATA: CopyData = {
         "value": 17.8,
         "valueText": "17.8",
         "sentence": "You pay Ð17.80 for every Ð1 of yearly profit.",
-        "averageText": "Sector average: 22.1"
+        "averageText": "Rest of Shipping & Salvage: 22.1"
       },
       "lossExample": {
         "value": null,
@@ -1305,7 +1307,7 @@ export const COPY_DATA: CopyData = {
         "value": 15.9,
         "valueText": "15.9",
         "sentence": "You pay Ð15.90 for every Ð1 of profit expected next year.",
-        "averageText": "Sector average: 21.3"
+        "averageText": "Rest of Shipping & Salvage: 21.3"
       },
       "lossExample": {
         "value": null,
@@ -1325,7 +1327,7 @@ export const COPY_DATA: CopyData = {
         "value": 2.5,
         "valueText": "2.50",
         "sentence": "You pay Ð2.50 for every Ð1 of yearly sales.",
-        "averageText": "Sector average: 1.90"
+        "averageText": "Rest of Shipping & Salvage: 1.90"
       },
       "nullExample": {
         "value": null,
@@ -1345,7 +1347,7 @@ export const COPY_DATA: CopyData = {
         "value": 3.25,
         "valueText": "3.25",
         "sentence": "You pay Ð3.25 for every Ð1 of owner equity.",
-        "averageText": "Sector average: 2.40"
+        "averageText": "Rest of Shipping & Salvage: 2.40"
       },
       "nullExample": {
         "value": null,
@@ -1365,7 +1367,7 @@ export const COPY_DATA: CopyData = {
         "value": 10,
         "valueText": "10.0",
         "sentence": "Counting its debt and subtracting its cash, the whole business is priced at Ð10.00 for every Ð1 of yearly core profit.",
-        "averageText": "Sector average: 16.4"
+        "averageText": "Rest of Shipping & Salvage: 16.4"
       },
       "lossExample": {
         "value": null,
@@ -1385,7 +1387,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.019,
         "valueText": "1.9%",
         "sentence": "It pays owners about Ð1.90 a year for every Ð100 spent on its shares at the current price. Dividends are not added to your cash in this game.",
-        "averageText": "Sector average: 1.2%"
+        "averageText": "Rest of Shipping & Salvage: 1.2%"
       },
       "zeroExample": {
         "value": 0,
@@ -1406,7 +1408,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.62,
         "valueText": "0.62",
         "sentence": "It has Ð0.62 of debt for every Ð1 of owner equity (what it owns minus what it owes).",
-        "averageText": "Sector average: 0.95"
+        "averageText": "Rest of Shipping & Salvage: 0.95"
       },
       "nullExample": {
         "value": null,
@@ -1430,7 +1432,7 @@ export const COPY_DATA: CopyData = {
         "value": 1.84,
         "valueText": "1.84",
         "sentence": "It has Ð1.84 of short-term money for every Ð1 of bills due within a year.",
-        "averageText": "Sector average: 1.35"
+        "averageText": "Rest of Shipping & Salvage: 1.35"
       },
       "nullExample": {
         "value": null,
@@ -1452,7 +1454,7 @@ export const COPY_DATA: CopyData = {
         "value": 960000000,
         "valueText": "Ð0.96B",
         "sentence": "After running and investing in the business, it had Ð0.96B of cash left last year.",
-        "averageText": "Sector average: Ð0.38B"
+        "averageText": "Rest of Shipping & Salvage: Ð0.38B"
       },
       "lossExample": {
         "value": -150000000,
@@ -1473,7 +1475,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.182,
         "valueText": "18.2%",
         "sentence": "It earned Ð18.20 of profit for every Ð100 of owner equity.",
-        "averageText": "Sector average: 11.6%"
+        "averageText": "Rest of Shipping & Salvage: 11.6%"
       },
       "lossExample": {
         "value": -0.06,
@@ -1493,7 +1495,7 @@ export const COPY_DATA: CopyData = {
         "value": 0.089,
         "valueText": "8.9%",
         "sentence": "It earned Ð8.90 of profit for every Ð100 of things it owns.",
-        "averageText": "Sector average: 5.4%"
+        "averageText": "Rest of Shipping & Salvage: 5.4%"
       },
       "lossExample": {
         "value": -0.025,
@@ -1512,7 +1514,7 @@ export const COPY_DATA: CopyData = {
         "value": 1.12,
         "valueText": "1.12",
         "sentence": "When the whole market moves 10%, this stock tends to move about 11% the same way.",
-        "averageText": "Sector average: 1.10"
+        "averageText": "Rest of Shipping & Salvage: 1.10"
       },
       "nullExample": {
         "value": null,
@@ -1523,18 +1525,51 @@ export const COPY_DATA: CopyData = {
   ],
   "explainExtra": {
     "averageLine": {
-      "sector": "Sector average: {avg}",
-      "market": "Market average: {avg}",
+      "sector": "Rest of {sector}: {avg}",
+      "market": "Rest of the market: {avg}",
       "missingAvg": "—",
-      "formatRule": "Format {avg} with the metric's valueFormat. Use the market line when the sector has fewer than 3 companies.",
-      "marketNote": "This sector has fewer than 3 companies, so the average uses every company in the market.",
-      "whatAverageMeans": "The average here is the middle value of the group, so one unusual company cannot pull it far.",
+      "formatRule": "Format {avg} with the metric's valueFormat and {sector} with the company's sector. The company you are reading is never counted in it.",
+      "marketNote": "No other company in this sector has this number, so the comparison uses every other company in the market.",
+      "whatAverageMeans": "It is the middle value of the other companies in the sector, so there is always a number to compare this one against.",
       "unitsNote": "B means billion, M means million and K means thousand. Ð8.14B is Ð8,140,000,000.",
       "examples": [
-        "Sector average: 22.1",
-        "Sector average: 10.0%",
-        "Sector average: Ð9.84B",
-        "Market average: 21.4"
+        "Rest of Shipping & Salvage: 22.1",
+        "Rest of Shipping & Salvage: 10.0%",
+        "Rest of Shipping & Salvage: Ð9.84B",
+        "Rest of the market: 21.4"
+      ]
+    },
+    "statGrid": {
+      "sector": "Rest of sector {avg}",
+      "market": "Rest of market {avg}",
+      "tapHint": "Tap any stat to see what it means.",
+      "formatRule": "Same {avg} formatting and same sector-or-market choice as averageLine, shortened for the caption under a value. The sector name does not fit here.",
+      "groups": {
+        "price": {
+          "label": "Price",
+          "note": "Where the price has been, and how much of it changes hands."
+        },
+        "value": {
+          "label": "Value",
+          "note": "What you pay for each Ð1 the company earns."
+        },
+        "size": {
+          "label": "Size",
+          "note": "How many shares exist, and how many can be traded."
+        },
+        "health": {
+          "label": "Health",
+          "note": "How rough the ride has been so far."
+        },
+        "payouts": {
+          "label": "Payouts",
+          "note": "What the company hands back to its owners."
+        }
+      },
+      "examples": [
+        "Rest of sector 22.1",
+        "Rest of sector 10.0%",
+        "Rest of market Ð9.84B"
       ]
     },
     "analystCard": {
@@ -1564,6 +1599,7 @@ export const COPY_DATA: CopyData = {
       "helper": "New to this? Start with profit margin, sales growth and debt, then compare price vs. profit (P/E) with similar companies.",
       "fiveQuestionsPanel": "Read this company in 5 questions",
       "fiveQuestionsNote": "Each answer is one clue, not the whole story.",
+      "more": "More",
       "flavor": "Chart every company before you commit your doubloons.",
       "views": {
         "basics": {

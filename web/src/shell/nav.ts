@@ -3,6 +3,7 @@
  * per-tab memory in sessionStorage, and what a tab press does (§5.1 behaviour). Pure; icons live in icons.ts.
  */
 import type { Role } from '@deca/shared';
+import { isChromeless } from './routes';
 import { withoutSheet } from './sheetParams';
 
 export type TabId = 'portfolio' | 'markets' | 'news' | 'standings' | 'learn';
@@ -68,10 +69,14 @@ export interface PathParts {
   hash: string;
 }
 
-/** Stores the current path for its tab (sheet params dropped: a restored stack never reopens a sheet). */
+/**
+ * Stores the current path for its tab (sheet params dropped: a restored stack never reopens a
+ * sheet, and for the same reason a full-screen flow — "Meet the market" — is never remembered:
+ * pressing the tab must open the tab, not resume a walkthrough).
+ */
 export function rememberTabPath(storage: StorageLike, loc: PathParts): void {
   const id = tabIdForPath(loc.pathname);
-  if (!id) return;
+  if (!id || isChromeless(loc.pathname)) return;
   try {
     storage.setItem(`${TAB_MEMORY_PREFIX}${id}`, `${loc.pathname}${withoutSheet(loc.search)}${loc.hash}`);
   } catch {
@@ -88,7 +93,9 @@ export function recallTabPath(storage: StorageLike, id: TabId): string | null {
   }
   if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
   const pathname = value.split(/[?#]/, 1)[0] ?? '';
-  return tabIdForPath(pathname) === id ? value : null;
+  // Guarded at both ends: a value written by an older build (sessionStorage outlives a deploy) must
+  // not restore a chrome-less flow either.
+  return tabIdForPath(pathname) === id && !isChromeless(pathname) ? value : null;
 }
 
 export type TabPress = { kind: 'navigate'; to: string } | { kind: 'scrollTop' };

@@ -3,13 +3,15 @@
  * chapter subtitles, the game guide filled from game/state, COPY §6 `where` paths for the phone, related
  * terms, and the "See it on a company" deep link.
  */
-import { DEFAULT_FEE_BPS, DEFAULT_MAX_POSITION_PCT, DEFAULT_STARTING_CAPITAL, CURRENCY, type Company, type GameSettings } from '@deca/shared';
+import { DEFAULT_FEE_BPS, DEFAULT_MAX_POSITION_PCT, DEFAULT_STARTING_CAPITAL, DEFAULT_TICK_INTERVAL_MS, CURRENCY, type Company, type GameSettings } from '@deca/shared';
 import { METRIC_IDS, type MetricId } from '../../lib/compare';
 import { GLOSSARY, withCurrency, type GlossaryEntry } from '../../lib/glossary';
 import { formatMoney, formatPct } from '../../lib/format';
 import { fill, WALKTHROUGH } from '../../shell/copy';
 import { FIVE_QUESTIONS } from './fiveQuestions';
 import { GUIDE_COPY, TRADING_BASICS } from './learnCopy';
+import { INTRO } from './introCopy';
+import { INTRO_PATH } from './introFlow';
 
 /** Phone-only Learn strings (MOBILE §7.0 `mobile.*`, §7.14). Section labels inside chapters are COPY-TBD. */
 export const LEARN_MOBILE = {
@@ -35,6 +37,7 @@ export const LEARN_MOBILE = {
 
 export const LEARN_PATHS = {
   root: '/learn',
+  meetTheMarket: INTRO_PATH,
   guide: '/learn/guide',
   fiveQuestions: '/learn/five-questions',
   basics: '/learn/basics',
@@ -55,9 +58,10 @@ export function searchTermsPlaceholder(n: number): string {
 }
 
 /** Row subtitles on the Learn root, from the chapters' own copy (iPhoneLearn artboard). */
-export function chapterSubtitles(): Record<'howToPlay' | ChapterId, string> {
+export function chapterSubtitles(): Record<'howToPlay' | 'meetTheMarket' | ChapterId, string> {
   return {
     howToPlay: WALKTHROUGH.title,
+    meetTheMarket: INTRO.learnSubtitle,
     guide: GUIDE_COPY.flavor,
     fiveQuestions: FIVE_QUESTIONS.slice(0, 2)
       .map((q) => q.question)
@@ -143,7 +147,7 @@ export function guideParagraphs(game: GuideSettings | null): FilledParagraph[] {
   const values = {
     startingCash: formatMoney(game?.startingCapital ?? DEFAULT_STARTING_CAPITAL, { symbol: currency.symbol }),
     symbol: currency.symbol,
-    tickSeconds: Math.round((game?.tickIntervalMs ?? 30_000) / 1000),
+    tickSeconds: Math.round((game?.tickIntervalMs ?? DEFAULT_TICK_INTERVAL_MS) / 1000),
     feePct: formatPct((game?.feeBps ?? DEFAULT_FEE_BPS) / 10_000),
     limitPct: formatPct(maxPct, { digits: 0 }),
   };

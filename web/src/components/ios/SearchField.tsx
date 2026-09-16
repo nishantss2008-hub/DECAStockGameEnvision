@@ -7,7 +7,7 @@ import './SearchField.css';
 export interface SearchFieldProps {
   value: string;
   onChange: (value: string) => void;
-  /** e.g. COPY-TBD mobile.searchCompanies "Search 25 companies". Also the accessible name unless `label` is set. */
+  /** e.g. COPY-TBD mobile.searchCompanies "Search companies and funds". Also the accessible name unless `label` is set. */
   placeholder: string;
   label?: string;
   /** Enter / the keyboard's search key. */

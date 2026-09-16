@@ -8,8 +8,13 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
-/** Default ids; callers filter to companies that exist in the current market. */
-export const DEFAULT_WATCHLIST: readonly string[] = ['kraken', 'port-royal', 'cursed-doubloon', 'astrolabe', 'galleon-goods'];
+/**
+ * What a crew sees starred before it stars anything. Ids, not tickers; callers filter to the
+ * instruments that exist in the current market, so an id the roster has dropped simply does not
+ * render. Funds are starrable like companies, and the broad fund leads because "own the whole
+ * market" is the first idea the game wants a student to meet.
+ */
+export const DEFAULT_WATCHLIST: readonly string[] = ['grand-fleet', 'kraken', 'port-royal', 'galleon-goods'];
 
 export function watchlistKey(teamId: string): string {
   return `bx.watchlist.${teamId}`;

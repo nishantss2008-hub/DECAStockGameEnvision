@@ -2,9 +2,18 @@
  * Pure words and numbers for the Company, Financials and All stats pages (MOBILE §7.7–§7.8).
  * Labels are COPY §1.2 `short`; sentences are COPY §3.2 / §6. Money in integer cents.
  */
-import type { Company, FinancialPeriod, Fundamentals, NewsEvent } from '@deca/shared';
+import type { Company, FinancialPeriod, Fundamentals, InstrumentQuote, NewsEvent } from '@deca/shared';
 import { COPY_DATA } from '../../lib/glossary';
-import { formatMetricValue, metricValue, type MetricId } from '../../lib/compare';
+import {
+  METRIC_IDS,
+  explainMetric,
+  formatMetricValue,
+  metricValue,
+  shortAverageLine,
+  type Explained,
+  type MetricId,
+  type PeerComparison,
+} from '../../lib/compare';
 import { formatCompact, formatMoney, formatNumber, formatPct } from '../../lib/format';
 
 const NULL_TEXT = '—';
@@ -57,6 +66,63 @@ export function metricShortLabel(id: string): string {
 
 /** Company page "Key stats" (MOBILE §7.7 row 4). */
 export const KEY_STATS: readonly MetricId[] = ['marketCap', 'revenueGrowth', 'netMargin', 'peRatio', 'debtToEquity'];
+
+/* ─── Stat cells (the two-column grid, MOBILE §7.7) ─────────────────────────── */
+
+/**
+ * One cell of the Key stats / All stats grid: label, value, and the sector comparison as a
+ * caption. `explained` is the four-line ExplainRow content the cell used to render inline; the
+ * grid now keeps it for the sheet a tap opens, so no COPY §3.1 sentence is lost.
+ */
+export interface StatCell {
+  /** A MetricId, or the field id of a stat with no explain template ("sessionRange", "float", …). */
+  id: string;
+  label: string;
+  value: string;
+  termId: string;
+  /** COPY §3.2 `statGrid` caption under the value ("Rest of sector 12.4%"), when there is a comparison. */
+  caption?: string;
+  /** COPY §3.1 sentence, average line and note — the sheet body. Absent for stats with no template. */
+  explained?: Explained;
+}
+
+const METRIC_ID_SET: ReadonlySet<string> = new Set<string>(METRIC_IDS);
+
+/** True when `explainMetric` has a COPY §3.1 template for this stat, so a cell can be explained. */
+export function isMetricId(id: string): id is MetricId {
+  return METRIC_ID_SET.has(id);
+}
+
+/** The comparison a metric falls back to before `peerComparisons` has any fundamentals to read. */
+export function marketFallback(sector: Company['sector']): PeerComparison {
+  return { scope: 'market', sector, value: null, count: 0 };
+}
+
+/** One metric as a grid cell: value, "Rest of sector …" caption and the sheet's explanation. */
+export function metricStatCell(id: MetricId, c: Company, f: Fundamentals, average: PeerComparison | null, symbol: string): StatCell {
+  const meta = SHORT_LABELS[id]!;
+  const avg = average ?? marketFallback(c.sector);
+  const explained = explainMetric(id, metricValue(id, f, c), avg, symbol);
+  return { id, label: meta.label, value: explained.valueText, termId: meta.termId, caption: shortAverageLine(id, avg, symbol), explained };
+}
+
+/** Session low and high, widened to the live price so the bar always contains it. */
+export function sessionBounds(c: Pick<InstrumentQuote, 'sessionLow' | 'sessionHigh' | 'currentPrice'>): { low: number; high: number } {
+  return { low: Math.min(c.sessionLow, c.currentPrice), high: Math.max(c.sessionHigh, c.currentPrice) };
+}
+
+/** The session-range cell. It has a glossary term but no explain template, so no caption. */
+export function sessionRangeCell(c: Company, symbol: string): StatCell {
+  const { low, high } = sessionBounds(c);
+  const money = (cents: number) => formatMoney(cents, { symbol });
+  const meta = SHORT_LABELS.sessionRange!;
+  return { id: 'sessionRange', label: meta.label, value: `${money(low)} – ${money(high)}`, termId: meta.termId };
+}
+
+/** Key stats as six grid cells: the five KEY_STATS metrics, then the session range. */
+export function keyStatCells(c: Company, f: Fundamentals, averageFor: (id: MetricId) => PeerComparison | null, symbol: string): StatCell[] {
+  return [...KEY_STATS.map((id) => metricStatCell(id, c, f, averageFor(id), symbol)), sessionRangeCell(c, symbol)];
+}
 
 export interface FinancialQuestion {
   id: 'profit' | 'growth' | 'debt' | 'price' | 'news';
@@ -143,6 +209,7 @@ export function analystSummary(analyst: { rating: string; priceTarget: number } 
 }
 
 export interface StatRow {
+  id: string;
   label: string;
   value: string;
   termId: string;
@@ -150,10 +217,10 @@ export interface StatRow {
 
 const metricText = (id: MetricId, f: Fundamentals, c: Company, symbol: string) => formatMetricValue(id, metricValue(id, f, c), symbol);
 
-/** All stats (MOBILE §7.7): key-value rows, each with a "?". */
+/** All stats (MOBILE §7.7): every field the screen shows, in one flat list. `allStatsGroups` groups them. */
 export function allStatsRows(c: Company, f: Fundamentals, symbol: string): StatRow[] {
   const money = (cents: number) => formatMoney(cents, { symbol });
-  const row = (id: string, value: string): StatRow => ({ label: SHORT_LABELS[id]!.label, value, termId: SHORT_LABELS[id]!.termId });
+  const row = (id: string, value: string): StatRow => ({ id, label: SHORT_LABELS[id]!.label, value, termId: SHORT_LABELS[id]!.termId });
   const has = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
   return [
     row('week52Range', has(f.week52Low) && has(f.week52High) ? `${money(f.week52Low)} – ${money(f.week52High)}` : NULL_TEXT),
@@ -166,6 +233,47 @@ export function allStatsRows(c: Company, f: Fundamentals, symbol: string): StatR
     row('payoutRatio', has(f.payoutRatio) ? `${Math.round(f.payoutRatio * 100)}%` : NULL_TEXT),
     row('beta', metricText('beta', f, c, symbol)),
   ];
+}
+
+/**
+ * All stats groups (spec §5): the same nine fields `allStatsRows` returns, in five named groups.
+ * "Swings vs. market" sits under Health because it is the one field that says how rough the ride
+ * has been; the group notes are COPY §3.2 `statGrid.groups`.
+ */
+export const ALL_STATS_GROUPS: readonly { id: string; fields: readonly string[] }[] = [
+  { id: 'price', fields: ['week52Range', 'sessionVolume'] },
+  { id: 'value', fields: ['forwardPe', 'eps'] },
+  { id: 'size', fields: ['sharesOutstanding', 'float'] },
+  { id: 'health', fields: ['beta'] },
+  { id: 'payouts', fields: ['dividendYield', 'payoutRatio'] },
+];
+
+export interface StatGroup {
+  id: string;
+  label: string;
+  note: string;
+  cells: StatCell[];
+}
+
+/** All stats as a grouped grid. Metric fields keep their peer caption and explanation. */
+export function allStatsGroups(
+  c: Company,
+  f: Fundamentals,
+  averageFor: (id: MetricId) => PeerComparison | null,
+  symbol: string,
+): StatGroup[] {
+  const rows = new Map(allStatsRows(c, f, symbol).map((r) => [r.id, r]));
+  const copy = COPY_DATA.explainExtra.statGrid.groups;
+  return ALL_STATS_GROUPS.map((group) => ({
+    id: group.id,
+    label: copy[group.id]!.label,
+    note: copy[group.id]!.note,
+    cells: group.fields.map((id) => {
+      if (isMetricId(id)) return metricStatCell(id, c, f, averageFor(id), symbol);
+      const r = rows.get(id)!;
+      return { id: r.id, label: r.label, value: r.value, termId: r.termId };
+    }),
+  }));
 }
 
 export type StatementKind = 'income' | 'balance' | 'cashflow';
@@ -224,9 +332,27 @@ export function companyNews(news: readonly NewsEvent[], companyId: string, limit
     .slice(0, limit);
 }
 
-/** Row tag: "Whole market" for market-wide dispatches, else the named tickers. */
-export function newsTag(event: NewsEvent, byId: Record<string, Company>): string {
+/** Most tickers a row spells out before it reads as a market-wide dispatch instead of a list. */
+export const MAX_NEWS_TICKERS = 3;
+
+/** True for a dispatch that moved the market rather than one company: type `macro`, or too many to list. */
+export function isMarketWideNews(event: NewsEvent): boolean {
   const ids = event.companyIds ?? [];
-  if (ids.length === 0) return 'Whole market';
+  return event.type === 'macro' || ids.length === 0 || ids.length > MAX_NEWS_TICKERS;
+}
+
+/**
+ * Row tag for a dispatch (COPY §4 `news-extra`). A market-wide dispatch says so and names the
+ * company whose page you are on, because the engine gives a `macro` event every company in the
+ * roster and a row that reads "ABON, BRTH, BBRD, CJST, CNBR, CMPS…" tells that reader nothing
+ * about the company in front of them. A narrow dispatch still lists its tickers.
+ */
+export function newsTag(event: NewsEvent, byId: Record<string, Company>, viewing?: Pick<Company, 'id' | 'ticker'> | null): string {
+  const ids = event.companyIds ?? [];
+  if (isMarketWideNews(event)) {
+    const here = viewing && (ids.length === 0 || ids.includes(viewing.id));
+    const copy = COPY_DATA.newsExtra;
+    return here ? copy.marketWideHere.replace('{ticker}', viewing!.ticker) : copy.marketWide;
+  }
   return ids.map((id) => byId[id]?.ticker ?? id.toUpperCase()).join(', ');
 }

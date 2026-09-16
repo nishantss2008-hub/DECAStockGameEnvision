@@ -1,7 +1,7 @@
 /**
  * Sheets are search params on the current URL (MOBILE §6.5), so browser and Android Back close them:
  * `?sheet=trade&ticker=KRKN&side=buy` · `?sheet=term&id=peRatio` · `?sheet=account` · `?sheet=crew&id=:crewId` ·
- * `?sheet=status` · `?sheet=welcome` · `?sheet=help&set=markets-basics`.
+ * `?sheet=status` · `?sheet=welcome` · `?sheet=help&set=markets-basics` · `?sheet=stat&id=peRatio`.
  * Pure parsing and building; the router side lives in useSheet.ts.
  */
 import type { OrderSide } from '@deca/shared';
@@ -17,6 +17,7 @@ export const HELP_SETS = [
   'statements-income',
   'statements-balance',
   'statements-cashflow',
+  'company-analyst',
 ] as const;
 export type HelpSet = (typeof HELP_SETS)[number];
 
@@ -27,9 +28,17 @@ export type SheetRequest =
   | { kind: 'crew'; id: string }
   | { kind: 'status' }
   | { kind: 'welcome' }
-  | { kind: 'help'; set: HelpSet };
+  | { kind: 'help'; set: HelpSet }
+  /** One stat of the company grid, explained (MOBILE §7.7). `id` is a MetricId or a stat field id. */
+  | { kind: 'stat'; id: string };
 
 export type SheetKind = SheetRequest['kind'];
+
+/**
+ * Sheets the page renders itself, because their content needs the page's data. SheetHost
+ * leaves these alone; the page watches `useSheet().sheet` for them.
+ */
+export const PAGE_OWNED_SHEETS: ReadonlySet<SheetKind> = new Set<SheetKind>(['help', 'stat']);
 
 /** Every param a sheet may own; closing a sheet removes all of them (`step` is the Trade sheet's inner step). */
 export const SHEET_PARAM_KEYS = ['sheet', 'ticker', 'side', 'id', 'set', 'step'] as const;
@@ -54,6 +63,8 @@ export function parseSheet(search: string | URLSearchParams): SheetRequest | nul
     }
     case 'term':
       return id && ID.test(id) ? { kind: 'term', id } : null;
+    case 'stat':
+      return id && ID.test(id) ? { kind: 'stat', id } : null;
     case 'crew':
       return id && ID.test(id) ? { kind: 'crew', id } : null;
     case 'account':
@@ -94,6 +105,7 @@ export function withSheet(search: string | URLSearchParams, req: SheetRequest): 
       break;
     case 'term':
     case 'crew':
+    case 'stat':
       p.set('id', req.id);
       break;
     case 'help':

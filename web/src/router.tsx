@@ -7,8 +7,9 @@ import { createBrowserRouter, Outlet, ScrollRestoration, type RouteObject } from
 import { ToastProvider } from './components/ios/Toast';
 import { AppShell } from './shell/AppShell';
 import { HostShell } from './shell/HostShell';
+import { HostFullScreen } from './shell/HostFullScreen';
 import { LegacyRedirect, RequireArea, RouteError, UnknownRoute } from './shell/Guards';
-import { CREW_SCREENS, HOST_SCREENS, LEGACY_PATHS, type CrewScreenId, type HostScreenId } from './shell/routes';
+import { CREW_SCREENS, HOST_FULLSCREEN_SCREENS, HOST_SCREENS, LEGACY_PATHS, type CrewScreenId, type HostScreenId } from './shell/routes';
 import './shell/shell.css';
 
 type PageModule = () => Promise<{ default: ComponentType }>;
@@ -23,12 +24,14 @@ const CREW_PAGES: Record<CrewScreenId, PageModule> = {
   financials: () => import('./pages/company/FinancialsPage'),
   stats: () => import('./pages/company/AllStatsPage'),
   markets: () => import('./pages/markets/MarketsPage'),
+  compare: () => import('./pages/markets/ComparePage'),
   sector: () => import('./pages/markets/SectorPage'),
   news: () => import('./pages/news/NewsPage'),
   dispatch: () => import('./pages/news/DispatchPage'),
   standings: () => import('./pages/standings/StandingsPage'),
   results: () => import('./pages/standings/ResultsPage'),
   learn: () => import('./pages/learn/LearnPage'),
+  meetTheMarket: () => import('./pages/learn/MeetTheMarketPage'),
   guideChapter: () => import('./pages/learn/GuideChapterPage'),
   glossaryTerm: () => import('./pages/learn/GlossaryTermPage'),
 };
@@ -40,6 +43,7 @@ const HOST_PAGES: Record<HostScreenId, PageModule> = {
   newsDesk: () => import('./pages/admin/NewsDeskPage'),
   tape: () => import('./pages/admin/TapePage'),
   audit: () => import('./pages/admin/AuditPage'),
+  projector: () => import('./pages/admin/ProjectorPage'),
 };
 
 const lazyPage = (load: PageModule) => async () => ({ Component: (await load()).default });
@@ -90,6 +94,15 @@ export const routes: RouteObject[] = [
           </RequireArea>
         ),
         children: HOST_SCREENS.map((s) => ({ path: s.path, lazy: lazyPage(HOST_PAGES[s.id]), handle: { screen: s.id, title: s.title } })),
+      },
+      {
+        // Same host gate, no chrome: the projector fills the wall and has nothing to press (§7.19).
+        element: (
+          <RequireArea area="host">
+            <HostFullScreen />
+          </RequireArea>
+        ),
+        children: HOST_FULLSCREEN_SCREENS.map((s) => ({ path: s.path, lazy: lazyPage(HOST_PAGES[s.id]), handle: { screen: s.id, title: s.title } })),
       },
       { path: '*', element: <UnknownRoute /> },
     ],

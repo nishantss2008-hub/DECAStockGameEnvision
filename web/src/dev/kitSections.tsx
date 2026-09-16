@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import type { Sector } from '@deca/shared';
 import { SECTORS } from '@deca/shared';
-import { explainMetric, type SectorAverage } from '../lib/compare';
+import { explainMetric, type PeerComparison } from '../lib/compare';
 import { formatMoney, formatNumber, formatPct } from '../lib/format';
 import { Button } from '../components/ios/Button';
 import { Crest } from '../components/ios/Crest';
@@ -88,8 +88,8 @@ import {
 } from './kitData';
 import { KitDemo, KitSection, PhoneFrame, Tip, explainLabel, term } from './kitShared';
 
-const KRKN = HOLDINGS[0]!;
-const CRSD = HOLDINGS[6]!;
+const KRKN = HOLDINGS.find((h) => h.ticker === 'KRKN')!;
+const FDUT = HOLDINGS.find((h) => h.ticker === 'FDUT')!;
 const MONEY = moneyFormatters(DEFAULT_CURRENCY);
 const noop = () => {};
 
@@ -313,7 +313,7 @@ export function NavigationSection() {
               <LargeTitleNavBar
                 title="Markets"
                 collapsed
-                pinnedSearch={<SearchField pinned value="" onChange={noop} placeholder="Search 25 companies" />}
+                pinnedSearch={<SearchField pinned value="" onChange={noop} placeholder="Search companies and funds" />}
                 statusLine={<StatusLine tone="open">{STATUS_LIVE}</StatusLine>}
               />
               <FakeRows count={3} header="Recent" headingLevel={2} />
@@ -336,10 +336,13 @@ export function NavigationSection() {
 
 /* ─── Search ────────────────────────────────────────────────────────────────── */
 
+/** Everything the sample search looks through: the crew's positions plus the other quotes (the whole roster). */
+const SEARCHABLE = [...HOLDINGS, ...QUOTES];
+
 function SearchDemo({ initial, pinned = false, label }: { initial: string; pinned?: boolean; label: string }) {
   const [q, setQ] = useState(initial);
   const matches = useMemo(
-    () => (q ? [...HOLDINGS, ...QUOTES].filter((c) => `${c.ticker} ${c.name}`.toLowerCase().includes(q.toLowerCase())) : []),
+    () => (q ? SEARCHABLE.filter((c) => `${c.ticker} ${c.name}`.toLowerCase().includes(q.toLowerCase())) : []),
     [q],
   );
   return (
@@ -348,7 +351,7 @@ function SearchDemo({ initial, pinned = false, label }: { initial: string; pinne
         value={q}
         onChange={setQ}
         pinned={pinned}
-        placeholder="Search 25 companies"
+        placeholder={`Search ${SEARCHABLE.length} companies`}
         label={label}
         announcement={q ? `${matches.length} ${matches.length === 1 ? 'result' : 'results'}` : ''}
       />
@@ -362,13 +365,13 @@ export function SearchSection() {
       {() => (
         <div className="kit-grid">
           <KitDemo label="Idle (inline, --fill)">
-            <SearchDemo initial="" label="Search 25 companies (idle demo)" />
+            <SearchDemo initial="" label="Search companies (idle demo)" />
           </KitDemo>
           <KitDemo label="Typing (Clear button; focus shows Cancel)">
-            <SearchDemo initial="kra" label="Search 25 companies (typing demo)" />
+            <SearchDemo initial="kra" label="Search companies (typing demo)" />
           </KitDemo>
           <KitDemo label="Pinned in a glass bar (--fill-on-glass)">
-            <SearchDemo initial="" pinned label="Search 25 companies (pinned demo)" />
+            <SearchDemo initial="" pinned label="Search companies (pinned demo)" />
           </KitDemo>
           <KitDemo label="No results">
             <EmptyState title="No companies match “KRAKN”" body="Try a symbol like KRKN or part of a company name." icon={Search} headingLevel={3} />
@@ -381,11 +384,11 @@ export function SearchSection() {
 
 /* ─── Lists and rows ────────────────────────────────────────────────────────── */
 
-const KRKN_AVG = (value: number | null, scope: SectorAverage['scope'] = 'sector'): SectorAverage => ({
+const KRKN_AVG = (value: number | null, scope: PeerComparison['scope'] = 'sector'): PeerComparison => ({
   scope,
   sector: 'Shipping & Salvage',
   value,
-  count: scope === 'sector' ? 4 : 25,
+  count: scope === 'sector' ? 2 : 14,
 });
 
 function ActivityIcon({ kind }: { kind: 'buy' | 'sell' | 'rejected' }) {
@@ -415,7 +418,7 @@ export function ListsSection() {
         <div className="kit-grid">
           <KitDemo label="StockRow · up, down, flat (Markets movers)">
             <InsetGroupedList header="Biggest moves this session" headingLevel={3} headerAction={<button type="button">See all</button>}>
-              {[QUOTES[0]!, CRSD, { ...QUOTES[6]!, change: 0 }].map((c, i) => {
+              {[QUOTES[0]!, FDUT, { ...QUOTES[6]!, change: 0 }].map((c, i) => {
                 const price = 'price' in c ? c.price : c.last;
                 const change = 'change' in c ? c.change : c.sessionChange;
                 return (
@@ -459,7 +462,7 @@ export function ListsSection() {
           </KitDemo>
 
           <KitDemo label="KeyValueRow with InfoTip · plain header, footer">
-            <InsetGroupedList header="Balances" headerVariant="plain" headingLevel={3} footer="Starting cash was Ð1,000,000.00.">
+            <InsetGroupedList header="Balances" headerVariant="plain" headingLevel={3} footer="Starting cash was Ð250,000.00.">
               <KeyValueRow label="Account value" info={<Tip id="accountValue" />} value={formatMoneyCents(ACCOUNT.value)} />
               <KeyValueRow label="Cash available to trade" info={<Tip id="cashAvailable" />} value={formatMoneyCents(ACCOUNT.cash)} />
               <KeyValueRow label="Fees paid" info={<Tip id="feesPaid" />} value="Ð1,240.33" valueTone="secondary" />
@@ -496,7 +499,7 @@ export function ListsSection() {
                 to="/portfolio/activity/BX-3M8D1Q"
                 leading={<ActivityIcon kind="sell" />}
                 leadingWidth={32}
-                title="Sold 400 SALT"
+                title="Sold 400 FDUT"
                 subtitle={<span className="num">Tick 1,201 · 13:21:00</span>}
                 trailing={
                   <span className="kit-trailing-stack">
@@ -574,7 +577,7 @@ export function ListsSection() {
                 <ToggleRow title="Solid bars" checked={solidBars} onChange={setSolidBars} />
                 <ToggleRow
                   title="Keep crews and passwords"
-                  subtitle="Crews keep their names and passwords, and each starts again with Ð1,000,000.00."
+                  subtitle="Crews keep their names and passwords, and each starts again with Ð250,000.00."
                   checked={homeTip}
                   onChange={setHomeTip}
                 />
@@ -643,7 +646,7 @@ export function ControlsSection() {
         <div className="kit-grid">
           <KitDemo label="SegmentedControl · chart range, disabled segment">
             <div className="kit-stack">
-              <Seg ariaLabel="Chart range" initial="all" options={RANGE_TABS.map((t) => ({ value: t.key, label: t.label, disabled: t.key === '24h' }))} />
+              <Seg ariaLabel="Chart range" initial="all" options={RANGE_TABS.map((t) => ({ value: t.key, label: t.label, disabled: t.key === '15m' }))} />
               <Seg ariaLabel="Standings order" initial="total" options={[{ value: 'total', label: 'Total return' }, { value: 'session', label: 'This session' }]} />
               <Seg ariaLabel="News filter" initial="all" options={[{ value: 'all', label: 'All' }, { value: 'holdings', label: 'My holdings' }, { value: 'watchlist', label: 'Watchlist' }]} />
             </div>
@@ -810,7 +813,7 @@ export function BadgesSection() {
               </dd>
               <dt>Loss with percent</dt>
               <dd>
-                <SignedChange value={CRSD.totalGain} kind="money" pct={CRSD.totalGainPct} />
+                <SignedChange value={FDUT.totalGain} kind="money" pct={FDUT.totalGainPct} />
               </dd>
               <dt>Session line, 10px caret, suffix</dt>
               <dd className="t-body">
@@ -901,12 +904,12 @@ export function QuoteSection() {
                 headingLevel={2}
               />
               <StockHeader
-                name={CRSD.name}
-                ticker={CRSD.ticker}
-                sector={CRSD.sector}
-                price={CRSD.last}
-                sessionOpen={CRSD.last - CRSD.sessionChangePerShare}
-                sessionChange={CRSD.sessionChange}
+                name={FDUT.name}
+                ticker={FDUT.ticker}
+                sector={FDUT.sector}
+                price={FDUT.last}
+                sessionOpen={FDUT.last - FDUT.sessionChangePerShare}
+                sessionChange={FDUT.sessionChange}
                 tick={AS_OF_TICK}
                 timeText={AS_OF_TIME}
                 renderInfoTip={renderTip}
@@ -979,8 +982,8 @@ export function ChartsSection() {
               <ChartCard label="LVTH price" points={KRKN_SESSION.slice(0, 1)} summary="" formatters={{ ...MONEY, formatX: tickTime }} plotHeight={160} />
               <ChartCard
                 label="KRKN price"
-                points={KRKN_SESSION.slice(-120)}
-                summary={chartSummary('session', seriesStats(KRKN_SESSION.slice(-120), KRKN_SESSION.at(-120)?.y)!, MONEY)}
+                points={KRKN_SESSION.slice(-12)}
+                summary={chartSummary('session', seriesStats(KRKN_SESSION.slice(-12), KRKN_SESSION.at(-12)?.y)!, MONEY)}
                 formatters={{ ...MONEY, formatX: tickTime }}
                 plotHeight={160}
                 paused
@@ -991,7 +994,7 @@ export function ChartsSection() {
             <div className="kit-stack">
               <div className="kit-inline">
                 <Sparkline values={sessionSpark(KRKN, 1)} reference={8222} />
-                <Sparkline values={sessionSpark(CRSD, 2)} reference={CRSD.last - CRSD.sessionChangePerShare} />
+                <Sparkline values={sessionSpark(FDUT, 2)} reference={FDUT.last - FDUT.sessionChangePerShare} />
                 <Sparkline values={sessionSpark({ last: 5000, sessionChangePerShare: 0 }, 3)} tone="neutral" />
                 <Sparkline values={sessionSpark(KRKN, 4)} width={96} height={32} />
               </div>
@@ -1020,10 +1023,10 @@ export function ChartsSection() {
               trend={{ label: 'Typical return' }}
               callouts={[
                 { pointId: 'lvth', text: 'Luckiest: LVTH' },
-                { pointId: 'crsd', text: 'Unluckiest: CRSD' },
+                { pointId: 'bbrd', text: 'Unluckiest: BBRD' },
               ]}
               legend={{ highlighted: "Your crew's holdings", others: 'Other companies' }}
-              summary="Health score against actual return for 25 companies. Healthier companies tended to return more. LVTH did much better than its score, and CRSD did much worse."
+              summary={`Health score against actual return for ${SCATTER.length} companies. Healthier companies tended to return more. LVTH did much better than its score, and BBRD did much worse.`}
               caption="Each dot is one company. The dashed line shows the typical return for each health score; dots above it did better, and dots below did worse."
               footer={
                 <Button variant="plain" size="small">

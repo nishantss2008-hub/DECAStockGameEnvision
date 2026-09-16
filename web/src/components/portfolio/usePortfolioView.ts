@@ -1,10 +1,11 @@
 /**
- * Live data shared by the Portfolio stack: the crew's team and holdings, companies, the game document,
- * derived position rows and account totals (derive.ts), and the orders + fills joined for Activity.
+ * Live data shared by the Portfolio stack: the crew's team and holdings, every INSTRUMENT (companies
+ * and funds — a crew can hold either), the game document, derived position rows and account totals
+ * (derive.ts), and the orders + fills joined for Activity.
  */
 import { useMemo } from 'react';
 import { DEFAULT_STARTING_CAPITAL } from '@deca/shared';
-import { useCompanies } from '../../hooks/useCompanies';
+import { useInstruments } from '../../hooks/useInstruments';
 import { useOrders } from '../../hooks/useOrders';
 import { usePortfolio } from '../../hooks/usePortfolio';
 import { useTrades } from '../../hooks/useTrades';
@@ -15,7 +16,7 @@ import { accountTotals, buildPositions, liveAccountValue } from './derive';
 
 export function usePortfolioView() {
   const { team: stored, holdings, loading: teamLoading, error: teamError } = usePortfolio();
-  const { byId, loading: companiesLoading, error: companiesError } = useCompanies();
+  const { byId, loading: companiesLoading, error: companiesError } = useInstruments();
   const { game, clock } = useShellGame();
   const startingCapital = game?.startingCapital ?? DEFAULT_STARTING_CAPITAL;
   // Live valuation: a fill or a price change shows at once, not at the next leaderboard mark.
@@ -43,7 +44,7 @@ export function usePortfolioView() {
 export function useActivityItems() {
   const { orders, loading: ordersLoading, error: ordersError } = useOrders();
   const { trades, loading: tradesLoading, error: tradesError } = useTrades();
-  const { byId } = useCompanies();
+  const { byId } = useInstruments();
   const { game } = useShellGame();
   const sessionTicks = game?.sessionTicks ?? 1;
   const items = useMemo(() => buildActivity(orders, trades, byId, sessionTicks), [orders, trades, byId, sessionTicks]);

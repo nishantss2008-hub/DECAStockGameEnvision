@@ -14,6 +14,7 @@ import {
   type Trade,
 } from '@deca/shared';
 import { formatMoney, formatNumber, formatPct } from '../../lib/format';
+import { INTRO_PATH } from '../learn/introFlow';
 import { orderNumber } from '../../lib/orderId';
 import { TICKET, TICKET_ERRORS, fillText } from './ticketCopy';
 import { amountCents, quantityFrom, sellProceeds, type TicketState } from './useTicketState';
@@ -24,8 +25,14 @@ export interface TicketContext {
   name: string;
   /** Last price, cents. */
   price: number;
+  /**
+   * Impact inputs. For a FUND these are the equivalent pair `fundTicketInputs` derives from the
+   * basket, not fields the fund owns — a fund has no beta and no shares outstanding.
+   */
   beta: number;
   sharesOutstanding: number;
+  /** True when this ticket is buying or selling a basket (COPY §13 `trading`). */
+  isFund?: boolean;
   tick: number;
   timeText: string;
   /** Cash available to trade, cents. */
@@ -376,6 +383,9 @@ export function apiProblem(
     }
     case 'trading_disabled':
       return problem(code, {}, null);
+    // The host cleared this crew's intro mid-session, or it never finished it: route into the flow.
+    case 'intro_required':
+      return problem(code, {}, fixFor(code, {}, { kind: 'navigate', to: INTRO_PATH }));
     case 'unknown_company':
       return problem(code, {}, fixFor(code, {}, { kind: 'navigate', to: '/markets' }));
     case 'no_team':

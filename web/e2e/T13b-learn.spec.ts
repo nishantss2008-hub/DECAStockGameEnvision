@@ -61,7 +61,7 @@ test('Learn tab: chapters, glossary search, term page and every "?"', async ({ p
   await expect(page.getByRole('heading', { level: 1, name: 'Price vs. profit' })).toBeVisible();
   await expect(page.getByText('P/E ratio', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'See it on a company' })).toBeVisible();
-  await expect(page.getByText(/^Sector average: |^Market average: /)).toBeVisible();
+  await expect(page.getByText(/^Rest of .+: |^Rest of the market: /)).toBeVisible();
   await expect(page.getByRole('link', { name: /^Open [A-Z]+, / })).toHaveAttribute('href', /\/learn\/company\/[A-Z]+\?highlight=peRatio$/);
   await expect(page.getByRole('heading', { name: 'Related terms' })).toBeVisible();
   if (SHOT_DIR) await page.screenshot({ path: `${SHOT_DIR}/glossary-term-dark.png` });

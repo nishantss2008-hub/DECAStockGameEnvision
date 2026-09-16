@@ -94,6 +94,8 @@ function status(path: string | null, data: unknown, error: string | null, authLo
 
 export interface UseAdminTeamsResult extends SnapshotStatus {
   teams: Team[];
+  /** Fetches now, so a host action (trading, the intro gate) shows in the list without a 4s wait. */
+  refresh(): void;
 }
 
 const byName = (a: Team, b: Team) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id);
@@ -104,9 +106,9 @@ export const ADMIN_TEAMS_PATH = '/api/admin/teams';
 export function useAdminTeams(): UseAdminTeamsResult {
   const { role, loading: authLoading } = useAuth();
   const path = role === 'admin' ? ADMIN_TEAMS_PATH : null;
-  const { data, error } = usePoll<{ teams?: Team[] }>(path, ADMIN_POLL_MS);
+  const { data, error, refresh } = usePoll<{ teams?: Team[] }>(path, ADMIN_POLL_MS);
   const teams = data?.teams ? [...data.teams].sort(byName) : EMPTY_TEAMS;
-  return { teams, ...status(path, data, error, authLoading) };
+  return { teams, refresh, ...status(path, data, error, authLoading) };
 }
 
 /** Rows on the host trade tape (MOBILE §7.18). */

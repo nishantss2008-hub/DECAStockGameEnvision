@@ -2,7 +2,7 @@
  * Pure portfolio maths (plan Task 9): position rows, account totals, sorting, the "Show" metric,
  * chart series helpers and the allocation legend. Money is integer cents; changes are fractions.
  */
-import { DEFAULT_STARTING_CAPITAL, SECTORS, type Company, type GameState, type Holding, type Sector, type Team } from '@deca/shared';
+import { DEFAULT_STARTING_CAPITAL, isFund, type Company, type GameState, type Holding, type Instrument, type Sector, type Team } from '@deca/shared';
 import type { AllocationItem } from '../charts/allocation';
 import type { Point } from '../charts/scale';
 
@@ -10,7 +10,13 @@ export interface PositionRow {
   companyId: string;
   ticker: string;
   name: string;
-  sector: Sector;
+  /**
+   * The sector whose crest colour this row wears. Absent on the broad fund, which belongs to no
+   * one sector; a sector fund wears the sector it tracks.
+   */
+  sector?: Sector;
+  /** True when this position is a fund, so rows can say so without re-looking it up. */
+  isFund: boolean;
   shares: number;
   avgCost: number;
   last: number;
@@ -48,7 +54,12 @@ export function liveAccountValue(
   return team.cashBalance + invested;
 }
 
-export function buildPositions(holdings: Holding[], byId: Record<string, Company>, totalValue: number): PositionRow[] {
+/**
+ * One row per holding, whatever it holds. `byId` must carry FUNDS as well as companies: a crew can
+ * own a basket, and a row whose instrument is missing falls back to its cost basis, which would
+ * silently mis-state the account.
+ */
+export function buildPositions(holdings: Holding[], byId: Record<string, Instrument>, totalValue: number): PositionRow[] {
   const rows = holdings.map((h): PositionRow => {
     const c = byId[h.companyId];
     const last = c?.currentPrice ?? h.avgCost;
@@ -61,7 +72,8 @@ export function buildPositions(holdings: Holding[], byId: Record<string, Company
       companyId: h.companyId,
       ticker: c?.ticker ?? h.companyId.toUpperCase(),
       name: c?.name ?? h.companyId.toUpperCase(),
-      sector: c?.sector ?? SECTORS[0],
+      sector: c?.sector,
+      isFund: c ? isFund(c) : false,
       shares: h.shares,
       avgCost: h.avgCost,
       last,

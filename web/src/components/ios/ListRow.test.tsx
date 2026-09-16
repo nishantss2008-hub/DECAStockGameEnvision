@@ -84,7 +84,7 @@ describe('KeyValueRow and ExplainRow', () => {
           explained={{
             valueText: '17.8',
             sentence: 'You pay Ð17.80 for every Ð1 of yearly profit.',
-            averageText: 'Sector average: 22.1',
+            averageText: 'Rest of Shipping & Salvage: 22.1',
           }}
         />
       </ul>,
@@ -96,7 +96,7 @@ describe('KeyValueRow and ExplainRow', () => {
     expect(end?.querySelector('button')).toHaveAccessibleName('What is Price vs. profit (price-to-earnings ratio)?');
     expect(screen.getByText('17.8')).toBeInTheDocument();
     expect(screen.getByText('You pay Ð17.80 for every Ð1 of yearly profit.')).toBeInTheDocument();
-    expect(screen.getByText('Sector average: 22.1')).toBeInTheDocument();
+    expect(screen.getByText('Rest of Shipping & Salvage: 22.1')).toBeInTheDocument();
     expect(container.querySelector('[class*="gain"], [class*="loss"]')).toBeNull();
   });
 });

@@ -9,11 +9,6 @@ export const SECTOR_COLORS: Record<Sector, string> = {
   'Naval Arms': '#7A3328',
   'Cartography & Navigation': '#4C5B40',
   'Treasure Banking': '#6F5A2E',
-  'Cursed Relics': '#3F3F52',
-  'Tortuga Hospitality': '#5B4A63',
-  'Parrot & Livestock': '#4E6B3A',
-  'Maps & Instruments': '#4C5B40',
-  'Letters of Marque (Insurance)': '#3E5566',
 };
 
 /** Crest fill for crews (hull). */

@@ -2,7 +2,7 @@
  * Market status words for the shell (pure): the status line under every large title (MOBILE §7.0), the one state
  * banner (§7.16), the Market status sheet (§7.9), stale-price detection and the "Sails up" moment (§6.3).
  */
-import { SESSIONS_PER_GAME, type GameState, type Phase } from '@deca/shared';
+import { DEFAULT_TICK_INTERVAL_MS, SESSIONS_PER_GAME, type GameState, type Phase } from '@deca/shared';
 import { countdownRemaining, sessionInfo } from '../lib/gameTime';
 import { formatClock, formatNumber, formatPct, formatTickTime } from '../lib/format';
 import type { BannerTone } from '../components/ios/Banner';
@@ -52,7 +52,7 @@ export interface ShellBannerModel {
 
 /** Minimum silence before prices count as stale: three missed ticks, and never under 90 seconds. */
 export function staleAfterMs(game: GameState): number {
-  return Math.max(90_000, 3 * (game.tickIntervalMs || 30_000));
+  return Math.max(90_000, 3 * (game.tickIntervalMs || DEFAULT_TICK_INTERVAL_MS));
 }
 
 export function staleAgo(ms: number): string {
@@ -89,7 +89,7 @@ export interface StatusSheetModel {
 export function statusSheetModel(game: GameState, now: number): StatusSheetModel {
   const info = sessionOf(game);
   const remaining = countdownRemaining(game, now);
-  const tickSeconds = Math.round((game.tickIntervalMs || 30_000) / 1000);
+  const tickSeconds = Math.round((game.tickIntervalMs || DEFAULT_TICK_INTERVAL_MS) / 1000);
   const phaseCopy = game.phase === 'live' ? livePill(game) : PHASES[game.phase];
   // Sessions are equal parts of the game clock, so the current one ends when the later sessions' time is all that is left.
   const laterSessionsMs = (info.sessions - info.session) * ((game.gameLengthMs || 0) / info.sessions);

@@ -3,6 +3,8 @@
  * MOBILE §7.0 / §7.10 (`mobile.discard`, `mobile.marketClosedFix`, `mobile.offlineReason`, `mobile.done`).
  */
 
+import { FUNDS_EXTRA } from '../../lib/fundCopy';
+
 export const TICKET = {
   explain: {
     marketOrderBuy: 'Buys right away at about the current price.',
@@ -17,6 +19,9 @@ export const TICKET = {
     intervalLimit: 'You can trade up to {cap} shares of {ticker} per price update.',
   },
   lines: {
+    /** COPY §13 `funds-extra.trading`: what a fund order actually does to the companies inside it. */
+    fundBuy: FUNDS_EXTRA.trading.buy,
+    fundSell: FUNDS_EXTRA.trading.sell,
     shareOfAccount: 'This order would make {ticker} {pct} of your account.',
     amountModeBuy: '≈ {shares} shares · {leftover} stays as cash',
     amountModeSell: '≈ {shares} shares of the {owned} you own',
@@ -161,6 +166,13 @@ export const TICKET_ERRORS: Record<string, TicketErrorCopy> = {
     message:
       'The host has turned off trading for your crew. Ask your host to turn it back on; you can still research and view your account.',
     fix: null,
+  },
+  /** The "Meet the market" gate (design 2026-09-16 §6). Its fix opens the flow. */
+  intro_required: {
+    title: 'Meet the market first',
+    message:
+      'Finish the short Meet the market tour, then place this order again. It takes about a minute, and nothing else is locked.',
+    fix: 'Start Meet the market',
   },
   bad_quantity: {
     title: 'Check the number of shares',

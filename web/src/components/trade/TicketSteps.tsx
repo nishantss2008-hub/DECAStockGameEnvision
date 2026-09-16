@@ -1,7 +1,8 @@
 /** Trade sheet steps (MOBILE §5.16, §7.10): Entry, Preview (and Placing), Filled, Needs attention, Choose a company. */
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { TriangleAlert } from 'lucide-react';
-import type { Company, Holding, OrderEstimate } from '@deca/shared';
+import { isFund, type Holding, type Instrument, type OrderEstimate, type Sector } from '@deca/shared';
+import { FUNDS_EXTRA } from '../../lib/fundCopy';
 import { Button } from '../ios/Button';
 import { Crest } from '../ios/Crest';
 import { InfoTipButton } from '../ios/InfoTipButton';
@@ -59,7 +60,8 @@ export interface EntryStepProps {
   dispatch: (a: TicketAction) => void;
   ctx: TicketContext;
   sessionChange: number;
-  sector: Company['sector'];
+  /** Crest colour; absent on the broad fund, which tracks no one sector. */
+  sector?: Sector;
   quantity: number;
   estimate: OrderEstimate | null;
   problem: TicketProblem | null;
@@ -111,6 +113,9 @@ export function EntryStep({ state, dispatch, ctx, sessionChange, sector, quantit
         </div>
       </div>
       {cashTip.panel}
+
+      {/* A fund order is an order in every company it holds: say so before the keypad, not after. */}
+      {ctx.isFund && <p className="t-footnote tk-secondary tk-fund-note">{state.side === 'buy' ? TICKET.lines.fundBuy : TICKET.lines.fundSell}</p>}
 
       <SegmentedControl
         className="tk-side"
@@ -331,14 +336,17 @@ export function AttentionStep({ problem, headingRef }: { problem: TicketProblem;
 
 /* ─── Choose a company (opened from Portfolio's Trade button) ───────────────── */
 
-export function ChooseCompanyStep({ companies, holdings, currency, onPick }: { companies: Company[]; holdings: Holding[]; currency: TicketContext['currency']; onPick: (ticker: string) => void }) {
+/** Pick something to trade: funds and companies in one list, funds first (spec §4 order). */
+export function ChooseCompanyStep({ companies, holdings, currency, onPick }: { companies: Instrument[]; holdings: Holding[]; currency: TicketContext['currency']; onPick: (ticker: string) => void }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
-  const match = (c: Company) => !q || c.ticker.toLowerCase().includes(q) || c.name.toLowerCase().includes(q);
+  const match = (c: Instrument) => !q || c.ticker.toLowerCase().includes(q) || c.name.toLowerCase().includes(q);
   const held = useMemo(() => new Set(holdings.map((h) => h.companyId)), [holdings]);
-  const all = companies.filter(match).sort((a, b) => a.name.localeCompare(b.name));
-  const yours = all.filter((c) => held.has(c.id));
-  const row = (c: Company) => (
+  const matched = companies.filter(match);
+  const funds = matched.filter(isFund).sort((a, b) => a.name.localeCompare(b.name));
+  const all = matched.filter((c) => !isFund(c)).sort((a, b) => a.name.localeCompare(b.name));
+  const yours = [...funds, ...all].filter((c) => held.has(c.id));
+  const row = (c: Instrument) => (
     <StockRow
       key={c.id}
       ticker={c.ticker}
@@ -353,10 +361,15 @@ export function ChooseCompanyStep({ companies, holdings, currency, onPick }: { c
   );
   return (
     <div className="tk-choose">
-      <SearchField value={query} onChange={setQuery} placeholder={`Search ${companies.length} companies`} />
+      <SearchField value={query} onChange={setQuery} placeholder={`Search ${companies.length} companies and funds`} />
       {yours.length > 0 && (
         <InsetGroupedList header="Your holdings" surface="sheet" className="tk-section">
           {yours.map(row)}
+        </InsetGroupedList>
+      )}
+      {funds.length > 0 && (
+        <InsetGroupedList header={FUNDS_EXTRA.fund.sectionTitle} surface="sheet" className="tk-section">
+          {funds.map(row)}
         </InsetGroupedList>
       )}
       <InsetGroupedList header="All companies" surface="sheet" className="tk-section">

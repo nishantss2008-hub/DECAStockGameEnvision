@@ -1,23 +1,22 @@
-/** Company page sections below the chart and position (MOBILE §7.7 rows 4–9 and the floating Buy/Sell). */
-import { useMemo } from 'react';
+/** Company page sections below the chart and position (MOBILE §7.7 rows 4–8 and the floating Buy/Sell). */
 import { Link } from 'react-router-dom';
 import { BookOpen, Newspaper } from 'lucide-react';
 import type { Company, Fundamentals, GameState, NewsEvent, OrderRecord, Trade } from '@deca/shared';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
 import { DisclosureRow, ExplainRow, ListRow } from '../ios/ListRow';
 import { Button } from '../ios/Button';
+import { Sheet } from '../ios/Sheet';
+import { INFO_TIP_COPY, glossaryTermPath } from '../ios/InfoTipSheet';
 import { RangeBar } from '../charts/RangeBar';
-import { explainMetric, metricValue, type MetricId, type SectorAverage } from '../../lib/compare';
+import { explainMetric, metricValue, type MetricId, type PeerComparison } from '../../lib/compare';
 import { formatMoney, formatTickTime } from '../../lib/format';
-import { NEWS_EXPLAIN } from '../../lib/glossary';
+import { GLOSSARY, NEWS_EXPLAIN } from '../../lib/glossary';
 import { buildActivity } from '../portfolio/activity';
 import { formatMoneyCents, spokenMoney, type CurrencyNames } from '../ios/signedText';
 import { TermTip } from './TermTip';
-import { HistoryBars } from './HistoryBars';
-import { KEY_STATS, SHORT_LABELS, analystSummary, companyNews, historyBars, newsTag, statementSummary } from './researchModel';
+import { StatGrid } from './StatGrid';
+import { SHORT_LABELS, analystSummary, companyNews, marketFallback, newsTag, sessionBounds, type StatCell } from './researchModel';
 import { RESEARCH, fillCopy } from './researchCopy';
-
-const MARKET_WIDE: SectorAverage = { scope: 'market', sector: 'Shipping & Salvage' as SectorAverage['sector'], value: null, count: 0 };
 
 export function MetricExplainRow({
   id,
@@ -30,12 +29,12 @@ export function MetricExplainRow({
   id: MetricId;
   company: Company;
   fundamentals: Fundamentals;
-  average: SectorAverage | null;
+  average: PeerComparison | null;
   symbol: string;
   highlighted?: boolean;
 }) {
   const meta = SHORT_LABELS[id]!;
-  const explained = explainMetric(id, metricValue(id, fundamentals, company), average ?? { ...MARKET_WIDE, sector: company.sector }, symbol);
+  const explained = explainMetric(id, metricValue(id, fundamentals, company), average ?? marketFallback(company.sector), symbol);
   return (
     <ExplainRow
       id={`metric-${id}`}
@@ -47,56 +46,42 @@ export function MetricExplainRow({
   );
 }
 
+/**
+ * Key stats (MOBILE §7.7 row 4): a two-column grid of six cells — five metrics and the session
+ * range — then the session-range bar full width beneath it. The everyday sentences live in the
+ * sheet a cell opens, so the block is a screenful of numbers instead of twenty lines of prose.
+ */
 export function KeyStatsSection({
   company,
-  fundamentals,
-  averageFor,
+  cells,
   currency,
   statsPath,
   highlight,
+  onOpenStat,
 }: {
   company: Company;
-  fundamentals: Fundamentals;
-  averageFor: (id: MetricId) => SectorAverage | null;
+  /** From `keyStatCells`; the page builds them once so the grid and its sheet cannot disagree. */
+  cells: readonly StatCell[];
   currency: CurrencyNames;
   statsPath: string;
   highlight: string | null;
+  onOpenStat: (cell: StatCell) => void;
 }) {
   const money = (cents: number) => formatMoneyCents(cents, currency);
-  const low = Math.min(company.sessionLow, company.currentPrice);
-  const high = Math.max(company.sessionHigh, company.currentPrice);
+  const { low, high } = sessionBounds(company);
   return (
-    <InsetGroupedList
-      header={RESEARCH.keyStats}
-      headerAction={
-        <Link className="rs-header-link" to={statsPath}>
-          {RESEARCH.seeAllStats}
-        </Link>
-      }
-      footer={RESEARCH.helper}
-      className="rs-section"
-    >
-      {KEY_STATS.map((id) => (
-        <MetricExplainRow
-          key={id}
-          id={id}
-          company={company}
-          fundamentals={fundamentals}
-          average={averageFor(id)}
-          symbol={currency.symbol}
-          highlighted={highlight === id}
-        />
-      ))}
-      <li className="ios-row rs-range-row" id="metric-sessionRange" data-highlighted={highlight === 'sessionRange' || undefined}>
-        <div className="rs-range-row__head">
-          <span className="rs-label-with-tip">
-            <span className="t-body">{RESEARCH.sessionRange}</span>
-            <TermTip id="sessionRange" />
-          </span>
-          <span className="t-body ios-num">
-            {money(low)} – {money(high)}
-          </span>
+    <section className="rs-section rs-stats" aria-labelledby="rs-key-stats-title" aria-describedby="rs-key-stats-note">
+      <div className="ios-list__header" data-variant="prominent">
+        <h2 id="rs-key-stats-title" className="ios-list__title">
+          {RESEARCH.keyStats}
+        </h2>
+        <div className="ios-list__action">
+          <Link to={statsPath}>{RESEARCH.seeAllStats}</Link>
         </div>
+      </div>
+      <StatGrid cells={cells} onOpen={onOpenStat} highlight={highlight} />
+      {/* The bar labels its own ends with the two prices, and the cell above names the stat. */}
+      <div className="rs-range rs-card">
         <RangeBar
           low={low}
           high={high}
@@ -104,53 +89,91 @@ export function KeyStatsSection({
           formatter={money}
           spokenFormatter={(v) => spokenMoney(v, currency)}
           label={RESEARCH.sessionRange}
-          valueLabel={RESEARCH.sessionRange}
+          valueLabel={RESEARCH.priceNow}
         />
-        <div className="rs-range-row__ends t-caption-1" aria-hidden="true">
-          <span>{RESEARCH.sessionLow}</span>
-          <span>{RESEARCH.sessionHigh}</span>
-        </div>
-      </li>
-    </InsetGroupedList>
-  );
-}
-
-export function FinancialsPreviewSection({ fundamentals, symbol, financialsPath }: { fundamentals: Fundamentals; symbol: string; financialsPath: string }) {
-  const summary = statementSummary(fundamentals.history, symbol);
-  const bars = historyBars(fundamentals.history);
-  return (
-    <InsetGroupedList header={RESEARCH.lastFourYears} footer={RESEARCH.unitsNote} className="rs-section">
-      <li className="ios-row rs-card-row">
-        {summary && <p className="t-subhead rs-secondary rs-summary">{summary}</p>}
-        {bars.length > 1 && <HistoryBars bars={bars} symbol={symbol} height={64} />}
-      </li>
-      <DisclosureRow to={financialsPath} title={RESEARCH.seeFinancials} />
-    </InsetGroupedList>
-  );
-}
-
-export function AnalystSection({ fundamentals, company, symbol }: { fundamentals: Fundamentals; company: Company; symbol: string }) {
-  const text = analystSummary(fundamentals.analyst, company.currentPrice, symbol);
-  return (
-    <section className="rs-section rs-analyst" aria-labelledby="rs-analyst-title">
-      <div className="rs-section-header">
-        <h2 id="rs-analyst-title" className="t-headline rs-heading">
-          {RESEARCH.analystTitle}
-        </h2>
-        <TermTip id="analystRating" />
       </div>
-      <div className="rs-card">
+      <p id="rs-key-stats-note" className="ios-list__footer">
+        {RESEARCH.helper}
+      </p>
+    </section>
+  );
+}
+
+/**
+ * More (MOBILE §7.7 row 8): what used to render inline — the financials preview, the analyst view
+ * and this crew's activity — now three disclosure rows.
+ */
+export function MoreSection({
+  company,
+  financialsPath,
+  activityCount,
+  onAnalyst,
+}: {
+  company: Company;
+  financialsPath: string;
+  activityCount: number;
+  onAnalyst: () => void;
+}) {
+  return (
+    <InsetGroupedList header={RESEARCH.more} className="rs-section">
+      <DisclosureRow to={financialsPath} title={RESEARCH.seeFinancials} subtitle={RESEARCH.lastFourYears} />
+      <DisclosureRow onClick={onAnalyst} title={RESEARCH.analystTitle} aria-haspopup="dialog" />
+      <DisclosureRow
+        to="/portfolio/activity"
+        title={fillCopy(RESEARCH.yourActivity, { ticker: company.ticker })}
+        subtitle={activityCount === 0 ? fillCopy(RESEARCH.noOrders, { ticker: company.ticker }) : undefined}
+        detail={activityCount > 0 ? String(activityCount) : undefined}
+      />
+    </InsetGroupedList>
+  );
+}
+
+/** `?sheet=help&set=company-analyst`: the analyst view, with its caution (COPY §3.2 `analystCard`). */
+export function AnalystSheet({
+  fundamentals,
+  company,
+  symbol,
+  open,
+  onClose,
+}: {
+  fundamentals: Fundamentals | null;
+  company: Company;
+  symbol: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const text = analystSummary(fundamentals?.analyst, company.currentPrice, symbol);
+  const entry = GLOSSARY.analystRating ?? null;
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      title={RESEARCH.analystTitle}
+      subtitle={entry?.term}
+      headerLayout="leading"
+      detents="fit"
+      scrim="info"
+      closeLabel={INFO_TIP_COPY.close}
+      className="rs-analyst"
+    >
+      <div className="rs-analyst__body">
         <p className="t-body rs-analyst__summary">{text}</p>
-        {fundamentals.analyst && (
+        {fundamentals?.analyst && (
           <p className="t-footnote rs-secondary rs-analyst__target">
             <span>{RESEARCH.priceTarget}</span>
-            <TermTip id="priceTarget" />
             <span className="ios-num">{formatMoney(fundamentals.analyst.priceTarget, { symbol })}</span>
           </p>
         )}
         <p className="t-footnote rs-secondary">{RESEARCH.analystCaution}</p>
       </div>
-    </section>
+      {entry && (
+        <div className="rs-stat-sheet__actions">
+          <Link to={glossaryTermPath(entry.id)} className="ios-button" data-style="tinted" data-size="medium">
+            <span className="ios-button__label">{INFO_TIP_COPY.openInLearn}</span>
+          </Link>
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -169,7 +192,7 @@ export function CompanyNewsSection({ news, company, companiesById }: { news: rea
     >
       {items.map((n) => {
         const meaning = NEWS_EXPLAIN[n.type]?.[n.sentiment];
-        const meta = `${newsTag(n, companiesById)} · ${formatTickTime(n.firedAt).slice(0, 5)} · ${RESEARCH.sentimentShort[n.sentiment]}`;
+        const meta = `${newsTag(n, companiesById, company)} · ${formatTickTime(n.firedAt).slice(0, 5)} · ${RESEARCH.sentimentShort[n.sentiment]}`;
         return (
           <ListRow
             key={n.id}
@@ -208,68 +231,15 @@ export function AboutSection({ company, fundamentals }: { company: Company; fund
   );
 }
 
-export function CompanyActivitySection({
-  company,
-  orders,
-  trades,
-  companiesById,
-  game,
-  currency,
-}: {
-  company: Company;
-  orders: readonly OrderRecord[];
-  trades: readonly Trade[];
-  companiesById: Record<string, Company>;
-  game: GameState | null;
-  currency: CurrencyNames;
-}) {
-  const items = useMemo(
-    () => buildActivity(orders, trades, companiesById, game?.sessionTicks ?? 720).filter((i) => i.companyId === company.id),
-    [orders, trades, companiesById, game?.sessionTicks, company.id],
-  );
-  const header = fillCopy(RESEARCH.yourActivity, { ticker: company.ticker });
-  if (items.length === 0) {
-    return (
-      <InsetGroupedList header={header} className="rs-section">
-        <li className="ios-row rs-card-row">
-          <p className="t-body">{fillCopy(RESEARCH.noOrders, { ticker: company.ticker })}</p>
-          <p className="t-footnote rs-secondary">{RESEARCH.noOrdersBody}</p>
-        </li>
-      </InsetGroupedList>
-    );
-  }
-  return (
-    <InsetGroupedList
-      header={header}
-      headerAction={
-        items.length > 2 ? (
-          <Link className="rs-header-link" to="/portfolio/activity">
-            {fillCopy(RESEARCH.seeAllCount, { n: items.length })}
-          </Link>
-        ) : undefined
-      }
-      className="rs-section"
-    >
-      {items.slice(0, 2).map((item) => {
-        const net = item.net === null ? '—' : formatMoneyCents(item.net, currency, { signed: true });
-        return (
-          <ListRow
-            key={item.orderNumber}
-            to={`/portfolio/activity/${item.orderNumber}`}
-            title={item.title}
-            subtitle={<span className="ios-num rs-tertiary">{item.subtitle}</span>}
-            trailing={
-              <span className="rs-trailing-stack">
-                <span className="t-body ios-num">{net}</span>
-                <span className="t-footnote rs-secondary">{item.status}</span>
-              </span>
-            }
-            aria-label={`${item.title}, ${item.subtitle}, ${item.net === null ? '' : `${item.net < 0 ? 'cash out' : 'cash in'} ${spokenMoney(Math.abs(item.net), currency)}, `}${item.status}`}
-          />
-        );
-      })}
-    </InsetGroupedList>
-  );
+/** Orders and trades this crew has in this company — the count on the "Your {ticker} activity" row. */
+export function companyActivityCount(
+  company: Company,
+  orders: readonly OrderRecord[],
+  trades: readonly Trade[],
+  companiesById: Record<string, Company>,
+  game: GameState | null,
+): number {
+  return buildActivity(orders, trades, companiesById, game?.sessionTicks ?? 720).filter((i) => i.companyId === company.id).length;
 }
 
 export function TradeActions({

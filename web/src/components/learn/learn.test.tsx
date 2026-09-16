@@ -6,6 +6,9 @@ import { GLOSSARY_LIST } from '../../lib/glossary';
 import { GlossaryBrowser } from './GlossaryBrowser';
 import { TermChips } from './FiveQuestionsChapter';
 import { TermInfo } from './TermInfo';
+import { INTRO } from './introCopy';
+import { INTRO_PATH } from './introFlow';
+import LearnPage from '../../pages/learn/LearnPage';
 
 function Where() {
   const loc = useLocation();
@@ -59,5 +62,17 @@ describe('"?" explanations open the InfoTip sheet through the URL', () => {
     expect(chips[0]).toHaveAttribute('aria-haspopup', 'dialog');
     await userEvent.click(chips[0]!);
     expect(screen.getByTestId('loc').textContent).toBe('/learn/five-questions?sheet=term&id=netMargin');
+  });
+});
+
+describe('Learn chapters', () => {
+  it('replays "Meet the market" from the top of the chapter card (design 2026-09-16 §6)', () => {
+    wrap(<LearnPage />);
+    const row = screen.getByRole('link', { name: new RegExp(INTRO.learnRow) });
+    expect(row).toHaveAttribute('href', INTRO_PATH);
+    expect(within(row).getByText(INTRO.learnSubtitle)).toBeInTheDocument();
+    // It leads the chapter list, ahead of How to play.
+    const chapters = within(screen.getByRole('region', { name: 'Guide' })).getAllByRole('link');
+    expect(chapters[0]).toBe(row);
   });
 });

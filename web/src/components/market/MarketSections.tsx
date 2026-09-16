@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { Company, IndexQuote, MarketBreadth } from '@deca/shared';
+import { isFund, type Company, type IndexQuote, type Instrument, type MarketBreadth } from '@deca/shared';
 import { Sparkline } from '../charts/Sparkline';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
 import { ListRow, StockRow } from '../ios/ListRow';
@@ -31,17 +31,43 @@ export function CompanyStockRow({
   sparkline?: ReactNode;
   onClick?: () => void;
 }) {
+  return <InstrumentStockRow instrument={company} tab={tab} sparkline={sparkline} onClick={onClick} />;
+}
+
+/**
+ * One row for either kind of instrument. A fund takes the crest colour of the sector it tracks (the
+ * broad fund has none) and says "Fund" in its spoken label, so assistive tech never calls a basket a
+ * company; everything else — path, price, change pill — is identical, which is the point.
+ */
+export function InstrumentStockRow({
+  instrument,
+  tab = 'markets',
+  sparkline,
+  onClick,
+}: {
+  instrument: Instrument;
+  tab?: 'markets' | 'news';
+  sparkline?: ReactNode;
+  onClick?: () => void;
+}) {
+  const fund = isFund(instrument);
+  const spoken = `${changeParts(instrument.sessionChange).spoken} ${MARKETS.thisSession}`;
   return (
     <StockRow
-      to={companyPath(company.ticker, tab)}
+      to={companyPath(instrument.ticker, tab)}
       onClick={onClick}
-      ticker={company.ticker}
-      name={company.name}
-      sector={company.sector}
-      priceText={formatMoney(company.currentPrice)}
-      priceSpoken={formatMoneySpoken(company.currentPrice)}
-      change={company.sessionChange}
+      ticker={instrument.ticker}
+      name={instrument.name}
+      sector={fund ? instrument.sector : instrument.sector}
+      priceText={formatMoney(instrument.currentPrice)}
+      priceSpoken={formatMoneySpoken(instrument.currentPrice)}
+      change={instrument.sessionChange}
       changeContext={MARKETS.thisSession}
+      aria-label={
+        fund
+          ? [instrument.name, instrument.ticker, MARKETS.fundBadge, formatMoneySpoken(instrument.currentPrice), spoken].join(', ')
+          : undefined
+      }
       sparkline={sparkline}
     />
   );
@@ -151,13 +177,14 @@ export function BiggestMoves({ up, down }: { up: readonly Company[]; down: reado
   );
 }
 
-export function WatchlistSection({ companies }: { companies: readonly Company[] }) {
+/** Starred instruments — funds are starrable exactly like companies (spec §3). */
+export function WatchlistSection({ instruments }: { instruments: readonly Instrument[] }) {
   return (
     <InsetGroupedList header={MARKETS.watchlist} className="bx-section">
-      {companies.length === 0 ? (
+      {instruments.length === 0 ? (
         <ListRow title={MARKETS.watchlistEmpty.title} subtitle={MARKETS.watchlistEmpty.body} />
       ) : (
-        companies.map((c) => <CompanyStockRow key={c.id} company={c} />)
+        instruments.map((c) => <InstrumentStockRow key={c.id} instrument={c} />)
       )}
     </InsetGroupedList>
   );

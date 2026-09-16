@@ -4,8 +4,9 @@
  * - `metricValue` reads one metric for a company. Valuation fields stored in
  *   Fundamentals are start-of-game values, so size and multiples are recomputed from
  *   `Company.currentPrice` (COPY §0.6).
- * - `sectorAverages` returns sector medians, falling back to the whole market when a
- *   sector has fewer than 3 companies.
+ * - `peerComparisons` returns the median of a company's PEERS — the other companies in its
+ *   sector, never the company itself — falling back to the rest of the market when the sector
+ *   is too small or no peer has the number.
  * - `explainMetric` turns a value into COPY §3.1 words. It never grades a company.
  *
  * Units: money metrics (company size, sales, profit, profit per share, free cash flow) are
@@ -192,20 +193,33 @@ export function isNotMeaningful(id: MetricId, value: number | null): boolean {
   return value !== null && NM_METRICS.has(id) && (value <= 0 || value > NM_CEILING);
 }
 
-// ─── sectorAverages ──────────────────────────────────────────────────────────
+// ─── peerComparisons ─────────────────────────────────────────────────────────
 
-export interface SectorAverage {
+/**
+ * The number a company's stat is shown against (COPY §3.2). It is always computed from OTHER
+ * companies: a comparison a student can read something into.
+ */
+export interface PeerComparison {
+  /** 'sector' = the other companies in this sector; 'market' = every other company. */
   scope: 'sector' | 'market';
+  /** The sector of the company being read, for the "Rest of {sector}" line. */
   sector: Sector;
-  /** Median of the usable values (same units as metricValue), or null when there are none. */
+  /** Median of the peers' usable values (same units as metricValue), or null when there are none. */
   value: number | null;
-  /** How many companies the median uses. */
+  /** How many PEERS the median uses. Never counts the company being read. */
   count: number;
 }
 
-/** Fewest companies a sector needs before its own median is shown (COPY §3.2). */
+/**
+ * Fewest companies a sector needs — counting the one being read — before its own peers are
+ * used (COPY §3.2). Three means two peers, which is every sector in the 2026-09-16 roster.
+ */
 export const MIN_SECTOR_COMPANIES = 3;
 
+/**
+ * Middle value: for two peers that is their midpoint, which is also their mean. The median is
+ * kept for the market pool, where one extreme company should not drag the comparison.
+ */
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const s = [...values].sort((a, b) => a - b);
@@ -214,19 +228,28 @@ function median(values: number[]): number | null {
 }
 
 /**
- * Returns a lookup of median values. A sector with at least 3 companies (with fundamentals)
- * uses its own median; otherwise, or when none of its values are usable, the market median.
- * Null values and "n/m" multiples are left out. Results are memoized per metric and sector.
+ * Returns a lookup of peer medians, keyed by metric and by the company being read.
+ *
+ * The company itself is ALWAYS excluded, from the sector pool and from the market pool alike.
+ * With five sectors of exactly three that makes the sector line "the other two", which cannot
+ * simply restate the company's own number the way a three-company median did (it landed on the
+ * middle company, i.e. the one you were reading, for a third of all stats).
+ *
+ * Sector first: a sector with at least `MIN_SECTOR_COMPANIES` companies (with fundamentals) and
+ * at least one peer carrying this metric uses its peers. Otherwise — a sector too small, or one
+ * where no peer has the number (a loss-maker has no P/E) — the rest of the market is used.
+ * Null values and "n/m" multiples are left out of every pool. Results are memoized.
  */
-export function sectorAverages(
+export function peerComparisons(
   fundamentalsById: Record<string, Fundamentals>,
   companiesById: Record<string, Company>,
-): (id: MetricId, sector: Sector) => SectorAverage {
+): (id: MetricId, company: Pick<Company, 'id' | 'sector'>) => PeerComparison {
   const members = Object.values(companiesById).filter((c) => c && fundamentalsById[c.id]);
   const sectorSize = new Map<string, number>();
   for (const c of members) sectorSize.set(c.sector, (sectorSize.get(c.sector) ?? 0) + 1);
 
-  const valuesCache = new Map<MetricId, { all: number[]; bySector: Map<string, number[]> }>();
+  type Entry = { id: string; value: number };
+  const valuesCache = new Map<MetricId, { all: Entry[]; bySector: Map<string, Entry[]> }>();
   const valuesFor = (id: MetricId) => {
     let cached = valuesCache.get(id);
     if (!cached) {
@@ -234,26 +257,30 @@ export function sectorAverages(
       for (const c of members) {
         const v = metricValue(id, fundamentalsById[c.id]!, c);
         if (v === null || isNotMeaningful(id, v)) continue;
-        cached.all.push(v);
+        const entry = { id: c.id, value: v };
+        cached.all.push(entry);
         const list = cached.bySector.get(c.sector);
-        if (list) list.push(v);
-        else cached.bySector.set(c.sector, [v]);
+        if (list) list.push(entry);
+        else cached.bySector.set(c.sector, [entry]);
       }
       valuesCache.set(id, cached);
     }
     return cached;
   };
 
-  const results = new Map<string, SectorAverage>();
-  return (id, sector) => {
-    const key = `${id}|${sector}`;
+  const peersOf = (entries: readonly Entry[], selfId: string) => entries.filter((e) => e.id !== selfId).map((e) => e.value);
+
+  const results = new Map<string, PeerComparison>();
+  return (id, company) => {
+    const { id: selfId, sector } = company;
+    const key = `${id}|${selfId}`;
     const hit = results.get(key);
     if (hit) return hit;
     const { all, bySector } = valuesFor(id);
-    const own = bySector.get(sector) ?? [];
-    const useSector = (sectorSize.get(sector) ?? 0) >= MIN_SECTOR_COMPANIES && own.length > 0;
-    const pool = useSector ? own : all;
-    const result: SectorAverage = { scope: useSector ? 'sector' : 'market', sector, value: median(pool), count: pool.length };
+    const sectorPeers = peersOf(bySector.get(sector) ?? [], selfId);
+    const useSector = (sectorSize.get(sector) ?? 0) >= MIN_SECTOR_COMPANIES && sectorPeers.length > 0;
+    const pool = useSector ? sectorPeers : peersOf(all, selfId);
+    const result: PeerComparison = { scope: useSector ? 'sector' : 'market', sector, value: median(pool), count: pool.length };
     results.set(key, result);
     return result;
   };
@@ -264,6 +291,7 @@ export function sectorAverages(
 export interface Explained {
   valueText: string;
   sentence: string;
+  /** The COPY §3.2 comparison line ("Rest of Shipping & Salvage: 22.1"). */
   averageText: string;
   /** COPY §3.1 compareNote, when the template has one. */
   note?: string;
@@ -324,14 +352,33 @@ export function formatMetricValue(id: MetricId, value: number | null, currencySy
   return applyFormat(template(id).valueFormat, value, currencySymbol);
 }
 
-/** The COPY §3.2 average line: "Sector average: 22.1" / "Market average: 21.4" / "Sector average: —". */
-export function averageLine(id: MetricId, avg: SectorAverage, currencySymbol: string): string {
+/** The peer number as text, or COPY's `missingAvg` dash when there is none. */
+function comparisonText(id: MetricId, avg: PeerComparison, currencySymbol: string): string {
+  return avg.value === null || !Number.isFinite(avg.value)
+    ? COPY_DATA.explainExtra.averageLine.missingAvg
+    : applyFormat(template(id).valueFormat, avg.value, currencySymbol);
+}
+
+/**
+ * The COPY §3.2 comparison line, which has room for the sector name:
+ * "Rest of Shipping & Salvage: 22.1" / "Rest of the market: 21.4" / "Rest of Shipping & Salvage: —".
+ */
+export function averageLine(id: MetricId, avg: PeerComparison, currencySymbol: string): string {
   const lines = COPY_DATA.explainExtra.averageLine;
-  const avgText =
-    avg.value === null || !Number.isFinite(avg.value)
-      ? lines.missingAvg
-      : applyFormat(template(id).valueFormat, avg.value, currencySymbol);
-  return fill(avg.scope === 'market' ? lines.market : lines.sector, { avg: avgText });
+  return fill(avg.scope === 'market' ? lines.market : lines.sector, {
+    avg: comparisonText(id, avg, currencySymbol),
+    sector: avg.sector,
+  });
+}
+
+/**
+ * The COPY §3.2 `statGrid` caption under a grid value: "Rest of sector 22.1" / "Rest of market 21.4".
+ * Same number and same sector-or-market choice as `averageLine`; the sector name does not fit in a
+ * two-column cell, so the caption says "sector" and the sheet a tap opens spells it out.
+ */
+export function shortAverageLine(id: MetricId, avg: PeerComparison, currencySymbol: string): string {
+  const grid = COPY_DATA.explainExtra.statGrid;
+  return fill(avg.scope === 'market' ? grid.market : grid.sector, { avg: comparisonText(id, avg, currencySymbol) });
 }
 
 /**
@@ -340,7 +387,7 @@ export function averageLine(id: MetricId, avg: SectorAverage, currencySymbol: st
  * value; the words carry the sign. P/E-style multiples at or below zero read as whenNull and
  * show 'n/m'; above 200 they show 'n/m' with the ordinary sentence.
  */
-export function explainMetric(id: MetricId, value: number | null, avg: SectorAverage, currencySymbol: string): Explained {
+export function explainMetric(id: MetricId, value: number | null, avg: PeerComparison, currencySymbol: string): Explained {
   const t = template(id);
   const averageText = averageLine(id, avg, currencySymbol);
   const withNote = (e: Omit<Explained, 'averageText' | 'note'>): Explained =>

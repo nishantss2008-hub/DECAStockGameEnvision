@@ -10,7 +10,7 @@ function Harness(props: { onCancel?: () => void; onSubmit?: (v: string) => void;
     <SearchField
       value={value}
       onChange={setValue}
-      placeholder="Search 25 companies"
+      placeholder="Search companies and funds"
       onCancel={props.onCancel}
       onSubmit={props.onSubmit}
       announcement={props.announcement ? props.announcement(value) : undefined}
@@ -26,7 +26,7 @@ describe('SearchField', () => {
   it('is a search landmark with a labelled search input tuned for phones', () => {
     render(<Harness />);
     expect(screen.getByRole('search')).toBeInTheDocument();
-    const input = screen.getByRole('searchbox', { name: 'Search 25 companies' });
+    const input = screen.getByRole('searchbox', { name: 'Search companies and funds' });
     expect(input).toHaveAttribute('type', 'search');
     expect(input).toHaveAttribute('enterkeyhint', 'search');
     expect(input).toHaveAttribute('autocomplete', 'off');
@@ -113,7 +113,7 @@ describe('SearchField', () => {
   });
 
   it('names the search landmark like its field, so two searches on a page stay distinct', () => {
-    render(<SearchField value="" onChange={() => {}} placeholder="Search 25 companies" label="Choose a company" />);
+    render(<SearchField value="" onChange={() => {}} placeholder="Search companies and funds" label="Choose a company" />);
     expect(screen.getByRole('search', { name: 'Choose a company' })).toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Choose a company' })).toBeInTheDocument();
   });

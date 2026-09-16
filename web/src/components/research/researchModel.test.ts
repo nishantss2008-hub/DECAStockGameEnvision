@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Company, Fundamentals, NewsEvent } from '@deca/shared';
 import {
+  allStatsGroups,
   allStatsRows,
   analystSummary,
   companyNews,
+  isMarketWideNews,
   newsTag,
   statementSummary,
   statementTable,
@@ -12,7 +14,9 @@ import {
   FINANCIAL_QUESTIONS,
   metricShortLabel,
   historyBars,
+  keyStatCells,
 } from './researchModel';
+import type { PeerComparison } from '../../lib/compare';
 
 const B = 100_000_000_000; // Ð1B in cents
 const history = [
@@ -125,15 +129,71 @@ describe('research model', () => {
     for (const t of [income, balance, cash]) for (const r of t.rows) expect(r.termId).toBeTruthy();
   });
 
+  it('key stat cells: the five metrics with a peer caption, then the session range (spec §3)', () => {
+    const avg: PeerComparison = { scope: 'sector', sector: 'Shipping & Salvage', value: 22.1, count: 2 };
+    const quoted = { ...company, startPrice: 8412, sessionLow: 8190, sessionHigh: 8460 } as Company;
+    const cells = keyStatCells(quoted, { ...fundamentals, peRatio: 17.8 } as Fundamentals, () => avg, 'Ð');
+    expect(cells.map((c) => c.id)).toEqual([...KEY_STATS, 'sessionRange']);
+    const pe = cells.find((c) => c.id === 'peRatio')!;
+    expect(pe).toMatchObject({ label: 'Price vs. profit', value: '17.8', termId: 'peRatio', caption: 'Rest of sector 22.1' });
+    // The sheet keeps the four-line row's words: sentence and the long comparison line, which has room to name the sector.
+    expect(pe.explained).toMatchObject({ sentence: 'You pay Ð17.80 for every Ð1 of yearly profit.', averageText: 'Rest of Shipping & Salvage: 22.1' });
+    const range = cells.at(-1)!;
+    expect(range).toMatchObject({ label: 'Session range', value: 'Ð81.90 – Ð84.60', termId: 'sessionRange' });
+    expect(range.caption).toBeUndefined();
+    expect(range.explained).toBeUndefined();
+  });
+
+  it('key stat captions use the rest of the market when the sector has too few companies', () => {
+    const market: PeerComparison = { scope: 'market', sector: 'Shipping & Salvage', value: 21.4, count: 14 };
+    const cells = keyStatCells(company, fundamentals, () => market, 'Ð');
+    expect(cells.find((c) => c.id === 'peRatio')!.caption).toBe('Rest of market 21.4');
+    const missing: PeerComparison = { scope: 'sector', sector: 'Shipping & Salvage', value: null, count: 0 };
+    expect(keyStatCells(company, fundamentals, () => missing, 'Ð')[3]!.caption).toBe('Rest of sector —');
+  });
+
+  it('all stats groups keep every field of the flat list, once each (spec §5)', () => {
+    const groups = allStatsGroups(company, fundamentals, () => null, 'Ð');
+    expect(groups.map((g) => g.label)).toEqual(['Price', 'Value', 'Size', 'Health', 'Payouts']);
+    for (const g of groups) expect(g.note.length).toBeGreaterThan(0);
+    const flat = allStatsRows(company, fundamentals, 'Ð');
+    const cells = groups.flatMap((g) => g.cells);
+    expect(cells.map((c) => c.id).sort()).toEqual(flat.map((r) => r.id).sort());
+    expect(cells.map((c) => [c.label, c.value]).sort()).toEqual(flat.map((r) => [r.label, r.value]).sort());
+    for (const c of cells) expect(c.termId).toBeTruthy();
+    // Only the fields with a COPY §3.1 template can be compared with the sector.
+    expect(cells.filter((c) => c.explained).map((c) => c.id)).toEqual(['forwardPe', 'eps', 'beta', 'dividendYield']);
+  });
+
   it('history bars sorted by year', () => {
     expect(historyBars(history).map((b) => b.year)).toEqual(['2022', '2023', '2024', '2025']);
   });
 
   it('company news: this company or the whole market, newest first', () => {
-    const ev = (id: string, companyIds: string[], firedAt: number) => ({ id, companyIds, firedAt, source: companyIds.length ? 'scheduled' : 'macro' }) as unknown as NewsEvent;
-    const list = [ev('a', ['cutlass'], 5), ev('b', [], 4), ev('c', ['kraken', 'cutlass'], 3), ev('d', ['kraken'], 1)];
+    const ev = (id: string, companyIds: string[], firedAt: number, type = 'storm') =>
+      ({ id, companyIds, firedAt, type, source: companyIds.length ? 'scheduled' : 'macro' }) as unknown as NewsEvent;
+    const list = [ev('a', ['cutlass'], 5), ev('b', [], 4, 'macro'), ev('c', ['kraken', 'cutlass'], 3), ev('d', ['kraken'], 1)];
     expect(companyNews(list, 'kraken', 2).map((n) => n.id)).toEqual(['b', 'c']);
     expect(newsTag(list[1]!, {})).toBe('Whole market');
     expect(newsTag(list[2]!, { kraken: company, cutlass: { ticker: 'CTLS' } as Company })).toBe('KRKN, CTLS');
+  });
+
+  it('a market-wide dispatch reads as one, and names the company whose page you are on', () => {
+    const roster = ['abon', 'brth', 'bbrd', 'cjst', 'cnbr', 'cmps', 'kraken'];
+    const byId = Object.fromEntries(roster.map((id) => [id, { id, ticker: (id === 'kraken' ? 'krkn' : id.slice(0, 4)).toUpperCase() } as Company]));
+    const macro = { id: 'm', type: 'macro', companyIds: roster, firedAt: 1 } as unknown as NewsEvent;
+    // The bug: every ticker in the roster, on a row about the company you are reading.
+    expect(newsTag(macro, byId, company)).toBe('Whole market, including KRKN');
+    expect(newsTag(macro, byId)).toBe('Whole market');
+    expect(isMarketWideNews(macro)).toBe(true);
+    // A host dispatch with no type of its own, aimed at more companies than a row can list.
+    const wide = { id: 'w', type: 'regulatory', companyIds: roster.slice(0, 5), firedAt: 1 } as unknown as NewsEvent;
+    expect(isMarketWideNews(wide)).toBe(true);
+    expect(newsTag(wide, byId, company)).toBe('Whole market');
+    expect(newsTag(wide, byId, byId.abon)).toBe('Whole market, including ABON');
+    // Three or fewer still list their tickers, which is the useful thing to show.
+    const narrow = { id: 'n', type: 'storm', companyIds: ['kraken', 'abon', 'brth'], firedAt: 1 } as unknown as NewsEvent;
+    expect(isMarketWideNews(narrow)).toBe(false);
+    expect(newsTag(narrow, byId, company)).toBe('KRKN, ABON, BRTH');
   });
 });
