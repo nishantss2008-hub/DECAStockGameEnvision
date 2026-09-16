@@ -25,8 +25,8 @@ FCF = operatingCashFlow − capex. Typical net margin ~10%, P/E ~22, P/S ~2.5, R
 Captured in `server/src/seed/research.json` → `sectorProfiles` (P/E, P/S, net margin,
 revenue growth, dividend yield, EV/EBITDA per sector), mapped from real analogs:
 Shipping→Industrials, Provisions & Spice→Consumer Staples, Naval Arms→Defense, Cartography→Info-Tech,
-Treasure Banking→Banks, Cursed Relics & Tortuga→Discretionary, Parrot & Maps→Materials,
-Letters of Marque→Insurance.
+Treasure Banking→Banks. (The roster shrank to 15 companies in these five sectors on 2026-09-16; the
+Cursed Relics, Tortuga, Parrot, Maps and Letters of Marque profiles went with the companies.)
 
 ## Price-engine tuning (market microstructure)
 *(v1 engine. Superseded by "v2 engine and quality score" below, which replaced the
@@ -142,22 +142,43 @@ turnaround, Decliner.
 
 ### Calibration results
 
-Measured on 2026-09-14 with `npx vitest run test/calibration.test.ts` (in `server/`): 25 companies
-with rank-uniform `q`, normal research edge, the hidden surprise on, no player flow; 30 seeds at 1 h
-and 12 seeds at 48 h. Bands are the assertions in `server/test/calibration.test.ts`.
+Re-measured on 2026-09-16 for the 15-company roster with `npx vitest run test/calibration.test.ts`
+(in `server/`): rank-uniform `q`, normal research edge, the hidden surprise on, no player flow;
+250 seeds at 10 min and 250 at 30 min, the shortest and longest host options. Bands are the
+assertions in `server/test/calibration.test.ts`, each set at ~5–9 sd of the run statistic measured
+across 10–20 independent seed families.
 
-| Metric | Band | 1 h | 48 h | All 42 seeds |
+| Metric | Band | 10 min | 30 min | All 500 seeds |
 |---|---|---|---|---|
-| Per-game realized volatility | 0.34–0.42 at each length, and within 0.03 of each other | **0.384** | **0.378** | 0.382 |
-| Mean lag-1 autocorrelation of tick returns | ≤ 0.03 in size | −0.002 | −0.001 | −0.002 |
-| Mean pairwise tick-return correlation | 0.15–0.32 | 0.262 | 0.237 | 0.255 |
-| Share of seeds where the top quality quintile beats the bottom | ≥ 0.85 | 0.967 | 0.917 | **0.952** |
-| Top-minus-bottom quintile log-return spread | 0.25–0.50 | 0.40 | 0.33 | 0.38 |
-| Spearman(q, whole-game return) | 0.25–0.48 | 0.382 | 0.293 | **0.357** |
+| Per-game realized volatility | 0.36–0.40 at each length, and within 0.015 of each other | **0.379** | **0.381** | 0.380 |
+| Mean lag-1 autocorrelation of tick returns | ≤ 0.03 in size | −0.008 | −0.001 | −0.004 |
+| Mean pairwise tick-return correlation | 0.24–0.32 | 0.271 | 0.271 | 0.271 |
+| Share of seeds where the best 3 beat the worst 3 | ≥ 0.90 | 0.952 | 0.956 | **0.954** |
+| Top-minus-bottom log-return spread | 0.38–0.55 | 0.457 | 0.478 | 0.467 |
+| Spearman(q, whole-game return) | 0.40–0.50 | 0.450 | 0.452 | **0.451** |
 
 In words: volatility is about 0.38 per game at both lengths, tick returns carry no linear
-predictability (ACF1 ≈ 0), the healthiest fifth beats the least healthy fifth in about 95% of games,
-and quality explains only part of the ranking (Spearman ≈ 0.36).
+predictability (ACF1 ≈ 0, centred on the −1/(ticks−1) bias of the estimator), and quality explains
+much but not all of the ranking (Spearman ≈ 0.45).
+
+### Why the quality spread was raised to 0.39
+
+A 15-name roster does not change the price paths — volatility, autocorrelation and pairwise
+correlation are per-company and measured identically at N = 25 and N = 15. It changes the PRECISION
+of the research signal: the per-game sd of Spearman rose 0.176 → 0.234 and of the top-minus-bottom
+spread 0.220 → 0.264, so at the old `EDGE_SPREAD.normal = 0.30` the best three beat the worst three
+in only 90.4% of seeds instead of 95.3%. The fix is a larger spread, not a wider band. Sweeping the
+spread over 500 games × 10 seed families per candidate:
+
+| `EDGE_SPREAD.normal` | 0.24 | 0.30 | 0.36 | 0.37 | 0.38 | **0.39** | 0.40 | 0.42 | 0.48 | 0.52 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Best 3 beat worst 3 | 0.851 | 0.904 | 0.941 | 0.942 | 0.946 | **0.950** | 0.954 | 0.964 | 0.975 | 0.985 |
+| Spearman(q, return) | 0.290 | 0.362 | 0.423 | 0.430 | 0.440 | **0.449** | 0.458 | 0.476 | 0.523 | 0.555 |
+
+0.39 is the smallest value back at 95%, so `EDGE_SPREAD` is `{ low: 0.26, normal: 0.39, high: 0.52 }`
+— the original 2:3:4 proportions. At `low` the hit rate is 0.868 and at `high` 0.985. The spread
+enters only the deterministic drift, so none of the other calibrated properties moved: the
+volatility, ACF1 and correlation rows above are identical to four decimals at 0.30 and at 0.39.
 
 ### Anti-manipulation guarantees
 

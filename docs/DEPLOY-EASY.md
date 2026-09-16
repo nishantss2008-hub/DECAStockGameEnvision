@@ -358,7 +358,12 @@ Useful extras:
 3. Sign in as `admin`, open a crew's view on your own phone, and watch one price change.
 4. Hand out the crew cards.
 5. **Do not deploy, push, or restart anything from now on**, and leave a tab open on the address.
-6. Start the game from the host console and pick a length (10, 15, 20 or 30 minutes).
+   The game must run as **one instance**: the trading pause and each crew's order queue live inside
+   a single server, and the database file has one writer. Never scale the service past one.
+6. Let the crews sign in and finish **Meet the market** — a required one-minute tour that gates
+   each crew's first order. The host's **Crews** tab shows who has finished, and can mark a crew
+   finished if a phone dies ([RUNBOOK.md](RUNBOOK.md) section 2.5).
+7. Start the game from the host console and pick a length (10, 15, 20 or 30 minutes).
 
 ---
 
@@ -384,6 +389,6 @@ Useful extras:
   powerful of these options, and unlike Render's free tier it never sleeps and keeps its data — but
   it is a real Linux server you own and maintain: SSH keys, firewall rules, `systemd`, certificates.
   Only worth it if you want to learn that.
-- **[DEPLOY.md](DEPLOY.md)** — the long version, with backups, costs and every provider compared.
-- **[HOSTING-FREE.md](HOSTING-FREE.md)** — the full research behind these recommendations.
+- **[HOSTING-FREE.md](HOSTING-FREE.md)** — the full research behind these recommendations. Written
+  when a game ran for 48 hours, so its conclusions no longer apply; read it for the reasoning.
 - **[RUNBOOK.md](RUNBOOK.md)** — running the live game itself, start to reveal.

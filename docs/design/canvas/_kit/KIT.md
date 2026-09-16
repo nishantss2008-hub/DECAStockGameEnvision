@@ -26,7 +26,7 @@ proposed phone copy), verbatim. Numbers are BRIEF §7. Replace them with your sc
 7. **Numbers:** tabular figures are on by default inside `.phone`; true minus `−` (U+2212); `Ð` with 2 decimals; never truncate a number.
 8. **Signed values:** sign + triangle SVG + colour, always (`.chg`, `.pill-change`). Rank moves and signed text on glass use `.chg.is-neutral`.
 9. **Explain + compare:** every metric label gets a `.qmark` with `aria-label="What is {label} ({term})?"` (COPY §0.4). ExplainRows
-   show the everyday sentence and "Sector average: …". Dense lists use one "?" in the column header that opens "What these
+   show the everyday sentence and "Rest of {sector}: …" (the peers, never this company). Dense lists use one "?" in the column header that opens "What these
    numbers mean". No verdicts, no good/bad colours on fundamentals, no buy/sell advice, no health score before the reveal.
 10. **Colour placement** (MOBILE §2.5): `--label-3` never on fills, tint-soft or glass · gain/loss text only on opaque surfaces or
     inside a ChangePill · text on glass only `--label`, `--label-2`, `--tint-strong`, `--destructive-strong` · no red for "Not placed".
@@ -450,7 +450,7 @@ and Activity 64 · Metrics 76 · Position 88 · Explain 90.
   </div>
 </li>
 ```
-**ExplainRow · 88+** (Key stats, Financials). Label + "?", value, everyday sentence, sector average. Use "Market average: …" when the
+**ExplainRow · 88+** (Key stats, Financials). Label + "?", value, everyday sentence, peer comparison. Use "Rest of the market: …" when the
 sector has fewer than 3 companies. No colour on the value.
 ```html
 <li class="row row-explain"><div class="explain-head"><span class="label-q"><span class="explain-label">Price vs. profit</span><button class="qmark" type="button" aria-label="What is Price vs. profit (P/E ratio)?" aria-haspopup="dialog"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></button></span><span class="explain-value">17.8</span></div><p class="explain-sentence">You pay Ð17.80 for every Ð1 of yearly profit.</p><p class="explain-avg">Sector average: 22.1</p></li>

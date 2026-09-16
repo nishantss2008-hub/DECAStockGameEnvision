@@ -26,7 +26,7 @@ Companion documents: `docs/design/BRIEF.md` §5 Voice and §9 Beginner-first com
 | `formats` | file (1) | number-format tokens used by `explain` |
 | `example-company` | file (1) | worked-example data for tests and mockups |
 | `explain` | MetricId | templates in `web/src/lib/compare.ts` (`explainMetric`) |
-| `explain-extra` | file (1) | average line, analyst card, statement summaries, research helper |
+| `explain-extra` | file (1) | average line, stat grid captions and groups, analyst card, statement summaries, research helper |
 | `news` | news type | `NEWS_EXPLAIN` in `web/src/lib/glossary.ts` |
 | `news-extra` | file (1) | sentiment labels, badges, since-report label |
 | `walkthrough` | file (1) | `Walkthrough.tsx` copy |
@@ -39,6 +39,14 @@ Companion documents: `docs/design/BRIEF.md` §5 Voice and §9 Beginner-first com
 | `host-settings` | file (1) | host console copy |
 | `host-errors` | file (1) | host console error map keyed by error code (the server sends `message`) |
 | `states` | file (1) | empty, loading, error and phase states |
+| `funds` | fund | the three funds' names, tickers and what each holds (`server/src/seed/funds.ts`) |
+| `funds-extra` | file (1) | shared fund strings: what a fund is, the holdings list, trading notes |
+| `intro` | file (1) | "Meet the market" chrome: titles, step counter, buttons, skip wording (§14) |
+| `intro-host` | file (1) | the host's Crews strings for the intro gate (§14) |
+| `intro-stage` | non-sector card | one "Meet the market" card (§14) |
+| `intro-sectors` | file (1) | the five sector cards, keyed by sector slug (§14) |
+| `intro-companies` | file (1) | the 15 company one-liners, keyed by ticker (§14) |
+| `projector` | file (1) | the host's projector scoreboard (§15) |
 
 ### 0.2 Placeholders
 
@@ -1144,7 +1152,7 @@ related: [index, sessionChange, sector]
 - Negative values use the absolute value in `{money}` and `{pct}`; the words carry the sign.
 - Pick the sentence in this order: `whenNull` (value is null) → `whenZero` → `whenFlat` →
   `whenNegative` → `sentence`.
-- `compareNote` (optional) is a fixed line shown under the average line. It appears on metrics whose
+- `compareNote` (optional) is a fixed line shown under the comparison line. It appears on metrics whose
   raw size grows with company size or share count, where a bigger number is not a like-for-like
   comparison. `explainMetric` needs an optional `note` field in `Explained` to carry it.
 - When the value is null, `valueText` is `—`.
@@ -1154,9 +1162,10 @@ related: [index, sessionChange, sector]
   statements in `canvas/ResearchReport.dc.html` and satisfy the spec §4 accounting identities.
   `derived` numbers are computed from those two. `illustrative` numbers appear in neither and are
   fixed here so screens agree.
-- Sector averages are Shipping & Salvage medians. Where `ResearchReport.dc.html` shows a median,
-  the value matches it. P/E 22.1 is the exception: it matches the plan's `compare.test.ts`, so the
-  mockup's 24.6 should change to 22.1.
+- The `sectorAverages` block is the comparison KRKN is shown against: the median of the OTHER
+  Shipping & Salvage companies, never KRKN itself (§3.2). Where `ResearchReport.dc.html` shows a
+  median, the value matches it. P/E 22.1 is the exception: it matches the plan's `compare.test.ts`,
+  so the mockup's 24.6 should change to 22.1.
 
 ```yaml formats
 money2: "Symbol, thousands separators, 2 decimals, true minus: 4.73 → Ð4.73; −1.2 → −Ð1.20"
@@ -1252,7 +1261,7 @@ example:
   value: 20360000000
   valueText: "Ð20.36B"
   sentence: "All of its shares together are worth Ð20.36B at the current price."
-  averageText: "Sector average: Ð9.84B"
+  averageText: "Rest of Shipping & Salvage: Ð9.84B"
 nullExample:
   value: null
   valueText: "—"
@@ -1272,7 +1281,7 @@ example:
   value: 8140000000
   valueText: "Ð8.14B"
   sentence: "It brought in Ð8.14B in sales last year."
-  averageText: "Sector average: Ð5.20B"
+  averageText: "Rest of Shipping & Salvage: Ð5.20B"
 zeroExample:
   value: 0
   valueText: "Ð0.00"
@@ -1293,7 +1302,7 @@ example:
   value: 1140000000
   valueText: "Ð1.14B"
   sentence: "It made Ð1.14B of profit last year after paying every cost."
-  averageText: "Sector average: Ð0.52B"
+  averageText: "Rest of Shipping & Salvage: Ð0.52B"
 lossExample:
   value: -210000000
   valueText: "−Ð0.21B"
@@ -1313,7 +1322,7 @@ example:
   value: 0.140
   valueText: "14.0%"
   sentence: "It keeps Ð14 of profit from every Ð100 of sales."
-  averageText: "Sector average: 10.0%"
+  averageText: "Rest of Shipping & Salvage: 10.0%"
 lossExample:
   value: -0.035
   valueText: "−3.5%"
@@ -1332,7 +1341,7 @@ example:
   value: 0.378
   valueText: "37.8%"
   sentence: "After paying for what it sells, it keeps Ð37.80 of every Ð100 of sales."
-  averageText: "Sector average: 31.0%"
+  averageText: "Rest of Shipping & Salvage: 31.0%"
 lossExample:
   value: -0.05
   valueText: "−5.0%"
@@ -1353,7 +1362,7 @@ example:
   value: 0.0719
   valueText: "7.2%"
   sentence: "Sales grew about 7% a year over the last 3 years."
-  averageText: "Sector average: 4.9%"
+  averageText: "Rest of Shipping & Salvage: 4.9%"
 lossExample:
   value: -0.042
   valueText: "−4.2%"
@@ -1366,7 +1375,7 @@ label: "Profit per share (EPS)"
 valueFormat: money2
 money: money2
 sentence: "It made {money} of profit for each share last year."
-compareNote: "Profit per share depends on how many shares a company has, so the sector average means little; compare its change over the years instead."
+compareNote: "Profit per share depends on how many shares a company has, so the comparison means little; compare its change over the years instead."
 whenZero: "It broke even last year: no profit for each share."
 whenNegative: "It lost {money} for each share last year."
 whenNull: "Not available for this company."
@@ -1374,7 +1383,7 @@ example:
   value: 4.73
   valueText: "Ð4.73"
   sentence: "It made Ð4.73 of profit for each share last year."
-  averageText: "Sector average: Ð2.60"
+  averageText: "Rest of Shipping & Salvage: Ð2.60"
 lossExample:
   value: -1.20
   valueText: "−Ð1.20"
@@ -1393,7 +1402,7 @@ example:
   value: 17.8
   valueText: "17.8"
   sentence: "You pay Ð17.80 for every Ð1 of yearly profit."
-  averageText: "Sector average: 22.1"
+  averageText: "Rest of Shipping & Salvage: 22.1"
 lossExample:
   value: null
   valueText: "—"
@@ -1412,7 +1421,7 @@ example:
   value: 15.9
   valueText: "15.9"
   sentence: "You pay Ð15.90 for every Ð1 of profit expected next year."
-  averageText: "Sector average: 21.3"
+  averageText: "Rest of Shipping & Salvage: 21.3"
 lossExample:
   value: null
   valueText: "—"
@@ -1431,7 +1440,7 @@ example:
   value: 2.50
   valueText: "2.50"
   sentence: "You pay Ð2.50 for every Ð1 of yearly sales."
-  averageText: "Sector average: 1.90"
+  averageText: "Rest of Shipping & Salvage: 1.90"
 nullExample:
   value: null
   valueText: "—"
@@ -1450,7 +1459,7 @@ example:
   value: 3.25
   valueText: "3.25"
   sentence: "You pay Ð3.25 for every Ð1 of owner equity."
-  averageText: "Sector average: 2.40"
+  averageText: "Rest of Shipping & Salvage: 2.40"
 nullExample:
   value: null
   valueText: "—"
@@ -1469,7 +1478,7 @@ example:
   value: 10.0
   valueText: "10.0"
   sentence: "Counting its debt and subtracting its cash, the whole business is priced at Ð10.00 for every Ð1 of yearly core profit."
-  averageText: "Sector average: 16.4"
+  averageText: "Rest of Shipping & Salvage: 16.4"
 lossExample:
   value: null
   valueText: "—"
@@ -1488,7 +1497,7 @@ example:
   value: 0.019
   valueText: "1.9%"
   sentence: "It pays owners about Ð1.90 a year for every Ð100 spent on its shares at the current price. Dividends are not added to your cash in this game."
-  averageText: "Sector average: 1.2%"
+  averageText: "Rest of Shipping & Salvage: 1.2%"
 zeroExample:
   value: 0
   valueText: "0.0%"
@@ -1508,7 +1517,7 @@ example:
   value: 0.62
   valueText: "0.62"
   sentence: "It has Ð0.62 of debt for every Ð1 of owner equity (what it owns minus what it owes)."
-  averageText: "Sector average: 0.95"
+  averageText: "Rest of Shipping & Salvage: 0.95"
 zeroExample:
   value: 0
   valueText: "0.00"
@@ -1530,7 +1539,7 @@ example:
   value: 1.84
   valueText: "1.84"
   sentence: "It has Ð1.84 of short-term money for every Ð1 of bills due within a year."
-  averageText: "Sector average: 1.35"
+  averageText: "Rest of Shipping & Salvage: 1.35"
 nullExample:
   value: null
   valueText: "—"
@@ -1551,7 +1560,7 @@ example:
   value: 960000000
   valueText: "Ð0.96B"
   sentence: "After running and investing in the business, it had Ð0.96B of cash left last year."
-  averageText: "Sector average: Ð0.38B"
+  averageText: "Rest of Shipping & Salvage: Ð0.38B"
 lossExample:
   value: -150000000
   valueText: "−Ð0.15B"
@@ -1571,7 +1580,7 @@ example:
   value: 0.182
   valueText: "18.2%"
   sentence: "It earned Ð18.20 of profit for every Ð100 of owner equity."
-  averageText: "Sector average: 11.6%"
+  averageText: "Rest of Shipping & Salvage: 11.6%"
 lossExample:
   value: -0.06
   valueText: "−6.0%"
@@ -1590,7 +1599,7 @@ example:
   value: 0.089
   valueText: "8.9%"
   sentence: "It earned Ð8.90 of profit for every Ð100 of things it owns."
-  averageText: "Sector average: 5.4%"
+  averageText: "Rest of Shipping & Salvage: 5.4%"
 lossExample:
   value: -0.025
   valueText: "−2.5%"
@@ -1608,29 +1617,53 @@ example:
   value: 1.12
   valueText: "1.12"
   sentence: "When the whole market moves 10%, this stock tends to move about 11% the same way."
-  averageText: "Sector average: 1.10"
+  averageText: "Rest of Shipping & Salvage: 1.10"
 nullExample:
   value: null
   valueText: "—"
   sentence: "Not available for this company."
 ```
 
-### 3.2 Average line, analyst card, statement summaries, research helper
+### 3.2 Average line, stat grid, analyst card, statement summaries, research helper
+
+The comparison line never includes the company you are reading. With five sectors of exactly three,
+it is the median of the OTHER two, so it can always be compared against; a median that included the
+company itself landed on that company's own number in a third of all stats. "Rest of" says so in
+plain words, and the line names the sector where there is room for it.
+
+`statGrid` is the two-column Key stats / All stats grid (MOBILE §7.7). The caption under a value is
+the short form of the comparison line: the same number, shortened, because the grid cell has no room
+for the sector name. Tapping a cell opens the full line, so nothing is lost.
 
 ```yaml explain-extra
 averageLine:
-  sector: "Sector average: {avg}"
-  market: "Market average: {avg}"
+  sector: "Rest of {sector}: {avg}"
+  market: "Rest of the market: {avg}"
   missingAvg: "—"
-  formatRule: "Format {avg} with the metric's valueFormat. Use the market line when the sector has fewer than 3 companies."
-  marketNote: "This sector has fewer than 3 companies, so the average uses every company in the market."
-  whatAverageMeans: "The average here is the middle value of the group, so one unusual company cannot pull it far."
+  formatRule: "Format {avg} with the metric's valueFormat and {sector} with the company's sector. The company you are reading is never counted in it."
+  marketNote: "No other company in this sector has this number, so the comparison uses every other company in the market."
+  whatAverageMeans: "It is the middle value of the other companies in the sector, so there is always a number to compare this one against."
   unitsNote: "B means billion, M means million and K means thousand. Ð8.14B is Ð8,140,000,000."
   examples:
-    - "Sector average: 22.1"
-    - "Sector average: 10.0%"
-    - "Sector average: Ð9.84B"
-    - "Market average: 21.4"
+    - "Rest of Shipping & Salvage: 22.1"
+    - "Rest of Shipping & Salvage: 10.0%"
+    - "Rest of Shipping & Salvage: Ð9.84B"
+    - "Rest of the market: 21.4"
+statGrid:
+  sector: "Rest of sector {avg}"
+  market: "Rest of market {avg}"
+  tapHint: "Tap any stat to see what it means."
+  formatRule: "Same {avg} formatting and same sector-or-market choice as averageLine, shortened for the caption under a value. The sector name does not fit here."
+  groups:
+    price: { label: "Price", note: "Where the price has been, and how much of it changes hands." }
+    value: { label: "Value", note: "What you pay for each Ð1 the company earns." }
+    size: { label: "Size", note: "How many shares exist, and how many can be traded." }
+    health: { label: "Health", note: "How rough the ride has been so far." }
+    payouts: { label: "Payouts", note: "What the company hands back to its owners." }
+  examples:
+    - "Rest of sector 22.1"
+    - "Rest of sector 10.0%"
+    - "Rest of market Ð9.84B"
 analystCard:
   title: "Analyst view"
   summaryAbove: "Analyst view: {rating}. Their price target of {target} is {pct} above the current price."
@@ -1656,6 +1689,7 @@ research:
   helper: "New to this? Start with profit margin, sales growth and debt, then compare price vs. profit (P/E) with similar companies."
   fiveQuestionsPanel: "Read this company in 5 questions"
   fiveQuestionsNote: "Each answer is one clue, not the whole story."
+  more: "More"
   flavor: "Chart every company before you commit your doubloons."
   views:
     basics: { label: "Basics", help: "The key numbers for a first look." }
@@ -1735,6 +1769,8 @@ sentiment:
 sinceReport: "{pct} since the news"
 sinceReportHelp: "How much the price has moved since this news came out."
 companyCount: "{n} companies"
+marketWide: "Whole market"
+marketWideHere: "Whole market, including {ticker}"
 sourceHost: "Posted by the host"
 filters:
   all: "All"
@@ -1885,8 +1921,13 @@ paragraphs:
 
 ## 8. TRADING BASICS
 
-Worked examples use KRKN at Ð84.12, the default fee of 0.10%, and the BRIEF §7 crew position of
-3,000 KRKN at an average cost of Ð73.50. KRKN has 242 million shares, so orders of these sizes
+Worked examples use KRKN at Ð84.12 and BRIEF §7's average cost of Ð73.50, with the default fee of
+0.10%. **The share counts in this section are round teaching numbers, not BRIEF §7's position**:
+they were written against the Ð1,000,000 starting chest and still say 3,000 shares, which a crew
+starting with Ð250,000 could not hold. The arithmetic in each example is self-consistent, so they
+teach correctly; they are simply not the sample crew. (Rescaling them means editing
+`web/src/components/learn/learnCopy.ts` to match, because `learnCopy.test.ts` compares the two
+verbatim.) KRKN has 242 million shares, so orders of these sizes
 move its price by less than 0.01%. The KRKN examples leave that out, as BRIEF §7 does. The price
 impact example uses a smaller made-up company so the nudge is visible. Its numbers come from
 `shared/src/estimate.ts` with beta 1.00. `TradingBasics.tsx` shows `guide.examplesNote` above the
@@ -1922,9 +1963,9 @@ glossary: priceImpact
 explain: "Large orders nudge the price against you as they go through. The nudge is bigger for companies with fewer shares, and the ticket shows it before you place an order."
 example:
   - "Buy 500 KRKN at Ð84.12: KRKN has 242 million shares, so the nudge is under 0.01% and the estimate stays Ð84.12."
-  - "A smaller company has 70 million shares at Ð50.00. You buy 8,000 shares, and the ticket shows a price impact of 0.02%."
-  - "You pay about Ð50.01 a share: order value Ð400,083.13 + fee Ð400.08 = total cost Ð400,483.21."
-  - "Without the nudge, 8,000 shares would cost Ð400,000.00, so the nudge added Ð83.13."
+  - "A smaller company has 15 million shares at Ð20.00. You buy 5,000 shares, and the ticket shows a price impact of 0.06%."
+  - "You pay about Ð20.01 a share: order value Ð100,060.63 + fee Ð100.06 = total cost Ð100,160.69."
+  - "Without the nudge, 5,000 shares would cost Ð100,000.00, so the nudge added Ð60.63."
 caution: "Other crews' orders in the same price update also move the price, and the nudge fades, so quickly selling back usually loses money."
 ```
 
@@ -1934,9 +1975,9 @@ title: "Average cost"
 glossary: avgCost
 explain: "Average cost is the average price you paid per share across all your buys of one company. Fees are not included, and selling does not change it."
 example:
-  - "You own 3,000 KRKN at an average cost of Ð73.50 and buy 500 more at Ð84.12."
-  - "Cost basis: 3,000 × Ð73.50 + 500 × Ð84.12 = Ð262,560.00, what you paid for all 3,500 shares."
-  - "New average cost: Ð262,560.00 ÷ 3,500 = Ð75.02."
+  - "You own 750 KRKN at an average cost of Ð73.50 and buy 200 more at Ð84.12."
+  - "Cost basis: 750 × Ð73.50 + 200 × Ð84.12 = Ð71,949.00, what you paid for all 950 shares."
+  - "New average cost: Ð71,949.00 ÷ 950 = Ð75.74."
 caution: "A higher average cost means the price must climb further before the holding shows a gain."
 ```
 
@@ -1946,11 +1987,11 @@ title: "Gains and losses"
 glossary: totalGain
 explain: "Unrealized gain is profit or loss on shares you still own. Realized gain is profit or loss you locked in by selling, after the sale's fee."
 example:
-  - "You own 3,000 KRKN at an average cost of Ð73.50, and the price is now Ð84.12."
-  - "Unrealized gain: 3,000 × (Ð84.12 − Ð73.50) = Ð31,860.00."
-  - "You sell 1,000 at Ð84.12, a sale of Ð84,120.00 with a fee of Ð84.12."
-  - "Realized gain: Ð84,120.00 − (1,000 × Ð73.50) − Ð84.12 = Ð10,535.88."
-  - "The 2,000 shares you keep still show Ð21,240.00 of unrealized gain, and your average cost stays Ð73.50."
+  - "You own 750 KRKN at an average cost of Ð73.50, and the price is now Ð84.12."
+  - "Unrealized gain: 750 × (Ð84.12 − Ð73.50) = Ð7,965.00."
+  - "You sell 250 at Ð84.12, a sale of Ð21,030.00 with a fee of Ð21.03."
+  - "Realized gain: Ð21,030.00 − (250 × Ð73.50) − Ð21.03 = Ð2,633.97."
+  - "The 500 shares you keep still show Ð5,310.00 of unrealized gain, and your average cost stays Ð73.50."
 caution: "An unrealized gain can shrink or vanish if the price falls before you sell."
 ```
 
@@ -1960,8 +2001,8 @@ title: "Diversification"
 glossary: diversification
 explain: "Diversification means spreading your money across several companies and sectors, so one bad surprise hurts your account less."
 example:
-  - "Put Ð400,000 into one company and it drops 20%: you lose Ð80,000."
-  - "Split Ð400,000 across four companies at Ð100,000 each. If one drops 20% and the rest hold steady, you lose Ð20,000."
+  - "Put Ð100,000 into one company and it drops 20%: you lose Ð20,000."
+  - "Split Ð100,000 across four companies at Ð25,000 each. If one drops 20% and the rest hold steady, you lose Ð5,000."
 caution: "Spreading out lowers the damage from one company, but it cannot stop losses when the whole market falls."
 ```
 
@@ -1998,7 +2039,7 @@ lines:
   filledVsPreviewAbove: "{diff} above the preview estimate of {est}"
   filledVsPreviewBelow: "{diff} below the preview estimate of {est}"
   filledVsPreviewSame: "Same as the preview estimate"
-  exampleShareOfAccount: "This order would make KRKN 27.2% of your account."
+  exampleShareOfAccount: "This order would make KRKN 29.5% of your account."
   exampleAmountModeBuy: "≈ 59 shares · Ð31.96 stays as cash"
   exampleFilled: "Order filled: Bought 50 KRKN at Ð84.12 (Ð4,206.00)."
   exampleFilledVsPreview: "Ð0.03 above the preview estimate of Ð84.12"
@@ -2051,36 +2092,39 @@ never says "1 seconds".
 The server sends `market_closed` whenever the game is not live, so the ticket chooses
 `market_closed` (lobby), `paused` or `market_closed_ended` by reading the game phase. Codes with
 no server equivalent (`amount_too_small`, `network`, `unknown_error`) are ticket-only.
+`intro_required` is the "Meet the market" gate (design §6): the server refuses a crew's FIRST
+order until it has finished the intro, and its `fix` opens the flow. Only ordering is gated —
+research, search, the charts and the order preview stay open throughout.
 
 ```yaml ticket-errors
 insufficient_funds:
   title: "Not enough cash"
   message: "This order is {shortfall} more than your cash available to trade ({cash}). Lower the shares or amount, or use the most you can afford."
   fix: "Use max ({maxShares} shares)"
-  example: "This order is Ð88,466.93 more than your cash available to trade (Ð248,349.55). Lower the shares or amount, or use the most you can afford."
-  exampleFix: "Use max (2,949 shares)"
-  exampleContext: "Buy 4,000 KRKN at Ð84.12, total Ð336,816.48, with Ð248,349.55 of cash (BRIEF §7, which leaves out KRKN's price impact of under 0.01%)."
+  example: "This order is Ð27,757.57 more than your cash available to trade (Ð56,446.55). Lower the shares or amount, or use the most you can afford."
+  exampleFix: "Use max (670 shares)"
+  exampleContext: "Buy 1,000 KRKN at Ð84.12, total Ð84,204.12, with Ð56,446.55 of cash (BRIEF §7, which leaves out KRKN's price impact of under 0.01%)."
 insufficient_shares:
   title: "Not enough shares"
   message: "You own {owned} shares of {ticker}, so you can sell up to {owned}. Lower the number of shares or choose All."
   messageNoneOwned: "You don't own any {ticker} shares, so there is nothing to sell. Switch to Buy or pick a company you own."
   fix: "Sell all {owned}"
-  example: "You own 3,000 shares of KRKN, so you can sell up to 3,000. Lower the number of shares or choose All."
+  example: "You own 750 shares of KRKN, so you can sell up to 750. Lower the number of shares or choose All."
 position_limit:
   title: "Over the position limit"
   message: "This would put more than {limitPct} of your account in {ticker}. You can buy up to {maxShares} more shares."
   messageAtLimit: "{ticker} already makes up {limitPct} or more of your account, the most a buy can reach. You can buy more only if that share falls below the limit."
   fix: "Use {maxShares}"
-  example: "This would put more than 25% of your account in KRKN. You can buy up to 222 more shares."
-  exampleFix: "Use 222"
-  exampleContext: "Host position limit 25%. Buy 500 KRKN with 3,000 owned and an account value of Ð1,084,219.55 (BRIEF §7)."
+  example: "This would put more than 25% of your account in KRKN. You can buy up to 55 more shares."
+  exampleFix: "Use 55"
+  exampleContext: "Host position limit 25%. Buy 200 KRKN with 750 owned and an account value of Ð271,049.55 (BRIEF §7)."
 interval_limit:
   title: "Too many shares for one price update"
   message: "You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about {seconds} seconds."
   messageOneSecond: "You can trade up to {cap} shares of {ticker} per price update. Lower the shares, or place the rest after the next update in about 1 second."
   messageAfterTrades: "You already traded {used} shares of {ticker} in this price update. You can trade {remaining} more now, or the rest after the next update."
   fix: "Use {cap}"
-  example: "You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 30 seconds."
+  example: "You can trade up to 1,613,333 shares of KRKN per price update. Lower the shares, or place the rest after the next update in about 5 seconds."
   exampleContext: "The limit is a company's total shares ÷ 150, rounded down. KRKN: 242,000,000 ÷ 150 = 1,613,333."
 price_moved:
   title: "Price moved"
@@ -2103,6 +2147,10 @@ trading_disabled:
   title: "Trading turned off for your crew"
   message: "The host has turned off trading for your crew. Ask your host to turn it back on; you can still research and view your account."
   fix: null
+intro_required:
+  title: "Meet the market first"
+  message: "Finish the short Meet the market tour, then place this order again. It takes about a minute, and nothing else is locked."
+  fix: "Start Meet the market"
 bad_quantity:
   title: "Check the number of shares"
   message: "Enter a whole number of shares that is 1 or more, like 10 or 250."
@@ -2255,6 +2303,12 @@ researchGrade:
 
 ## 11. HOST SETTINGS COPY
 
+The lobby offers only the four lengths in `GAME_LENGTH_OPTIONS_MS` — 10, 15, 20 and 30 minutes
+(2026-09-15: a game runs 30 minutes at most). The hour labels below stay in `gameLength.options`
+so a game saved before that change still renders its own length; do not offer them in the picker.
+Every one of the four lands on `deriveClock`'s 5-second floor, so `{tickSeconds}` is 5 for all of
+them and `{totalTicks}` is 120 / 180 / 240 / 360.
+
 ```yaml host-settings
 panelTitle: "Game settings"
 lockedNote: "Locked while the game is running. You can change settings only in the lobby."
@@ -2262,8 +2316,12 @@ saved: "Settings saved."
 gameLength:
   label: "Game length"
   help: "How long trading lasts. Every game has 8 sessions, and prices update every 5 to 30 seconds depending on length."
-  derived: "{hours}-hour game · updates every {tickSeconds} seconds · {totalTicks} ticks"
+  derived: "{length} game · updates every {tickSeconds} seconds · {totalTicks} ticks"
   options:
+    "600000": "10 minutes"
+    "900000": "15 minutes"
+    "1200000": "20 minutes"
+    "1800000": "30 minutes"
     "3600000": "1 hour"
     "7200000": "2 hours"
     "14400000": "4 hours"
@@ -2462,4 +2520,353 @@ signIn:
   help: "Your host gives each crew its name and password."
   disabled: "Your crew can sign in, but trading is turned off. Ask your host to turn it back on."
   footer: "A market simulation. No real money."
+```
+
+---
+
+## 13. FUNDS
+
+Three **funds** trade beside the 15 companies. A fund is a basket: its price is the prices of
+the companies it holds, added together with weights that were fixed when the game began. It has
+no earnings, no management and no news of its own — everything it does comes from its holdings.
+That is the whole lesson, and the copy must keep saying it.
+
+`funds` is one block per fund, keyed by the fund id in `server/src/seed/funds.ts`; `name`,
+`ticker` and `holds` there are the server's values verbatim (`test/copySync.test.ts` checks it).
+`funds-extra` holds the strings the fund screens share.
+
+Rules this section follows, on top of §0.5: never call a fund safe, safer, better or the right
+choice. Say what it holds and what that does to the price, and keep the §8 caution — spreading
+out lowers the damage from one company, but it cannot stop losses when the whole market falls.
+
+```yaml funds
+grand-fleet:
+  name: "Grand Fleet Fund"
+  ticker: "FLEET"
+  holds: "The same amount of all 15 companies."
+  explain: "One share holds the same amount of every company in the market, all 15 of them."
+  caution: "It moves with the whole market, so a market-wide fall takes it down too."
+  flavor: "Every sail in the harbor."
+shipping-lanes:
+  name: "Shipping Lanes Fund"
+  ticker: "SHIPS"
+  holds: "An equal slice of the three Shipping & Salvage companies."
+  explain: "One share holds the same amount of each of the three Shipping & Salvage companies."
+  caution: "Three companies in one trade still rise and fall together when that trade has a bad season."
+  flavor: "Three hulls, one course."
+powder-and-shot:
+  name: "Powder and Shot Fund"
+  ticker: "ARMS"
+  holds: "An equal slice of the three Naval Arms companies."
+  explain: "One share holds the same amount of each of the three Naval Arms companies."
+  caution: "Three companies in one trade still rise and fall together when that trade has a bad season."
+  flavor: "Three foundries, one order book."
+```
+
+```yaml funds-extra
+fund:
+  label: "Fund (basket of companies)"
+  sectionTitle: "Funds"
+  whatItIs: "A fund is a basket of companies you buy in one trade."
+  whyItMatters: "Its price is the prices it holds, added together, so one company's news moves it less."
+  openPrice: "Every fund opened at {price} a share."
+  noNews: "A fund has no news of its own. It moves when the companies it holds move."
+holdings:
+  title: "What this fund holds"
+  note: "The weights were set when the game began and do not change."
+  weightLabel: "Share of the fund"
+  changeLabel: "Change this session"
+  empty: "We could not load this fund's holdings. Try again in a moment."
+trading:
+  buy: "Buying a fund buys a slice of every company it holds."
+  sell: "Selling a fund sells a slice of every company it holds."
+  impact: "A large fund order nudges each of those companies' prices, the same way a company order does."
+  intervalLimit: "The shares you trade through a fund count against your limit in each company it holds."
+  limitNote: "The position limit applies to companies and to the sector funds. {ticker} holds the whole market, so it has no limit."
+```
+
+### 13.1 Markets list and Compare
+
+The Markets screen is one row per instrument in two sections, Funds then Companies by sector, and
+the metric table moved to its own Compare screen (MOBILE §7.6, §7.6b). `markets-extra` holds the
+strings those two screens added.
+
+`searchPlaceholder` counts BOTH kinds and `{n}` is filled from the live roster — never a literal,
+so a roster change moves the wording with it. `seeGroup` takes the chip short name of a sector
+("Provisions"), not its full name.
+
+```yaml markets-extra
+list:
+  searchPlaceholder: "Search {n} companies and funds"
+  searchEmptyTitle: "Nothing matches “{query}”"
+  searchEmptyBody: "Try a symbol like KRKN or FLEET, or part of a name."
+  fundBadge: "Fund"
+  companies: "Companies"
+  seeGroup: "See {sector}"
+compare:
+  link: "Compare"
+  menuItem: "Compare all companies"
+  title: "Compare companies"
+  intro: "Every company side by side. Pick a set of numbers, then sort."
+```
+
+---
+
+## 14. MEET THE MARKET
+
+The required-once intro flow (design 2026-09-16 §6). It runs **in the lobby**, before the host
+starts the clock, so it costs a 30-minute game nothing. A crew that signs in later must finish it
+before its FIRST order, and §9 `ticket-errors.intro_required` is what the order ticket says until
+then. Browsing, search, the charts and the order preview are never gated, and the flow is
+replayable any time from Learn.
+
+Ten cards, in this order: what you're doing · what a share is · the Pirate Composite · one card per
+sector, each carrying that sector's three companies · what a fund is · done, which lands on Markets.
+Target: about 90 seconds. No quiz, a visible step counter and a Back button on every card.
+
+`intro` is the flow's chrome and `intro-host` the host's Crews strings. `intro-stage` is one block
+per non-sector card. `intro-sectors` is keyed by the sector slug (`sectorSlug()` in
+`web/src/lib/sector.ts`) and `intro-companies` by ticker; both carry the sector name verbatim, and
+`intro-companies` also carries the company name verbatim, from `server/src/seed/roster.ts`.
+`web/src/components/learn/introCopy.sync.test.ts` re-reads this file and the roster file and fails
+when any of the three drift.
+
+**The 15 company one-liners are written here, not copied from the seed.** The generator has no
+per-company description — `generateMarket.ts` stores `"{name} — {sector}."` — so these sentences
+are new copy in this file's voice. Each says what the business sells and who pays it, in words a
+15-year-old reads once. None of them hints at whether the company is worth buying (§0.5 rule 6):
+no "leading", "steady", "growing", "struggling", "cheap" or "strong", and no number that is not on
+the company's own screen.
+
+Everything with a number comes from the live market, never from this file: tickers, opening prices,
+the fund names and each fund's `holds` line. The fund card adds no new fund copy either — it
+renders §13 `funds-extra.fund.noNews` and `openPrice` and each fund's own §13 `holds`, so a fund is
+described in one wording, in one place.
+
+```yaml intro
+title: "Meet the market"
+flavor: "A turn round the harbor before the bell."
+progress: "Step {n} of {total}"
+progressLabel: "Meet the market progress"
+next: "Next"
+back: "Back"
+finish: "Open Markets"
+finishing: "Saving…"
+skip: "Finish later"
+skipNote: "You can stop here and come back. Your crew has to finish this before its first trade."
+skipTitle: "Finish Meet the market later?"
+skipBody: "Nothing else is locked. Your crew just can't place its first order until this is done."
+skipConfirm: "Finish later"
+skipKeep: "Keep going"
+close: "Close"
+replayNote: "Your crew has already finished this. Reading it again changes nothing in your account."
+openPrice: "Opened at {price}"
+companiesHeader: "The three companies"
+fundsHeader: "The three funds"
+error: "We couldn't save that. Check your connection, then try again."
+retry: "Try again"
+learnRow: "Meet the market"
+learnSubtitle: "The 15 companies, the five sectors and the three funds, in about a minute."
+```
+
+```yaml intro-host
+label: "Meet the market"
+done: "Finished"
+pending: "Not finished"
+pendingTag: "Intro pending"
+note: "A crew has to finish Meet the market before its first order. Mark it finished for a crew whose phone died."
+markDone: "Mark Meet the market finished"
+markDoneToast: "{crew}: Meet the market marked finished."
+sendAgain: "Send this crew through Meet the market again"
+sendAgainToast: "{crew} will see Meet the market again."
+undo: "Undo"
+```
+
+```yaml intro-stage
+id: goal
+title: "What you're doing"
+body: "Your crew starts with {startingCash}. You spend it buying shares of the companies in this market."
+points:
+  - "The crew whose shares and leftover cash are worth the most at the end wins."
+  - "Cash you never spend still counts, so you are never forced to buy."
+```
+
+```yaml intro-stage
+id: share
+title: "What a share is"
+body: "A share is one small piece of a company. Buy a share and that piece is yours, so you gain when its price rises and lose when it falls."
+points:
+  - "Prices here update every {tickSeconds} seconds, for every company at once."
+  - "Nothing is settled until you sell. A price that falls can come back, and a price that rises can give it back."
+```
+
+```yaml intro-stage
+id: composite
+title: "The Pirate Composite"
+body: "The Pirate Composite adds all 15 companies together into one number. It tells you whether the whole market is up or down."
+points:
+  - "You will see it at the top of Markets and beside your own return on Portfolio."
+  - "One company can fall in a session when the Composite rises, and the other way round."
+```
+
+```yaml intro-stage
+id: funds
+title: "What a fund is"
+body: "Three funds trade beside the 15 companies. A fund is a basket: one share of it holds a slice of everything inside."
+points:
+  - "Buying a fund is one order, and it buys a slice of every company that fund holds."
+  - "The weights were set when the game began, so a fund's price is its holdings added together."
+```
+
+```yaml intro-stage
+id: done
+title: "You're ready"
+body: "That is the whole market: 15 companies in five sectors, plus three funds that hold them."
+points:
+  - "Nothing here tells you what to buy. Reading the companies is your crew's job."
+  - "You can open Meet the market again any time from the Learn tab."
+```
+
+```yaml intro-sectors
+shipping-salvage:
+  sector: "Shipping & Salvage"
+  body: "These companies move other people's cargo across the sea and raise what sinks. They are busiest when trade is busy."
+provisions-spice:
+  sector: "Provisions & Spice"
+  body: "Food, spices and the everyday supplies a ship loads before it sails. People buy these whatever the year is like."
+naval-arms:
+  sector: "Naval Arms"
+  body: "Cannons, powder and armour, sold mostly to navies on contracts agreed years in advance."
+cartography-navigation:
+  sector: "Cartography & Navigation"
+  body: "Charts, instruments and signal towers that tell a captain where the ship is and which way to steer."
+treasure-banking:
+  sector: "Treasure Banking"
+  body: "Money itself: deposits, loans and guarded vaults. These companies earn from interest and fees rather than from selling goods."
+```
+
+```yaml intro-companies
+KRKN:
+  name: "Kraken Shipping Lines"
+  sector: "Shipping & Salvage"
+  description: "Runs cargo ships that carry other companies' goods across the ocean for a fee."
+FDUT:
+  name: "Flying Dutchman Freight"
+  sector: "Shipping & Salvage"
+  description: "Hauls freight on long ocean routes and charges shippers by the crate."
+LVTH:
+  name: "Leviathan Logistics"
+  sector: "Shipping & Salvage"
+  description: "Runs the docks and warehouses where cargo is unloaded, stored and sent on."
+CJST:
+  name: "Calico Jack Spice Traders"
+  sector: "Provisions & Spice"
+  description: "Buys pepper, cinnamon and other spices where they grow and sells them at market."
+BRTH:
+  name: "Bartholomew Provisions"
+  sector: "Provisions & Spice"
+  description: "Packs the salted food, biscuit and water that ships load before a long voyage."
+GLGD:
+  name: "Galleon Goods Co."
+  sector: "Provisions & Spice"
+  description: "Sells everyday supplies like rope, cloth and lamp oil in shops around the harbor."
+BBRD:
+  name: "Blackbeard Incorporated"
+  sector: "Naval Arms"
+  description: "Builds cannons and ship armour, and sells them to navies under long contracts."
+MRED:
+  name: "Mary Read Munitions"
+  sector: "Naval Arms"
+  description: "Makes gunpowder and cannonballs, which fleets use up and order again."
+CNBR:
+  name: "Cannonbright Foundries"
+  sector: "Naval Arms"
+  description: "Casts the iron that cannons and warship fittings are made from."
+ABON:
+  name: "Anne Bonny Cartography"
+  sector: "Cartography & Navigation"
+  description: "Surveys coastlines and sells the printed charts that captains steer by."
+CMPS:
+  name: "Compass Rose Navigation"
+  sector: "Cartography & Navigation"
+  description: "Runs the signal towers and charts that ships pay a yearly fee to use."
+SPYG:
+  name: "Spyglass Instruments"
+  sector: "Cartography & Navigation"
+  description: "Makes spyglasses, compasses and the other instruments a crew needs to find its way."
+PRYL:
+  name: "Port Royal Banking"
+  sector: "Treasure Banking"
+  description: "Takes deposits from traders and lends the money out, earning interest on the loans."
+KIDD:
+  name: "Kidd Treasure Trust"
+  sector: "Treasure Banking"
+  description: "Guards other people's treasure in vaults and charges a fee to look after it."
+MRGN:
+  name: "Henry Morgan Capital"
+  sector: "Treasure Banking"
+  description: "Lends money to voyages and shipowners, and takes a share of what they bring back."
+```
+
+---
+
+## 15. PROJECTOR
+
+The **projector screen** (`/admin/projector`, MOBILE §7.19) is the scoreboard the host throws on the
+big display. It is the one screen written to be read from the back of a room, so its copy is
+shorter and blunter than the phone's: a room asks "what's the score", "how long is left" and "why
+has nothing moved" — in that order — and the words answer those three questions.
+
+Rules this section follows, on top of §0.5: no crew is praised or criticised, the phase is named in
+plain words before anything else, and nothing appears here that a crew cannot already see on its own
+phone. `movers` names the two biggest risers and the two biggest fallers of the session by their
+session change alone — it is the same public quote data the Markets tab shows, ranked, and it never
+says a company is a good or a bad one to hold. Health scores, grades and fair values stay hidden until the game ends, exactly as elsewhere.
+The `phases.*.flavor` strings are the §12 ones, unchanged, so the wall and the phones agree.
+
+```yaml projector
+eyebrow: "Buccaneer Exchange"
+title: "Standings"
+columns:
+  rank: "#"
+  crew: "Crew"
+  totalValue: "Account value"
+  returnPct: "Total return"
+clock:
+  live: "{timeLeft} left"
+  paused: "Clock stopped"
+  lobby: "{timeLeft} on the clock"
+  ended: "Final"
+session: "Session {session} of 8"
+composite:
+  label: "Pirate Composite"
+  change: "{pct} this session"
+news:
+  label: "Latest dispatch"
+  empty: "No news yet."
+movers:
+  label: "Biggest movers this session"
+  empty: "Nothing has moved yet."
+phases:
+  lobby:
+    title: "Not started yet"
+    flavor: "Anchored in port"
+    body: "The market opens when the host starts the game."
+  paused:
+    title: "Trading paused"
+    flavor: "Becalmed"
+    body: "The clock is stopped. Prices hold until the host starts trading again."
+  ended:
+    title: "Game ended"
+    flavor: "Anchors dropped"
+    body: "Trading is closed. Holdings were valued at closing prices, and these standings are final."
+winner: "Winner: {crew}"
+overflow: "Showing the top {n} of {total} crews"
+connection:
+  title: "Live updates stopped"
+  body: "These numbers may be out of date. They catch up on their own when the connection returns."
+waiting:
+  title: "Waiting for the market"
+  body: "The scoreboard fills in as soon as the host's game is set up."
+empty: "No crews in the standings yet."
 ```

@@ -1,11 +1,12 @@
 # Buccaneer Exchange
 
 A live stock-market game for a DECA chapter event. Crews of students get a starting chest of
-doubloons (Ð) and trade 25 made-up pirate companies from their phones. Prices move on their own
-every few seconds. Each company's odds are quietly tilted by how healthy its published financial
-numbers are, so careful research tends to pay off over the whole game. News, market swings and
-luck still move prices, so nothing is guaranteed. The host runs the game from a console, and when
-the game ends a market reveal shows what was really behind every price.
+Ð250,000 and trade 15 made-up pirate companies — five sectors of three — plus three funds, from
+their phones. Prices move on their own every 5 seconds, and a game runs 10, 15, 20 or 30 minutes.
+Each company's odds are quietly tilted by how healthy its published financial numbers are, so
+careful research tends to pay off over the whole game. News, market swings and luck still move
+prices, so nothing is guaranteed. The host runs the game from a console, and when the game ends a
+market reveal shows what was really behind every price.
 
 **Design canvas (every screen, iPhone and desktop):**
 <https://claude.ai/artifact/Ctxnm3ZVBzTrVc1X6sciLd>
@@ -24,17 +25,20 @@ the game ends a market reveal shows what was really behind every price.
 - **Beginner explanations.** Every number has a "?" that explains it in plain words and shows the
   sector average. A Learn tab holds the game guide, "Read a company in 5 questions", trading
   basics and a glossary.
-  <!-- VERIFY: the explanation logic exists (web/src/lib/glossary.ts, compare.ts, components/ios/InfoTip*), but the Learn tab and the screens that use it are still being built (plan Tasks 9–13b). -->
+- **A required-once intro.** "Meet the market" walks a crew through the 15 companies, the five
+  sectors and the three funds in about a minute, and gates that crew's first order. The host can
+  mark it finished for a crew whose phone died.
+- **Three tradeable funds.** FLEET holds all 15 companies; SHIPS and ARMS each hold one sector.
+  A fund is a basket priced from what it holds, so buying it costs the same as buying the
+  constituents.
 - **iPhone-style app you can install.** Mobile-first design that follows Apple's interface
   guidelines, with light and dark appearance, Dynamic Type and a Home Screen install.
-  <!-- VERIFY: vite-plugin-pwa is a dependency but web/vite.config.ts and web/index.html do not set up the manifest or service worker yet (MOBILE.md §9). -->
-- **Host console.** Game settings (length from 1 to 48 hours, starting cash, fee, research edge,
-  position limit, currency), crew management (add, reset password, turn trading off, remove),
-  a live health heartbeat, pause and resume, host news, a trade tape and an audit log.
-  <!-- VERIFY: the server API for all of these exists (server/src/routes/admin.ts); the host console screens in web/ are still being built (plan Task 13, MOBILE.md §7.17–7.18). -->
+- **Host console.** Game settings (length 10, 15, 20 or 30 minutes, starting cash, fee, research
+  edge, position limit, currency), crew management (add, reset password, turn trading off, mark
+  the intro finished, remove), a live health heartbeat, pause and resume, host news, a trade tape
+  and an audit log.
 - **End-of-game reveal.** Each company's health score, grade and what drove it, expected vs.
   actual return, a luck measure, and a research grade for every crew.
-  <!-- VERIFY: the server writes the reveal and research grades when the game ends; the 5-page results screen is still being built (plan Task 12, MOBILE.md §7.13). -->
 - **Quick new game.** Build a fresh market from the host console and keep or delete the crews.
 
 ## Tech stack
@@ -44,7 +48,7 @@ the game ends a market reveal shows what was really behind every price.
 | `shared/` | TypeScript 5.5, zod. Pure contracts and math: clock, quality score, order estimate |
 | `server/` | Node 24 (see `.node-version`), Fastify 4, better-sqlite3 12. The only trusted writer, and the whole backend: price engine, trading, host API, SQLite store, SSE stream, static hosting |
 | `web/` | React 18, Vite 5, react-router-dom 6.30, Base UI 1.8 (sheets and dialogs), lucide-react icons, d3-hierarchy, vite-plugin-pwa |
-| Data and hosting | SQLite (WAL) owned by the server, its own HS256 session tokens, one process that also serves the built web app (docs/HOSTING-FREE.md) |
+| Data and hosting | SQLite (WAL) owned by the server, its own HS256 session tokens, one process that also serves the built web app (docs/DEPLOY-EASY.md) |
 | Tests | vitest 2, Testing Library, simple-statistics (calibration), Playwright |
 
 ## Quick start (local, no cloud account)
@@ -64,7 +68,7 @@ npm run dev:local
 the web app (`FRESH=1` starts from an empty database). Open <http://localhost:5173> and sign in with the crew name `admin` and the password
 `captain` (a development-only default; set `ADMIN_PASSWORD` to change it). `PORT_OFFSET=100 npm run
 dev:local` runs a second stack beside the first, and `LAN=1 npm run dev:local` lets phones on the same
-Wi-Fi open it (QUICKSTART A3 and A5).
+Wi-Fi open it (QUICKSTART A3 and B1).
 
 ## Put it online
 
@@ -135,7 +139,6 @@ docs/              guides, design system, copy deck, spec and plan
 | **[DEPLOY-EASY](docs/DEPLOY-EASY.md)** | **Anyone putting it online** | **Start here — three easy ways to get a public address, step by step** |
 | [QUICKSTART](docs/QUICKSTART.md) | Student developer | Run it locally, or on a free server |
 | [RUNBOOK](docs/RUNBOOK.md) | DECA advisor or student host | Running a live game from start to reveal |
-| [DEPLOY](docs/DEPLOY.md) | Student developer | The long version: every provider, backups and costs |
 | [DEPLOY-ORACLE](docs/DEPLOY-ORACLE.md) | Student developer | Running your own Linux server on Oracle Always Free |
 | [research-findings](docs/research-findings.md) | Anyone curious | The market math, the quality score and the sources |
 | [MOBILE.md](docs/design/MOBILE.md) | Designers and developers | Mobile design system, screens and PWA |

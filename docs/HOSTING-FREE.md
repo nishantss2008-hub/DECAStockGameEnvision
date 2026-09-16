@@ -271,7 +271,7 @@ PORT=8081
 CORS_ORIGIN=https://YOUR_DOMAIN
 ADMIN_PASSWORD=pick-a-long-random-host-password
 GAME_SEED=
-DATABASE_PATH=/var/lib/buccaneer/game.db
+DB_FILE=/var/lib/buccaneer/game.db
 EOF
 sudo chmod 600 /etc/buccaneer.env
 ```
@@ -282,7 +282,7 @@ sudo chmod 600 /etc/buccaneer.env
 | `CORS_ORIGIN` | The public address students use. Defaults to `*`; set it properly once you have a domain. |
 | `ADMIN_PASSWORD` | The host login password, applied at every start. Make it long. |
 | `GAME_SEED` | **Leave empty.** There is intentionally no fallback — the seed script generates a high-entropy seed and stores it server-side. Anyone who knew the seed could predict every future price. |
-| `DATABASE_PATH` | Where the SQLite file lives. (Add this to `config.ts` as part of the Firebase removal.) |
+| `DB_FILE` | Where the SQLite file lives. Defaults to `./data/game.db` (`server/src/config.ts`). |
 
 ### Step 7 — Run the server as a service that restarts itself
 

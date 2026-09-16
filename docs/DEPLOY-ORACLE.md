@@ -177,7 +177,7 @@ You will not have to keep doing this by hand; the installer sets up a timer that
 
 This is the step people skip, and it is the one that saves you. Oracle is allowed to take an idle free machine back (see "Between events" below). When that happens the disk goes with it. Fifteen minutes here means you can rebuild and be back to within ten seconds of where you were.
 
-Backblaze gives 10 GB free, permanently, **with no credit card required at signup**. One 48-hour game is about 50–80 MB.
+Backblaze gives 10 GB free, permanently, **with no credit card required at signup**. A game is tiny — a 30-minute game writes roughly 32,000 small rows — so 10 GB holds more games than you will ever play.
 
 1. Sign up at <https://www.backblaze.com/sign-up/cloud-storage>.
 2. In the left menu click **Buckets** → **Create a Bucket**:
@@ -327,7 +327,7 @@ Then it works for fifteen or twenty minutes without asking anything else:
      ok   buccaneer.service installed (Restart=always, starts at boot)
 
 [11] Creating the market
-     Seeded 25 companies. The game is in the lobby.
+     Seeded 15 companies. The game is in the lobby.
         ────────────────────────────────────────────────
         Database:          /var/lib/buccaneer/game.db
         Admin/host login:  name "admin"
@@ -483,7 +483,7 @@ $ bash /opt/buccaneer/deploy/restore.sh --test
 ==> Checking the restored file is a real, readable database
     ok   PRAGMA integrity_check: ok
     tables and row counts:
-      companies                25
+      companies                15
       crews                     0
       ticks                     0
 
@@ -671,7 +671,7 @@ This is the part that is specific to a school. A DECA game runs a few times a se
 | Live prices arrive in bursts instead of smoothly | Something between the phone and the server is buffering the event stream | Do not add a buffering directive to the Caddyfile. The game server marks the stream `no-transform` and `X-Accel-Buffering: no`, and Caddy passes it straight through; the installed Caddyfile is already correct. Check whether school Wi-Fi has a filtering proxy in the way — try one phone on cellular data to tell the two apart. |
 | `update.sh` says "Do not run this with sudo" | It was run as root, which would leave every rebuilt file owned by root and the game server unable to read them | Run it as the ordinary user, exactly as printed: `bash /opt/buccaneer/deploy/update.sh` with no `sudo` in front. |
 | `npm ci` killed, or the build stops with no error | Out of memory, on a 1 GB E2.1.Micro | Check `free -h`. The installer adds a 2 GB swap file when RAM is under 2 GB; if `swapon --show` prints nothing, re-run `setup-oracle.sh`. |
-| Disk full (`No space left on device`) | Logs, or old npm caches | `df -h` then `sudo du -sh /var/log/* \| sort -h \| tail`. Trim the journal with `sudo journalctl --vacuum-size=200M`. The game database itself is about 50–80 MB per 48-hour event against 200 GB free, so it is almost never the cause. |
+| Disk full (`No space left on device`) | Logs, or old npm caches | `df -h` then `sudo du -sh /var/log/* \| sort -h \| tail`. Trim the journal with `sudo journalctl --vacuum-size=200M`. The game database itself is a few megabytes per event against 200 GB free, so it is almost never the cause. |
 | Litestream not running / no backup rows | Wrong endpoint, wrong key, or the key is not scoped to the bucket | `sudo journalctl -u litestream -n 40 --no-pager`. `403` means the application key cannot write to that bucket — make a new key scoped to it. Check the endpoint on the bucket's page: the region number varies. |
 | The instance is gone from the console | Oracle reclaimed it under the idle rule | Redo steps 2 through 6 on a new machine, then `bash /opt/buccaneer/deploy/restore.sh`. This is the situation the Backblaze step exists for. Read "Between events" above so it does not happen twice. |
 | Oracle emails about your "trial ending" | Normal, and not a problem | Your 30 days of trial credits expired. Always Free resources keep running. **Do not click "Upgrade to Pay As You Go."** |
@@ -751,4 +751,4 @@ All checked 2026-09-15.
 
 The reasoning behind choosing this stack over the alternatives, and what was rejected and why, is in [HOSTING-FREE.md](HOSTING-FREE.md).
 
-> **A note on that document.** Read it for the *reasoning*; run the commands from *this* page. A few of its command examples were written against Litestream 0.4 and an earlier version of the server, so they no longer match what is on your machine: it uses `litestream generations` (now `litestream ltx`), the environment variable `DATABASE_PATH` (now `DB_FILE`), and it says Node 20 where the installer now uses Node 22. None of that changes its conclusions.
+> **A note on that document.** Read it for the *reasoning*; run the commands from *this* page. A few of its command examples were written against Litestream 0.4 and an earlier version of the server, so they no longer match what is on your machine: it uses `litestream generations` (now `litestream ltx`) and says Node 20 where the installer now uses Node 22. None of that changes its conclusions.

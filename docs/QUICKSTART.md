@@ -3,52 +3,39 @@
 This guide is for a **student developer**. It gets Buccaneer Exchange running on your computer.
 If you are the host running a live game, read [RUNBOOK.md](RUNBOOK.md) instead.
 
+**There is no cloud project to create.** The whole game is one Node process: it owns a SQLite
+file, signs its own session tokens, streams live prices over SSE and serves the built web app.
+No database service, no identity provider, no Java, no emulators, no service-account keys.
+
 Pick one path:
 
-| Path | Use it when | Cloud account needed? | Time |
+| Path | Use it when | Account needed? | Time |
 |---|---|---|---|
-| **A. Local emulators** | You want to try the game, develop or run tests | No | About 15 minutes |
-| **B. Real Firebase project, run on your laptop** | You want real data, a phone test, or a rehearsal before deploying | Yes. The free Spark plan stops at 20,000 writes and 50,000 reads a day. That is about 20 minutes of a running 1-hour game, so use Blaze for a full rehearsal | About 30 minutes |
-| **C. Deploy for a live event** | Students will play from their own phones | Yes (Blaze plan) | See [DEPLOY.md](DEPLOY.md) |
+| **A. Run it on your computer** | You want to try the game, develop, or run the tests | No | About 10 minutes |
+| **B. Let phones reach it** | You want a phone test or a rehearsal before the event | No | About 15 minutes |
+| **C. Put it online for a live event** | Students will play from their own phones | No (Render's free tier) | See [DEPLOY-EASY.md](DEPLOY-EASY.md) |
 
 Commands below run from the **repo root** (the folder with the top-level `package.json`), unless a
 step says otherwise. Lines starting with `#` are comments; you don't type them.
 
 ---
 
-## Path A: local emulator stack
-
-The Firebase emulators are a fake Firestore and a fake Auth that run on your computer. Nothing
-touches a real project, and nothing costs money.
+## Path A: run it on your computer
 
 ### A1. Install the requirements
 
-1. **Node.js 20 or newer.** Check with:
-   ```bash
-   node --version
-   ```
-   It should print `v20` or higher. If not, install the LTS version from <https://nodejs.org>.
+**Node.js 24** — the version `.node-version` pins, and the one better-sqlite3 ships a prebuilt
+binary for. On Node 20 it has to compile from source, which is slow and needs build tools.
 
-2. **Java 21.** The Firebase emulators run on Java, and the Firebase CLI in this repo
-   (firebase-tools 15) needs Java 21 or newer. Check with:
-   ```bash
-   java -version
-   ```
-   If it doesn't print version 21 or higher, install it:
-   - **macOS with Homebrew:**
-     ```bash
-     brew install openjdk@21
-     # Homebrew does not put this Java on your PATH. Add these two lines to ~/.zshrc, then open a new terminal:
-     export JAVA_HOME="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
-     export PATH="$JAVA_HOME/bin:$PATH"
-     ```
-   - **Windows, macOS or Linux without Homebrew:** download **Temurin 21 (LTS)** from
-     <https://adoptium.net>. On Windows, tick **Set JAVA_HOME** in the installer.
-   - Run `java -version` again in a **new** terminal to confirm.
+```bash
+node --version
+```
 
-3. **Windows only:** `dev:local` is a bash script that uses Linux-style process control. Run it
-   inside **WSL** (Windows Subsystem for Linux), not from Command Prompt or PowerShell. Install
-   Node and Java inside WSL too.
+It should print `v24`. If not, install it from <https://nodejs.org> (or with `nvm install 24`).
+
+That is the whole list. **Windows only:** `dev:local` is a bash script that uses Linux-style
+process control. Run it inside **WSL** (Windows Subsystem for Linux), not Command Prompt or
+PowerShell, and install Node inside WSL too.
 
 ### A2. Install and build
 
@@ -65,36 +52,32 @@ npm run dev:local
 
 This one command (`scripts/dev-local.sh`):
 
-1. checks that Java is installed, `npm install` has run, and its ports are free: 8080 (Firestore),
-   9099 (Auth), 8081 (server), 5173 (web app), plus 4400, 4450 and 9150 for the emulators' helpers
-   (it stops with a plain message if not),
+1. checks that `npm install` has run and that its two ports are free — 8081 (server) and 5173 (web
+   app) — and stops with a plain message if not,
 2. rebuilds the shared package if its source changed,
-3. starts the Firestore and Auth emulators for a local project called `demo-deca`, from a temporary
-   Firebase config with those ports (the repo's `firebase.json` is not changed),
-4. creates a fresh market in the lobby (`npm run seed`),
-5. starts the server (price engine and trade API) on port 8081,
-6. starts the web app on port 5173, pointed at the emulators,
-7. prints the web address, the host login and the health address when everything is ready.
+3. creates a fresh market in the lobby in a local SQLite file (`npm run seed`),
+4. starts the server — price engine, trade API and the SSE stream — on port 8081,
+5. starts the web app on port 5173, pointed at that server,
+6. prints the web address, the host login, the health address and the database path when
+   everything is ready.
 
-Leave this terminal open. Press **Ctrl+C** to stop everything, emulators included. If Java 21 isn't
-on your PATH, set `JAVA_HOME` to it first. To get the same market every run, set `GAME_SEED`
-(for example `GAME_SEED=practice npm run dev:local`). The Firebase Emulator UI is turned off in
-this stack, so two stacks never fight over its port.
+Leave this terminal open. Press **Ctrl+C** to stop everything.
 
-**Two stacks at once.** Set `PORT_OFFSET` to move every port up by that amount. Each stack has its
-own emulators, market and host password:
+The database is `server/data/dev.db` and it **survives** a restart, so the game you left is the
+game you come back to. `FRESH=1 npm run dev:local` deletes it first for a clean market and roster.
+To get the same market every run, set `GAME_SEED` (for example `GAME_SEED=practice npm run
+dev:local`).
+
+**Two stacks at once.** Set `PORT_OFFSET` to move every port up by that amount. Each stack gets its
+own database, so they never share a market:
 
 ```bash
-npm run dev:local                     # web 5173, server 8081, Firestore 8080, Auth 9099
-PORT_OFFSET=100 npm run dev:local     # web 5273, server 8181, Firestore 8180, Auth 9199
+npm run dev:local                     # web 5173, server 8081, server/data/dev.db
+PORT_OFFSET=100 npm run dev:local     # web 5273, server 8181, server/data/dev-100.db
 ```
 
-Use offsets 100 apart (100, 200, …). The web app finds its own server and emulators through
-`VITE_API_BASE`, `VITE_FIRESTORE_EMULATOR_PORT` and `VITE_AUTH_EMULATOR_PORT`, which the script sets.
-
-**Safety:** when either emulator variable is set, the server never loads a service account, so a
-local run can't reach the real project (`server/src/firebase.ts`, tested in
-`server/test/firebaseGuard.test.ts`).
+Use offsets 100 apart (100, 200, …). The web app finds its server through `VITE_API_BASE`, which
+the script sets.
 
 ### A4. Sign in and try a game
 
@@ -103,26 +86,44 @@ local run can't reach the real project (`server/src/firebase.ts`, tested in
    - **Crew name:** `admin`
    - **Password:** the value of `ADMIN_PASSWORD`, or `captain` if you didn't set one.
 
-   `captain` is a **development-only** default for the emulators. Never use it on a real project.
-   To pick your own local password:
+   `captain` is a **development-only** default. Never use it on a public address. To pick your own:
    ```bash
    ADMIN_PASSWORD='pick-something' npm run dev:local
    ```
-3. In the host console, set **Game length** to **1 hour** so prices update every 5 seconds.
+3. In the host console, open **Control › Edit settings** and set **Game length** to **10 minutes**
+   so a whole game fits in one sitting. Prices update every 5 seconds at every length.
 4. Add two crews, for example `Test Crew` / `test1234` and `Second Crew` / `test5678`.
    Passwords need at least 4 characters.
 5. Press **Start game**.
-6. Open a **private window** (so you stay signed in as host in the first one), sign in as
-   `Test Crew`, find a company in **Markets**, and buy 10 shares.
-7. Back in the host console, try **Pause trading**, **Resume trading**, a small **Fire news…**, then
+6. Open a **private window** (so you stay signed in as host in the first one) and sign in as
+   `Test Crew`. Tapping **Buy** sends a crew that has not finished **Meet the market** into that
+   flow first — a required-once tour of the 15 companies, the five sectors and the three funds
+   (it is also a row in the **Learn** tab). Finish it; until you do, `POST /orders` answers
+   *"Meet the market first."*
+7. Find a company in **Markets** and buy 10 shares. Try a fund too (FLEET, SHIPS or ARMS).
+8. Back in the host console, try **Pause trading**, **Resume trading**, a small **Fire news…**, then
    **End game…** (type `END`).
-8. In the crew window, open **Standings › See final results** to see the reveal.
+9. In the crew window, open **Standings › See final results** to page through the reveal.
 
-<!-- VERIFY: the sign-in, host console and crew screen names follow MOBILE.md §6–§7 and COPY.md §11; those web screens are still being built (plan Tasks 8–13). -->
+### A5. Run the tests
 
-Emulator data lives only while the emulators run. Stopping `dev:local` throws the game away.
+```bash
+npm test                          # server unit tests + price-model calibration
+npm test -w @deca/web             # web unit tests
+npm run typecheck -w @deca/server
+npm run typecheck -w @deca/web
+npm run test:integration          # whole-game, resume, authorization and SSE tests
+```
 
-### A5. Try it on a phone on the same Wi-Fi (`LAN=1`)
+`test:integration` starts nothing and needs no credentials: each file opens its own temporary
+SQLite file under the OS temp directory and deletes it afterwards
+(`server/vitest.int.config.ts`).
+
+---
+
+## Path B: let phones reach it
+
+### B1. Phones on the same Wi-Fi (`LAN=1`)
 
 ```bash
 LAN=1 npm run dev:local
@@ -130,224 +131,104 @@ LAN=1 npm run dev:local
 
 `LAN=1` makes the local stack reachable from phones on the same Wi-Fi:
 
-- it finds your computer's Wi-Fi address (on macOS, `ipconfig getifaddr en0`, then `en1`),
-- the emulators, the server and the web app listen on every network address,
-- the web app talks to the server and emulators through that address, and the server accepts
-  requests from it (`CORS_ORIGIN`),
+- it finds your computer's Wi-Fi address (on macOS, `ipconfig getifaddr en0`, then `en1`; on Linux
+  and WSL, `hostname -I`),
+- the server and the web app listen on every network address,
+- the web app talks to the server through that address, and the server accepts requests from it
+  (`CORS_ORIGIN`),
 - when everything is ready it prints a banner such as
   `Open http://192.168.1.23:5173 on phones on this Wi-Fi`. If the `qrcode-terminal` package happens
-  to be installed, a QR code for that address follows. It is not a dependency of this repo.
+  to be installed, a QR code follows. It is not a dependency of this repo.
 
 On the phone, join the same Wi-Fi and open the address from the banner. `LAN=1` works with
 `PORT_OFFSET` too.
 
-- If your computer asks whether `node` or `java` may accept incoming connections, click **Allow**.
+- If your computer asks whether `node` may accept incoming connections, click **Allow**.
 - School and guest Wi-Fi often block traffic between devices. A home network or a phone hotspot
   works better.
-- Anyone on the same network can reach the emulators, which have no passwords. Use `LAN=1` only on
-  a network you trust, and stop the stack when you're done.
-- Installing the app on a Home Screen needs a deployed **HTTPS** site. See [DEPLOY.md](DEPLOY.md)
-  section 7.
+- Anyone on that network can reach the server and try host passwords. Use `LAN=1` only on a
+  network you trust, set a real `ADMIN_PASSWORD`, and stop the stack when you're done.
+- **Home Screen install needs HTTPS**, which a plain LAN address is not. Use B2 or
+  [DEPLOY-EASY.md](DEPLOY-EASY.md) to test that.
 
-### A6. Run the tests
-
-```bash
-npm test                          # server unit tests + price-model calibration
-npm test -w @deca/web             # web unit tests
-npm run typecheck -w @deca/server
-npm run typecheck -w @deca/web
-npm run test:integration          # starts the emulators, runs the integration and rules tests, stops them
-```
-
-`test:integration` needs Java 21, like `dev:local`.
-
----
-
-## Path B: a real Firebase project, run on your laptop
-
-Use this to rehearse with real Firestore data before you deploy. The server and web app still run
-on your computer.
-
-The repo is set up for the Firebase project `decastockenvision` (see `.firebaserc`). If you are not
-an owner of that project, create your own and use its ID wherever this guide says `YOUR-PROJECT`.
-
-### B1. Console steps (in your browser)
-
-1. **Create or open the project** at <https://console.firebase.google.com>.
-   Google Analytics is not needed.
-2. **Turn on Authentication.** Open **Build › Authentication** and click **Get started**. You
-   don't need to enable any sign-in provider: the server signs crews in with custom tokens, not
-   email and password.
-3. **Create the Firestore database.** Open **Build › Firestore Database › Create database**.
-   - Choose the **Standard** edition.
-   - Pick a location. **`us-central1` (Iowa)** costs half as much per operation as the `nam5`
-     multi-region. You can't change the location later.
-   - Start in **production mode**. The repo's rules replace the defaults in step B3.
-4. **Download a service-account key.** Click the **gear › Project settings › Service accounts**,
-   then **Generate new private key**. Save the file as:
-   ```
-   server/service-account.json
-   ```
-   This file is the server's master key. Anyone who has it can read and write the whole
-   database. It is git-ignored. **Never commit it, email it, paste it in chat, or put it in `web/`.**
-5. **Register the web app.** In **Project settings › General › Your apps**, click the web icon
-   (`</>`), give it a name, and skip Hosting for now. Firebase shows a config block.
-
-### B2. Point the code at your project
-
-1. Create `web/.env` (git-ignored) with the values from the config block:
-   ```
-   VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=YOUR-PROJECT.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=YOUR-PROJECT
-   VITE_FIREBASE_STORAGE_BUCKET=...
-   VITE_FIREBASE_MESSAGING_SENDER_ID=...
-   VITE_FIREBASE_APP_ID=...
-   VITE_API_BASE=http://localhost:8081
-   ```
-   These web values are **public by design**. Security comes from the Firestore rules and the
-   server, not from hiding them.
-2. **Only if your project is not `decastockenvision`:**
-   ```bash
-   npx firebase use --add          # pick YOUR-PROJECT, give it the alias "default"
-   export GCLOUD_PROJECT=YOUR-PROJECT
-   ```
-   The server falls back to `decastockenvision` when `GCLOUD_PROJECT` is empty
-   (`server/src/firebase.ts`), so set it in every terminal that runs `npm run seed` or the server.
-3. Make sure no emulator variable is left over from Path A. Both lines must print nothing:
-   ```bash
-   echo $FIRESTORE_EMULATOR_HOST
-   echo $FIREBASE_AUTH_EMULATOR_HOST
-   ```
-   If either prints a value, run `unset FIRESTORE_EMULATOR_HOST FIREBASE_AUTH_EMULATOR_HOST`.
-
-### B3. Deploy the security rules
+### B2. A public HTTPS address from this laptop
 
 ```bash
-npx firebase login        # one time; opens a browser
-npm run deploy:rules      # uploads firestore.rules and firestore.indexes.json
+bash scripts/serve-tunnel.sh
 ```
 
-### B4. Create the market
+This builds the web app, starts the server with the game database in `./data`, opens a Cloudflare
+quick tunnel and prints a public `https://…` address that students can open from anywhere. It then
+tests whether the live price stream actually survives the tunnel and tells you outright whether
+prices will move. Requires `cloudflared` (macOS: `brew install cloudflared`); the script tells you
+how to get it if it is missing.
 
-```bash
-npm install
-npm run build:shared
-npm run seed
-```
+Useful variables: `ADMIN_PASSWORD` (generated and printed if unset), `DB_FILE`, `PORT`, `FRESH=1`
+to start from a brand-new market, `SKIP_BUILD=1` to reuse `web/dist`.
 
-The first time, `npm run seed` prints something like:
+The game ends if the lid closes or the Wi-Fi drops, so this is for practice runs and club meetings.
+For anything graded, use [DEPLOY-EASY.md](DEPLOY-EASY.md).
 
-```
-Seeded 25 companies. The game is in the lobby.
-   Admin/host login:  name "admin"
-   Admin password:    <shown here>   (generated — save this!)
-   Game seed:         <shown here>   (generated — stored server-only)
-```
+### B3. Starting over
 
-- **Save the admin password** somewhere safe (a password manager). It is printed only once.
-- **Don't share, paste or screenshot this output.** It also shows the game seed, and anyone who
-  knows the seed can predict every price.
-- To choose the password yourself, set it on the same line (the server does **not** read
-  `.env` files, so variables go in the shell):
-  ```bash
-  ADMIN_PASSWORD='a-long-password-only-you-know' npm run seed
-  ```
-- Leave `GAME_SEED` unset. The seed command then picks a random seed and stores it in a
-  server-only document.
-- Running `npm run seed` again makes a **new market**. It keeps existing crews (their cash goes
-  back to the starting amount), keeps the admin password unless you pass `ADMIN_PASSWORD`, and
-  keeps the game settings. Never run it during a live game. If the server is already running,
-  restart it afterwards so it loads the new market.
-
-The seed reads `server/service-account.json` automatically, because npm runs the script inside
-the `server/` folder.
-
-### B5. Run the server and the web app
-
-Use two terminals (remember `GCLOUD_PROJECT` if you set it in B2).
-
-```bash
-# Terminal 1: the server (price engine + trade API) on http://localhost:8081
-npm run dev:server
-```
-
-```bash
-# Terminal 2: the web app on http://localhost:5173
-npm run dev:web
-```
-
-Open <http://localhost:5173> and sign in with the crew name **`admin`** and the password from B4.
-The host login name is `admin`, not an email address.
-
-Check the server is alive: open <http://localhost:8081/health>. You should see JSON with
-`"ok":true` and `"phase":"lobby"`.
-
-### B6. Try it on a phone on the same Wi-Fi
-
-With a real project, a phone only needs to reach your laptop's server and web app.
-
-1. Find your laptop's Wi-Fi address, for example `192.168.1.23`. On macOS open **System Settings ›
-   Wi-Fi › Details**. On Windows run `ipconfig`.
-2. Terminal 1: `npm run dev:server`. The server already listens on every network address.
-3. Terminal 2 (use your own address):
-   ```bash
-   VITE_API_BASE=http://192.168.1.23:8081 npm run dev -w @deca/web -- --host
-   ```
-   `--host` makes the web app reachable from other devices. The `VITE_API_BASE` on this line
-   overrides the one in `web/.env`.
-4. On the phone, join the same Wi-Fi and open `http://192.168.1.23:5173`.
-5. If your computer asks whether Node may accept incoming connections, click **Allow**. School or
-   guest Wi-Fi often blocks device-to-device traffic; a home network or a phone hotspot works better.
-
-If you set `CORS_ORIGIN` in the server terminal, add `http://192.168.1.23:5173` to it.
-
-### B7. Starting over
-
-- **New market, keep crews:** use **New game** in the host console, or run `npm run seed` and
-  then restart the server.
-- **Wipe crews and market:** stop the server, run `npm run reset`, then `npm run seed`, then
-  start the server again. `reset` keeps the admin login, the settings and the audit log.
+- **New market, keep crews:** use **New game** in the host console, or stop the server, run
+  `npm run seed`, and start it again.
+- **Wipe crews and market:** stop the server, run `npm run reset`, then `npm run seed`, then start
+  the server again. `reset` keeps the host login, the settings and the audit log.
+- **Throw the whole database away:** `FRESH=1 npm run dev:local`, or delete `server/data/dev.db`
+  (and its `-wal` and `-shm` files).
 - **Forgot the host password:** run `npm run set-host-password` (it asks for the new password
   twice), or `ADMIN_PASSWORD='new-password' npm run set-host-password`. The market, crews and game
-  are untouched, and the new password works at once.
+  are untouched and the new password works at once, with no restart. If the deployment sets
+  `ADMIN_PASSWORD`, update that too or the next restart puts the old one back.
+
+Both `seed` and `reset` act on `DB_FILE` (default `./data/game.db`, which is **not** the
+`server/data/dev.db` that `dev:local` uses — set `DB_FILE` to match if you are fixing up a
+`dev:local` database).
 
 ---
 
-## Path C: deploy for a live event
+## Path C: put it online for a live event
 
-Follow [DEPLOY.md](DEPLOY.md). It covers the Blaze plan, Cloud Run, rules, Hosting, HTTPS and cost.
+Follow [DEPLOY-EASY.md](DEPLOY-EASY.md). It covers three ways to get one address twenty phones can
+open — a Cloudflare tunnel from your laptop, Render's free tier (`render.yaml` is already in this
+repo), or Railway — plus the run of show, the crew sheets and the game-day checklist.
+
+Running your own Linux server is also possible but much more work:
+[DEPLOY-ORACLE.md](DEPLOY-ORACLE.md).
 
 ---
 
 ## Environment variables
 
-The server reads only real environment variables (it does not load `.env` files). Vite reads
-`web/.env` and, when building, `web/.env.production`.
+The server reads only real environment variables — it does **not** load `.env` files. Vite reads
+`web/.env` and, when building, `web/.env.production`. `.env.example` at the repo root lists the
+same variables with comments. Every one of them is optional; the defaults run a local game.
 
 | Variable | Where | Secret? | What it does |
 |---|---|---|---|
-| `FIREBASE_SERVICE_ACCOUNT` | server | **Yes** | The service-account JSON as one line. Used in the cloud. Locally, `server/service-account.json` is simpler |
-| `FIREBASE_SERVICE_ACCOUNT_FILE` | server | Path only | A path to a service-account file, if it isn't `server/service-account.json`. Relative paths start from `server/` |
-| `GOOGLE_APPLICATION_CREDENTIALS` | server | Path only | Google's default credentials. Used only when none of the service-account options above is found |
-| `GCLOUD_PROJECT` | server | No | The Firebase project ID. Defaults to `decastockenvision` (or `demo-deca` in emulator mode) |
-| `ADMIN_PASSWORD` | server, `npm run seed`, `npm run set-host-password`, `dev:local` | **Yes** | Sets the host password. The server applies it at every start and logs only `host password set from ADMIN_PASSWORD`. If unset, the first seed generates one (`dev:local` uses `captain`) |
-| `GAME_SEED` | `npm run seed`, `dev:local` | **Yes** | Fixes the market seed. Leave unset for a random seed. The server uses it only if the stored seed is missing |
-| `CORS_ORIGIN` | server | No | Web address(es) allowed to call the server, comma-separated. Defaults to any origin |
+| `DB_FILE` | server, `seed`, `reset`, `set-host-password` | No | The SQLite file the server owns. Default `./data/game.db`; the folder is created on open, and `:memory:` works for a throwaway run |
+| `ADMIN_PASSWORD` | server, `seed`, `set-host-password`, `dev:local`, `serve-tunnel.sh` | **Yes** | The host password. The server applies it at every start and logs only `host password set from ADMIN_PASSWORD`. If unset, the first seed generates one and prints it once (`dev:local` uses `captain`) |
+| `GAME_SEED` | `seed`, `dev:local` | **Yes** | Fixes the market seed. Leave unset: the seed script generates a high-entropy seed and stores it server-only in `meta.seed`. Anyone who knows it can predict every price |
+| `SESSION_SECRET` | server | **Yes** | HS256 signing key for session tokens. Unset = the server generates one on first use and keeps it in `meta.session_secret`, so restarts keep phones signed in. Set it only to share sessions across processes or fresh storage |
 | `PORT` | server | No | Server port. Default `8081` |
-| `FIRESTORE_EMULATOR_HOST`, `FIREBASE_AUTH_EMULATOR_HOST` | server | No | Send the server to the emulators. Either one turns on emulator mode |
-| `VITE_FIREBASE_*` | web | No (public) | The Firebase web config from the console |
-| `VITE_API_BASE` | web | No | The server's address, for example `http://localhost:8081` |
-| `VITE_USE_EMULATORS` | web | No | `1` connects the dev web app to the local emulators. Ignored in production builds |
-| `VITE_EMULATOR_HOST` | web | No | Where the dev web app finds the emulators. Default `127.0.0.1`; `LAN=1` sets your Wi-Fi address |
-| `VITE_FIRESTORE_EMULATOR_PORT`, `VITE_AUTH_EMULATOR_PORT` | web | No | Emulator ports for the dev web app. Default `8080` and `9099`; `dev:local` adds `PORT_OFFSET` |
-| `PORT_OFFSET` | `dev:local` | No | Moves every port of the local stack up by this amount, so stacks can run side by side. Default `0` |
-| `LAN` | `dev:local` | No | `1` lets phones on the same Wi-Fi open the local stack (A5) |
+| `CORS_ORIGIN` | server | No | Browser origin(s) allowed to call the server, comma-separated. Default `*`. Not needed when the server serves the built app from the same origin |
+| `WEB_DIR` | server | No | Built web app to serve as static files. Unset = `web/dist` next to the server workspace |
+| `RATE_LIMIT_MAX` | server | No | API requests a minute per signed-in session (per IP when signed out). Default `600`. Static files, `/health` and the SSE stream never count |
+| `VITE_API_BASE` | web | No | The server's address, for example `http://localhost:8081`. Leave empty when the server serves the built app itself |
+| `PORT_OFFSET` | `dev:local` | No | Moves every port of the local stack up by this amount, so stacks run side by side. Default `0` |
+| `LAN` | `dev:local` | No | `1` lets phones on the same Wi-Fi open the local stack (B1) |
+| `FRESH` | `dev:local`, `serve-tunnel.sh` | No | `1` deletes the database first, for a brand-new market and roster |
+| `SKIP_BUILD` | `serve-tunnel.sh` | No | `1` reuses the existing `web/dist` instead of rebuilding |
 
 ## Security checklist
 
-- `server/service-account.json`, `ADMIN_PASSWORD`, `GAME_SEED` and the output of `npm run seed`
-  are secrets. Keep them out of git, chat, screenshots and the `web/` folder.
-- If a key file leaks, delete that key in **Google Cloud Console › IAM & Admin › Service accounts ›
-  Keys** and generate a new one.
-- The `VITE_FIREBASE_*` values are public and safe to ship in the web app.
+- `ADMIN_PASSWORD`, `GAME_SEED`, `SESSION_SECRET` and the output of `npm run seed` are secrets.
+  Keep them out of git, chat and screenshots. `npm run seed` prints the generated host password and
+  the game seed **once**.
+- Never commit a `.env` file or your `DB_FILE`. Both are git-ignored.
+- The hidden future — quality scores, the news schedule, the game seed, engine state — lives in
+  server-only tables. Clients never touch the database; they read through filtered endpoints and
+  one SSE stream, holding a token the server signed.
+- On a public address, set a real `ADMIN_PASSWORD`. The host password can end the game, reset every
+  crew's password and hand out money, and the server will answer hundreds of guesses a minute.
