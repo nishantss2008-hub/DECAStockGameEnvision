@@ -7,9 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it, vi } from 'vitest';
-
-vi.mock('../src/firebase', () => ({ db: {}, adminAuth: {} }));
+import { describe, expect, it } from 'vitest';
 
 import { HOST_ERRORS } from '../src/lib/hostCopy';
 import { engineMessages } from '../src/engine/loopHelpers';

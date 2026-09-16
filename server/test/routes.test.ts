@@ -1,47 +1,30 @@
 /**
- * Route guards, validation and error mapping for the authority API (Task 5).
- * Pure: Firebase, the engine, the market service and the audit log are mocked, so
- * no emulator, network or service account is touched. The real auth middleware runs
- * against a fake `verifyIdToken`.
+ * The HTTP surface, end to end through `fastify.inject` against a real `:memory:` store: who may
+ * call each endpoint, what a crew is allowed to see, and what the server must never hand out.
+ *
+ * Only the engine (and the two services it drags in) is mocked — the store, the guards, the session
+ * tokens, the trading path and the crew service are all the real thing.
  */
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import Fastify, { type FastifyInstance, type RouteOptions } from 'fastify';
 
-const h = vi.hoisted(() => {
-  const tokens: Record<string, Record<string, unknown>> = {
-    'admin-token': { uid: 'admin', role: 'admin' },
-    'team-token': { uid: 'saltwind', role: 'team', teamId: 'saltwind' },
-  };
-  const touched: string[] = [];
-  const touch = (what: string) => () => {
-    touched.push(what);
-    throw new Error(`${what} must not be reached`);
-  };
-  return {
-    tokens,
-    touched,
-    touch,
-    engine: null as any,
-    createMarket: null as any,
-    executeOrder: null as any,
-    auditLog: null as any,
-    resetLeaderboardCache: null as any,
-    removeCrew: null as any,
-    resetCrewPassword: null as any,
-    gate: null as null | Promise<void>,
-    removalRunning: false,
-  };
-});
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { openStore, useStore, type Store } from '../src/store';
+import { currentTokenVersion, issueToken, resetSessionSecretCache } from '../src/auth/sessions';
+import { CREW_A, CREW_B, GALE, KRKN, PASSWORD_A, gameState, seedWorld } from './helpers/apiFixtures';
+import { hashPassword } from '../src/lib/password';
 
-vi.mock('../src/firebase', () => ({
-  db: { doc: h.touch('db.doc'), collection: h.touch('db.collection'), runTransaction: h.touch('db.runTransaction') },
-  adminAuth: {
-    verifyIdToken: async (token: string) => {
-      const claims = h.tokens[token];
-      if (!claims) throw new Error('invalid token');
-      return claims;
-    },
-  },
+// ---------------------------------------------------------------------------
+// Mocks: the engine (and the services it pulls in) — never the store or the auth.
+// ---------------------------------------------------------------------------
+
+const h = vi.hoisted(() => ({
+  phase: 'live' as string,
+  startingCapital: 1_000_000,
+  released: 0,
+  createMarket: null as unknown as ReturnType<typeof vi.fn>,
 }));
 
 vi.mock('../src/engine/loop', () => {
@@ -55,354 +38,526 @@ vi.mock('../src/engine/loop', () => {
     }
   }
   const state = {
-    phase: 'live',
-    currentTick: 4,
-    startingCapital: 100_000_000,
-    currency: { name: 'Doubloons', symbol: 'Ð' },
+    get phase() {
+      return h.phase;
+    },
+    currentTick: 12,
+    get startingCapital() {
+      return h.startingCapital;
+    },
+    feeBps: 10,
+    maxPositionPct: 1,
+    tickIntervalMs: 5000,
+    startAt: Date.now() - 60_000,
+    currency: { name: 'Doubloon', symbol: '⌬' },
   };
-  h.engine = {
+  const engine = {
     state,
-    stop: vi.fn(async () => {}),
-    reload: vi.fn(async () => {
-      state.phase = 'lobby';
+    health: () => ({
+      ok: true,
+      phase: h.phase,
+      tick: 12,
+      totalTicks: 360,
+      serverTime: Date.now(),
+      lastTickAt: Date.now(),
+      ticksBehind: 0,
     }),
-    applySettings: vi.fn(async () => ({ ...state })),
-    startGame: vi.fn(async () => {
-      throw new EngineError('not_lobby', 'The game has already started. Start a new game to return to the lobby.');
+    getCompany: (id: string) =>
+      id === KRKN_ID ? { id: KRKN_ID, ticker: 'KRKN', sharesOutstanding: 1_000_000, adv: 10_000 } : undefined,
+    getPrice: () => 1000,
+    reserveFlow: () => ({
+      fillPrice: 1000,
+      lastPrice: 1000,
+      impactBps: 2,
+      tick: 12,
+      release: () => {
+        h.released += 1;
+      },
     }),
-    pauseGame: vi.fn(async () => {}),
-    resumeGame: vi.fn(async () => {}),
-    endGame: vi.fn(async () => {}),
-    queueHostNews: vi.fn(async () => {}),
-    refreshStandings: vi.fn(async () => {}),
-    // Same contract as GameEngine.runCrewRemoval: run the removal (its error is thrown), then refresh the standings,
-    // passing a refresh failure to the callback. The real queueing is covered in crews.test.ts and on the emulator.
-    runCrewRemoval: vi.fn(async (remove: () => Promise<void>, onRefreshError: (err: unknown) => void) => {
-      h.removalRunning = true;
-      try {
-        await remove();
-      } finally {
-        h.removalRunning = false;
-      }
-      try {
-        await h.engine.refreshStandings();
-      } catch (err) {
-        onRefreshError(err);
-      }
-    }),
-    getCompany: vi.fn((id: string) => (id === 'kraken' ? { id, ticker: 'KRKN', sharesOutstanding: 242_000_000 } : undefined)),
-    adminMarket: vi.fn(() => [{ companyId: 'kraken', q: 0.4, quality: 0.7 }]),
-    scheduledNews: vi.fn(() => [{ tick: 9, headline: 'Upcoming' }]),
-    health: vi.fn(() => ({ ok: true, phase: state.phase, tick: 4, totalTicks: 720, serverTime: 1, lastTickAt: 1, ticksBehind: 0 })),
+    adminMarket: () => [{ companyId: KRKN_ID, quality: 0.42, q: 0.31, grade: 'A', fairValue: 12_345 }],
+    scheduledNews: () => [{ tick: 20, companyIds: [KRKN_ID], headline: 'Later', fired: false, source: 'scheduled' }],
+    applySettings: async () => state,
+    startGame: async () => undefined,
+    pauseGame: async () => undefined,
+    resumeGame: async () => undefined,
+    endGame: async () => undefined,
+    queueHostNews: async () => undefined,
+    runCrewRemoval: async (fn: () => Promise<void>) => fn(),
+    refreshStandings: async () => undefined,
+    reload: async () => undefined,
+    stop: async () => undefined,
+    load: async () => undefined,
   };
-  return { engine: h.engine, EngineError };
+  return { engine, EngineError, GameEngine: class {} };
 });
 
 vi.mock('../src/services/market', () => {
-  h.createMarket = vi.fn(async () => {
-    if (h.gate) await h.gate;
-    return { seed: 'TOP-SECRET-SEED', companies: 25, adminPasswordSet: false };
-  });
-  return { createMarket: h.createMarket };
+  h.createMarket = vi.fn(async () => undefined);
+  return { createMarket: h.createMarket, clearDynamicData: vi.fn(), ADMIN_PASSWORD_KEY: 'admin_password_hash' };
 });
 
-vi.mock('../src/services/leaderboard', () => {
-  h.resetLeaderboardCache = vi.fn();
-  return { resetLeaderboardCache: h.resetLeaderboardCache };
-});
+vi.mock('../src/services/leaderboard', () => ({
+  resetLeaderboardCache: vi.fn(),
+  recomputeLeaderboard: vi.fn(),
+  finalizeLeaderboard: vi.fn(),
+}));
 
-vi.mock('../src/services/crews', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../src/services/crews')>();
-  h.removeCrew = vi.fn(async () => {});
-  h.resetCrewPassword = vi.fn(async () => {});
-  return { ...real, removeCrew: h.removeCrew, resetCrewPassword: h.resetCrewPassword };
-});
+const KRKN_ID = 'krkn';
 
-vi.mock('../src/lib/logger', () => {
-  h.auditLog = vi.fn(async () => {});
-  return { auditLog: h.auditLog };
-});
+const { buildServer, registerWeb } = await import('../src/index');
+const { closeAll } = await import('../src/realtime/hub');
 
-vi.mock('../src/services/trading', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../src/services/trading')>();
-  h.executeOrder = vi.fn();
-  return { ...real, executeOrder: h.executeOrder };
-});
+// ---------------------------------------------------------------------------
 
-import { requireAdmin, requireTeam } from '../src/auth/middleware';
-import { adminRoutes } from '../src/routes/admin';
-import { orderRoutes } from '../src/routes/orders';
-import { healthRoutes } from '../src/routes/health';
-import { TradeError, tradeError, UNKNOWN_ORDER_ERROR_MESSAGE } from '../src/services/trading';
-import { crewError } from '../src/services/crews';
-import { HOST_ERRORS } from '../src/lib/hostCopy';
-
-const ADMIN = { authorization: 'Bearer admin-token' };
-const TEAM = { authorization: 'Bearer team-token' };
-
-/** Every host route with a body that passes its schema, so only the guard can refuse it. */
-const ADMIN_ROUTES: { method: 'GET' | 'POST' | 'DELETE'; url: string; payload?: Record<string, unknown> }[] = [
-  { method: 'POST', url: '/admin/settings', payload: { feeBps: 5 } },
-  { method: 'POST', url: '/admin/game/new', payload: { keepCrews: true } },
-  { method: 'POST', url: '/admin/game/start' },
-  { method: 'POST', url: '/admin/game/pause' },
-  { method: 'POST', url: '/admin/game/resume' },
-  { method: 'POST', url: '/admin/game/end' },
-  { method: 'POST', url: '/admin/teams', payload: { name: 'Late Crew', password: 'pass' } },
-  { method: 'POST', url: '/admin/teams/saltwind/password', payload: { password: 'abcd' } },
-  { method: 'POST', url: '/admin/teams/saltwind/trading', payload: { enabled: false } },
-  { method: 'DELETE', url: '/admin/teams/saltwind' },
-  { method: 'GET', url: '/admin/teams' },
-  { method: 'GET', url: '/admin/market' },
-  { method: 'GET', url: '/admin/news/scheduled' },
-  { method: 'POST', url: '/admin/news', payload: { companyIds: ['kraken'], type: 'earnings', magnitude: 0.1, headline: 'Beats' } },
-  { method: 'GET', url: '/admin/logs' },
-];
-
-const routes: RouteOptions[] = [];
+let store: Store;
 let app: FastifyInstance;
+let crewA: string;
+let crewB: string;
+let host: string;
 
-beforeAll(async () => {
-  app = Fastify();
-  app.addHook('onRoute', (r) => {
-    routes.push(r as RouteOptions);
-  });
-  await app.register(healthRoutes);
-  await app.register(orderRoutes);
-  await app.register(adminRoutes);
+const auth = (token: string): Record<string, string> => ({ authorization: `Bearer ${token}` });
+const body = <T>(res: { body: string }): T => JSON.parse(res.body) as T;
+
+/** Every read endpoint a signed-in client may call, and who may call it. */
+const CREW_OR_HOST = [
+  '/api/bootstrap',
+  '/api/companies',
+  `/api/companies/${KRKN}`,
+  `/api/companies/${KRKN}/history?from=0&to=12`,
+  '/api/fundamentals',
+  '/api/market',
+  '/api/market/history?from=0&to=12',
+  '/api/news?limit=5',
+  '/api/standings',
+  '/api/stream',
+];
+const CREW_ONLY = ['/api/portfolio', '/api/portfolio/history?from=0&to=12', '/api/trades', '/api/orders'];
+const ADMIN_GETS = ['/admin/teams', '/admin/market', '/admin/news/scheduled', '/admin/logs'];
+
+beforeEach(async () => {
+  h.phase = 'live';
+  h.startingCapital = 1_000_000;
+  h.released = 0;
+  store = openStore(':memory:');
+  useStore(store);
+  resetSessionSecretCache();
+  seedWorld(store);
+  store.meta.set('admin_password_hash', hashPassword('host-password-1'));
+  app = await buildServer({ logger: false });
   await app.ready();
+  crewA = issueToken({ role: 'team', teamId: CREW_A, tokenVersion: currentTokenVersion('team', CREW_A) }).token;
+  crewB = issueToken({ role: 'team', teamId: CREW_B, tokenVersion: currentTokenVersion('team', CREW_B) }).token;
+  host = issueToken({ role: 'admin', tokenVersion: currentTokenVersion('admin') }).token;
 });
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  h.touched.length = 0;
-  h.gate = null;
-  h.engine.state.phase = 'live';
+afterEach(async () => {
+  closeAll();
+  await app.close();
+  useStore(null);
+  store.close();
+  resetSessionSecretCache();
 });
 
-const hooks = (r: RouteOptions): unknown[] => [r.preHandler ?? []].flat();
-
-describe('guards', () => {
-  it('every /admin route is registered behind requireAdmin, and /orders behind requireTeam', () => {
-    const admin = routes.filter((r) => r.url.startsWith('/admin'));
-    // Every registered host route (Fastify adds HEAD for each GET) is one the behavioral test below covers.
-    const registered = new Set(admin.filter((r) => r.method !== 'HEAD').map((r) => `${r.method} ${r.url}`));
-    const covered = new Set(ADMIN_ROUTES.map((r) => `${r.method} ${r.url.replace(/^\/admin\/game\/(start|pause|resume|end)$/, '/admin/game/:action').replace('/saltwind', '/:id')}`));
-    expect([...registered].sort()).toEqual([...covered].sort());
-    for (const r of admin) expect(hooks(r), `${r.method} ${r.url}`).toContain(requireAdmin);
-    const orders = routes.find((r) => r.url === '/orders')!;
-    expect(hooks(orders)).toContain(requireTeam);
-    const health = routes.find((r) => r.url === '/health')!;
-    expect(hooks(health)).toHaveLength(0);
+describe('every endpoint needs a session', () => {
+  it.each([...CREW_OR_HOST, ...CREW_ONLY])('%s refuses an anonymous request', async (url) => {
+    expect((await app.inject({ method: 'GET', url })).statusCode).toBe(401);
   });
 
-  it('refuses every host route without an admin token and never reaches the engine, db or market', async () => {
-    for (const headers of [{}, TEAM, { authorization: 'Bearer forged' }, { authorization: 'admin-token' }]) {
-      for (const r of ADMIN_ROUTES) {
-        const res = await app.inject({ ...r, headers });
-        expect(res.statusCode, `${r.method} ${r.url}`).toBe(403);
-        expect(res.json()).toEqual({ error: 'forbidden', message: 'Admin only' });
-      }
-    }
-    expect(h.touched).toEqual([]);
-    expect(h.createMarket).not.toHaveBeenCalled();
-    for (const fn of ['applySettings', 'startGame', 'endGame', 'queueHostNews', 'adminMarket', 'scheduledNews', 'stop']) {
-      expect(h.engine[fn], fn).not.toHaveBeenCalled();
-    }
-    expect(h.auditLog).not.toHaveBeenCalled();
+  it.each([...CREW_OR_HOST, ...CREW_ONLY])('%s refuses a forged token', async (url) => {
+    const res = await app.inject({ method: 'GET', url, headers: auth('not.a.token') });
+    expect(res.statusCode).toBe(401);
   });
 
-  it('POST /orders needs a crew token (an admin token has no crew)', async () => {
-    const body = { companyId: 'kraken', side: 'buy', quantity: 5, clientOrderId: 'order-12345' };
-    expect((await app.inject({ method: 'POST', url: '/orders', payload: body })).statusCode).toBe(401);
-    expect((await app.inject({ method: 'POST', url: '/orders', payload: body, headers: ADMIN })).statusCode).toBe(401);
-    expect(h.executeOrder).not.toHaveBeenCalled();
+  it('refuses a token whose crew has been removed mid-session', async () => {
+    store.crews.remove(CREW_A);
+    expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(401);
   });
 
-  it('GET /health is public and carries no hidden market data', async () => {
+  it('keeps a token out of the query string everywhere but the stream', async () => {
+    expect((await app.inject({ method: 'GET', url: `/api/bootstrap?token=${crewA}` })).statusCode).toBe(401);
+  });
+
+  it('answers /health without one (it is the deploy probe)', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(Object.keys(res.json()).sort()).toEqual(['lastTickAt', 'ok', 'phase', 'serverTime', 'tick', 'ticksBehind', 'totalTicks']);
+    expect(body<{ ok: boolean; connections: number }>(res)).toMatchObject({ ok: true, connections: 0 });
+  });
+});
+
+describe('role separation', () => {
+  it.each(CREW_ONLY)('%s is for crews, not the host', async (url) => {
+    expect((await app.inject({ method: 'GET', url, headers: auth(host) })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url, headers: auth(crewA) })).statusCode).toBe(200);
+  });
+
+  it.each(ADMIN_GETS)('%s is host-only', async (url) => {
+    expect((await app.inject({ method: 'GET', url, headers: auth(crewA) })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url, headers: auth(host) })).statusCode).toBe(200);
+  });
+
+  it.each([
+    ['POST', '/admin/settings'],
+    ['POST', '/admin/game/start'],
+    ['POST', '/admin/game/new'],
+    ['POST', '/admin/teams'],
+    ['POST', `/admin/teams/${CREW_A}/password`],
+    ['POST', `/admin/teams/${CREW_A}/trading`],
+    ['DELETE', `/admin/teams/${CREW_A}`],
+    ['POST', '/admin/news'],
+  ])('%s %s refuses a crew token', async (method, url) => {
+    const res = await app.inject({ method: method as 'POST', url, headers: auth(crewA), payload: {} });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('hidden data never reaches a crew before the end', () => {
+  it('strips the reveal block from the company reads while the game is live', async () => {
+    for (const url of ['/api/companies', `/api/companies/${KRKN}`, '/api/bootstrap']) {
+      const res = await app.inject({ method: 'GET', url, headers: auth(crewA) });
+      expect(res.statusCode).toBe(200);
+      for (const secret of ['reveal', 'fairValue', 'qEff', 'surprise', 'pillars', 'idioVol', 'startPriceCents']) {
+        expect(res.body).not.toContain(secret);
+      }
+    }
+  });
+
+  it('hands the reveal over once the phase is ended', async () => {
+    store.game.set(gameState('ended'));
+    const res = await app.inject({ method: 'GET', url: `/api/companies/${KRKN}`, headers: auth(crewA) });
+    expect(body<{ company: { reveal?: { grade: string } } }>(res).company.reveal?.grade).toBe('A');
+  });
+
+  it('keeps the seed, the secrets and the schedule off every crew route', async () => {
+    store.meta.set('seed', 'top-secret-seed');
+    for (const url of CREW_OR_HOST.filter((u) => u !== '/api/stream')) {
+      const res = await app.inject({ method: 'GET', url, headers: auth(crewA) });
+      expect(res.body).not.toContain('top-secret-seed');
+    }
+    // The schedule and the quality table have host-only routes, and they still carry the numbers.
+    const scheduled = await app.inject({ method: 'GET', url: '/admin/news/scheduled', headers: auth(host) });
+    expect(body<{ events: unknown[] }>(scheduled).events).toHaveLength(1);
+    const market = await app.inject({ method: 'GET', url: '/admin/market', headers: auth(host) });
+    expect(market.body).toContain('fairValue');
+  });
+});
+
+describe('a crew sees only its own rows', () => {
+  it('portfolio, trades and orders are filtered by the token', async () => {
+    const portfolio = body<{ team: { id: string }; holdings: { companyId: string }[]; trades: { teamId: string }[] }>(
+      await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) }),
+    );
+    expect(portfolio.team.id).toBe(CREW_A);
+    expect(portfolio.holdings.map((x) => x.companyId)).toEqual([KRKN]);
+    expect(portfolio.trades.every((t) => t.teamId === CREW_A)).toBe(true);
+
+    const trades = await app.inject({ method: 'GET', url: '/api/trades', headers: auth(crewA) });
+    expect(trades.body).not.toContain(CREW_B);
+    const orders = await app.inject({ method: 'GET', url: '/api/orders', headers: auth(crewA) });
+    expect(orders.body).not.toContain(CREW_B);
+
+    const other = body<{ holdings: { companyId: string }[] }>(
+      await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewB) }),
+    );
+    expect(other.holdings.map((x) => x.companyId)).toEqual([GALE]);
+  });
+
+  it('value history comes from the token, not a query parameter', async () => {
+    const mine = body<{ points: { tick: number }[] }>(
+      await app.inject({ method: 'GET', url: `/api/portfolio/history?from=0&to=12&teamId=${CREW_B}`, headers: auth(crewA) }),
+    );
+    expect(mine.points).toHaveLength(2); // crew A's two points, not crew B's one
+  });
+
+  it('bootstrap gives the host no portfolio at all', async () => {
+    const snap = body<{ portfolio: unknown }>(await app.inject({ method: 'GET', url: '/api/bootstrap', headers: auth(host) }));
+    expect(snap.portfolio).toBeNull();
+  });
+});
+
+describe('POST /auth/login', () => {
+  it('signs a crew in and refuses a wrong password with the same message as an unknown crew', async () => {
+    const ok = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
+    expect(ok.statusCode).toBe(200);
+    const session = body<{ token: string; role: string; teamId: string; expiresAt: number }>(ok);
+    expect(session).toMatchObject({ role: 'team', teamId: CREW_A });
+    expect(session.expiresAt).toBeGreaterThan(Date.now());
+    const me = await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(session.token) });
+    expect(body<{ team: { id: string } }>(me).team.id).toBe(CREW_A);
+
+    const wrong = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: 'nope-nope-1' } });
+    const missing = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Nobody', password: 'nope-nope-1' } });
+    expect(wrong.statusCode).toBe(401);
+    expect(missing.statusCode).toBe(401);
+    expect(wrong.body).toBe(missing.body);
+  });
+
+  it('signs the host in with the stored host password', async () => {
+    const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'admin', password: 'host-password-1' } });
+    expect(res.statusCode).toBe(200);
+    const session = body<{ token: string; role: string; teamId?: string }>(res);
+    expect(session.role).toBe('admin');
+    expect(session.teamId).toBeUndefined();
+    expect((await app.inject({ method: 'GET', url: '/admin/teams', headers: auth(session.token) })).statusCode).toBe(200);
+  });
+
+  it('rejects a malformed body', async () => {
+    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: '' } })).statusCode).toBe(400);
   });
 });
 
 describe('POST /orders', () => {
-  const body = { companyId: 'kraken', side: 'buy', quantity: 5, clientOrderId: 'order-12345', quotedPrice: 8_412 };
-  const order = (payload: unknown) => app.inject({ method: 'POST', url: '/orders', headers: TEAM, payload: payload as object });
+  const order = { companyId: KRKN_ID, side: 'buy', quantity: 10, clientOrderId: 'client-order-1' };
 
-  it('fills for the crew in the token, never one named in the body', async () => {
-    h.executeOrder.mockResolvedValueOnce({ id: 't1' });
-    const res = await order({ ...body, teamId: 'someone-else' });
+  it('needs a crew token', async () => {
+    expect((await app.inject({ method: 'POST', url: '/orders', payload: order })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/orders', payload: order, headers: auth(host) })).statusCode).toBe(401);
+  });
+
+  it('fills, writes every row once, and answers a retry with the same trade', async () => {
+    const before = store.crews.get(CREW_A)!.cashBalance;
+    const res = await app.inject({ method: 'POST', url: '/orders', payload: order, headers: auth(crewA) });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ trade: { id: 't1' } });
-    expect(h.executeOrder).toHaveBeenCalledWith(h.engine, 'saltwind', body);
+    const { trade } = body<{ trade: { id: string; price: number; teamId: string } }>(res);
+    expect(trade.teamId).toBe(CREW_A);
+
+    const crew = store.crews.get(CREW_A)!;
+    expect(crew.cashBalance).toBe(before - 10 * 1000 - 10);
+    // The crew already held 10 KRKN in the fixture, so the buy takes it to 20 at the same average cost.
+    expect(store.holdings.get(CREW_A, KRKN_ID)).toMatchObject({ shares: 20, avgCost: 1000 });
+    expect(store.orders.byClientId(CREW_A, 'client-order-1')!.status).toBe('filled');
+
+    const retry = await app.inject({ method: 'POST', url: '/orders', payload: order, headers: auth(crewA) });
+    expect(body<{ trade: { id: string } }>(retry).trade.id).toBe(trade.id);
+    expect(store.crews.get(CREW_A)!.cashBalance).toBe(crew.cashBalance);
+    expect(store.trades.forCrew(CREW_A, 50).filter((t) => t.clientOrderId === 'client-order-1')).toHaveLength(1);
   });
 
-  it('maps TradeError to 400, price_moved to 409, and anything else to a 500 with COPY text', async () => {
-    h.executeOrder.mockRejectedValueOnce(new TradeError('insufficient_funds', 'Not enough cash. …'));
-    let res = await order(body);
+  it('records a rejection and releases the reservation when the crew cannot trade', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/admin/teams/${CREW_A}/trading`,
+      payload: { enabled: false },
+      headers: auth(host),
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, clientOrderId: 'client-order-2' },
+      headers: auth(crewA),
+    });
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: 'insufficient_funds', message: 'Not enough cash. …' });
-
-    h.executeOrder.mockRejectedValueOnce(new TradeError('price_moved', 'Price moved. …'));
-    res = await order(body);
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error).toBe('price_moved');
-
-    h.executeOrder.mockRejectedValueOnce(new Error('DEADLINE_EXCEEDED: firestore internals'));
-    res = await order(body);
-    expect(res.statusCode).toBe(500);
-    expect(res.json()).toEqual({ error: 'internal', message: UNKNOWN_ORDER_ERROR_MESSAGE });
-    expect(res.body).not.toContain('firestore');
+    expect(body<{ error: string }>(res).error).toBe('trading_disabled');
+    expect(store.orders.byClientId(CREW_A, 'client-order-2')).toMatchObject({ status: 'rejected', code: 'trading_disabled' });
+    expect(h.released).toBe(1);
   });
 
-  it('rejects malformed orders with COPY wording before trading', async () => {
-    const quantity = await order({ ...body, quantity: 1.5 });
-    expect(quantity.statusCode).toBe(400);
-    expect(quantity.json()).toEqual({ error: 'bad_quantity', message: tradeError('bad_quantity').message });
-    expect((await order({ ...body, quantity: 0 })).json().error).toBe('bad_quantity');
-    expect((await order({ ...body, quantity: '5' })).json().error).toBe('bad_quantity');
+  it('refuses a closed market, an unknown company and a bad quantity', async () => {
+    const unknown = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, companyId: 'nope', clientOrderId: 'client-order-3' },
+      headers: auth(crewA),
+    });
+    expect(body<{ error: string }>(unknown).error).toBe('unknown_company');
 
-    const company = await order({ ...body, companyId: 'x'.repeat(65) });
-    expect(company.json()).toEqual({ error: 'unknown_company', message: tradeError('unknown_company').message });
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, quantity: 0, clientOrderId: 'client-order-4' },
+      headers: auth(crewA),
+    });
+    expect(bad.statusCode).toBe(400);
 
-    for (const bad of [{ ...body, clientOrderId: '../../x' }, { ...body, side: 'short' }, { ...body, quotedPrice: -1 }, null]) {
-      const res = await order(bad);
-      expect(res.statusCode).toBe(400);
-      expect(res.json()).toEqual({ error: 'bad_request', message: UNKNOWN_ORDER_ERROR_MESSAGE });
-    }
-    expect(h.executeOrder).not.toHaveBeenCalled();
+    h.phase = 'paused';
+    const closed = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, clientOrderId: 'client-order-5' },
+      headers: auth(crewA),
+    });
+    expect(body<{ error: string }>(closed).error).toBe('market_closed');
   });
 });
 
-describe('host routes', () => {
-  it('a new game never returns or logs the seed', async () => {
-    const res = await app.inject({ method: 'POST', url: '/admin/game/new', headers: ADMIN, payload: { keepCrews: false } });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, message: 'New game ready. The game is back in the lobby.', phase: 'lobby' });
-    expect(res.body).not.toContain('TOP-SECRET-SEED');
-    expect(JSON.stringify(h.auditLog.mock.calls)).not.toContain('TOP-SECRET-SEED');
-    expect(h.createMarket).toHaveBeenCalledWith({ keepCrews: false });
-    expect(h.engine.stop).toHaveBeenCalled();
-    expect(h.resetLeaderboardCache).toHaveBeenCalled();
-    expect(h.engine.reload).toHaveBeenCalled();
-  });
-
-  it('refuses every other host change while a new game is being built', async () => {
-    let open!: () => void;
-    h.gate = new Promise<void>((r) => (open = r));
-    const building = app.inject({ method: 'POST', url: '/admin/game/new', headers: ADMIN, payload: { keepCrews: true } });
-    await vi.waitFor(() => expect(h.createMarket).toHaveBeenCalled());
-
-    const mutations = ADMIN_ROUTES.filter((r) => r.method !== 'GET');
-    for (const r of mutations) {
-      const res = await app.inject({ ...r, headers: ADMIN });
-      expect(res.statusCode, `${r.method} ${r.url}`).toBe(409);
-      expect(res.json()).toEqual({ error: 'busy', message: HOST_ERRORS.busy.message });
-    }
-    for (const fn of ['applySettings', 'startGame', 'pauseGame', 'resumeGame', 'endGame', 'queueHostNews']) {
-      expect(h.engine[fn], fn).not.toHaveBeenCalled();
-    }
-    // Reads stay available.
-    expect((await app.inject({ method: 'GET', url: '/admin/market', headers: ADMIN })).statusCode).toBe(200);
-
-    open();
-    expect((await building).statusCode).toBe(200);
-    expect(h.createMarket).toHaveBeenCalledTimes(1);
-    const after = await app.inject({ method: 'POST', url: '/admin/settings', headers: ADMIN, payload: { feeBps: 5 } });
-    expect(after.statusCode).toBe(200);
-  });
-
-  it('maps engine errors: wrong phase 409 (settings use the COPY locked note), unknown company 400', async () => {
-    h.engine.applySettings.mockRejectedValueOnce(new (await import('../src/engine/loop')).EngineError('not_lobby', 'x'));
-    const locked = await app.inject({ method: 'POST', url: '/admin/settings', headers: ADMIN, payload: { feeBps: 5 } });
-    expect(locked.statusCode).toBe(409);
-    expect(locked.json()).toEqual({ error: 'not_lobby', message: 'Locked while the game is running. You can change settings only in the lobby.' });
-
-    const start = await app.inject({ method: 'POST', url: '/admin/game/start', headers: ADMIN });
-    expect(start.statusCode).toBe(409);
-    expect(start.json().error).toBe('not_lobby');
-
-    const news = await app.inject({
+describe('/admin crew management', () => {
+  it('creates a crew that can sign in at once', async () => {
+    const res = await app.inject({
       method: 'POST',
-      url: '/admin/news',
-      headers: ADMIN,
-      payload: { companyIds: ['kraken', 'ghost'], type: 'earnings', magnitude: 0.1, headline: 'Beats' },
+      url: '/admin/teams',
+      payload: { name: 'Gale Runners', password: 'anchors-aweigh-7' },
+      headers: auth(host),
     });
-    expect(news.statusCode).toBe(400);
-    expect(news.json().error).toBe('unknown_company');
-    expect(h.engine.queueHostNews).not.toHaveBeenCalled();
-
-    expect((await app.inject({ method: 'POST', url: '/admin/game/launch', headers: ADMIN })).statusCode).toBe(400);
-    expect((await app.inject({ method: 'POST', url: '/admin/settings', headers: ADMIN, payload: { maxPositionPct: 0.3 } })).statusCode).toBe(400);
-  });
-
-  it('removing a crew runs the removal through the engine queue, which refreshes the standings once afterwards', async () => {
-    h.removeCrew.mockImplementationOnce(async () => {
-      expect(h.removalRunning).toBe(true); // the crew service runs inside engine.runCrewRemoval, never beside it
-    });
-    const res = await app.inject({ method: 'DELETE', url: '/admin/teams/saltwind', headers: ADMIN });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true });
-    expect(h.engine.runCrewRemoval).toHaveBeenCalledTimes(1);
-    expect(h.removeCrew).toHaveBeenCalledWith('saltwind');
-    expect(h.engine.refreshStandings).toHaveBeenCalledTimes(1);
-    expect(h.removeCrew.mock.invocationCallOrder[0]).toBeLessThan(h.engine.refreshStandings.mock.invocationCallOrder[0]);
-    // The route no longer drops the standings cache itself (outside the queue it could race a running recompute).
-    expect(h.resetLeaderboardCache).not.toHaveBeenCalled();
+    expect(store.crews.get('gale-runners')!.cashBalance).toBe(h.startingCapital);
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { name: 'Gale Runners', password: 'anchors-aweigh-7' },
+    });
+    expect(login.statusCode).toBe(200);
 
-    // The crew is gone even if the refresh fails; the failure is logged and the next tick renumbers the standings.
-    h.engine.refreshStandings.mockRejectedValueOnce(new Error('firestore down'));
-    const stillOk = await app.inject({ method: 'DELETE', url: '/admin/teams/saltwind', headers: ADMIN });
-    expect(stillOk.statusCode).toBe(200);
-    expect(h.auditLog).toHaveBeenCalledWith('team.remove', 'admin', { teamId: 'saltwind' });
+    const dup = await app.inject({
+      method: 'POST',
+      url: '/admin/teams',
+      payload: { name: 'gale runners', password: 'anchors-aweigh-7' },
+      headers: auth(host),
+    });
+    expect(dup.statusCode).toBe(409);
   });
 
-  it('a new game waits for a crew change that was already running before it clears anything', async () => {
-    let finishReset!: () => void;
-    h.resetCrewPassword.mockImplementationOnce(() => new Promise<void>((r) => (finishReset = r)));
-    const reset = app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abcd' } });
-    await vi.waitFor(() => expect(h.resetCrewPassword).toHaveBeenCalled());
-
-    const building = app.inject({ method: 'POST', url: '/admin/game/new', headers: ADMIN, payload: { keepCrews: false } });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(h.createMarket).not.toHaveBeenCalled();
-    expect(h.engine.stop).not.toHaveBeenCalled();
-    // Meanwhile further changes are refused as usual.
-    expect((await app.inject({ method: 'POST', url: '/admin/teams', headers: ADMIN, payload: { name: 'Late Crew', password: 'pass' } })).statusCode).toBe(409);
-
-    finishReset();
-    expect((await reset).statusCode).toBe(200);
-    expect((await building).statusCode).toBe(200);
-    expect(h.createMarket).toHaveBeenCalledTimes(1);
-    expect(h.resetCrewPassword.mock.invocationCallOrder[0]).toBeLessThan(h.createMarket.mock.invocationCallOrder[0]);
+  it('signs a crew out of every device when its password is reset', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(200);
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/admin/teams/${CREW_A}/password`,
+      payload: { password: 'brand-new-pass-3' },
+      headers: auth(host),
+    });
+    expect(reset.statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(401);
+    const again = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { name: 'Saltwind', password: 'brand-new-pass-3' },
+    });
+    expect(again.statusCode).toBe(200);
   });
 
-  it('crew errors, invalid bodies and unexpected failures answer with the COPY.md host-errors wording', async () => {
-    h.removeCrew.mockRejectedValueOnce(crewError('not_found'));
-    const missing = await app.inject({ method: 'DELETE', url: '/admin/teams/ghost', headers: ADMIN });
-    expect(missing.statusCode).toBe(404);
-    expect(missing.json()).toEqual({ error: 'not_found', message: HOST_ERRORS.not_found.message });
-    expect(h.engine.refreshStandings).not.toHaveBeenCalled();
-
-    h.resetCrewPassword.mockRejectedValueOnce(new Error('auth/internal-error: backend unavailable'));
-    const boom = await app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abcd' } });
-    expect(boom.statusCode).toBe(500);
-    expect(boom.json()).toEqual({ error: 'internal', message: HOST_ERRORS.internal.message });
-    expect(boom.body).not.toContain('backend');
-
-    const short = await app.inject({ method: 'POST', url: '/admin/teams/saltwind/password', headers: ADMIN, payload: { password: 'abc' } });
-    expect(short.statusCode).toBe(400);
-    expect(short.json()).toEqual({ error: 'bad_request', message: HOST_ERRORS.bad_request.message });
-
-    const action = await app.inject({ method: 'POST', url: '/admin/game/launch', headers: ADMIN });
-    expect(action.json()).toEqual({ error: 'bad_action', message: HOST_ERRORS.bad_request.message });
+  it('removes a crew with its holdings, trades, orders and standings row', async () => {
+    const res = await app.inject({ method: 'DELETE', url: `/admin/teams/${CREW_A}`, headers: auth(host) });
+    expect(res.statusCode).toBe(200);
+    expect(store.crews.get(CREW_A)).toBeNull();
+    expect(store.holdings.forCrew(CREW_A)).toEqual([]);
+    expect(store.trades.forCrew(CREW_A, 50)).toEqual([]);
+    expect(store.orders.forCrew(CREW_A, 50)).toEqual([]);
+    expect(store.leaderboard.get()!.entries.map((e) => e.teamId)).toEqual([CREW_B]);
+    expect(store.leaderboard.get()!.entries[0]!.rank).toBe(1);
+    expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(401);
+    // The other crew is untouched.
+    expect(store.holdings.forCrew(CREW_B)).toHaveLength(1);
+    expect(store.trades.forCrew(CREW_B, 50)).toHaveLength(1);
   });
 
-  it('host market and schedule views are served only to the host', async () => {
-    const market = await app.inject({ method: 'GET', url: '/admin/market', headers: ADMIN });
-    expect(market.json()).toEqual({ rows: [{ companyId: 'kraken', q: 0.4, quality: 0.7 }] });
-    const sched = await app.inject({ method: 'GET', url: '/admin/news/scheduled', headers: ADMIN });
-    expect(sched.json()).toEqual({ events: [{ tick: 9, headline: 'Upcoming' }] });
+  it('answers 404 for a crew that is not there', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/admin/teams/ghost-crew', headers: auth(host) });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('lists crews and the audit log for the host', async () => {
+    const teams = body<{ teams: { id: string }[] }>(
+      await app.inject({ method: 'GET', url: '/admin/teams', headers: auth(host) }),
+    );
+    expect(teams.teams.map((t) => t.id).sort()).toEqual([CREW_B, CREW_A].sort());
+    await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
+    const logs = body<{ logs: { action: string }[] }>(
+      await app.inject({ method: 'GET', url: '/admin/logs', headers: auth(host) }),
+    );
+    expect(logs.logs.some((l) => l.action === 'auth.login')).toBe(true);
+  });
+});
+
+describe('/admin game control', () => {
+  it('runs the game actions and refuses an unknown one', async () => {
+    for (const action of ['start', 'pause', 'resume', 'end']) {
+      const res = await app.inject({ method: 'POST', url: `/admin/game/${action}`, headers: auth(host) });
+      expect(res.statusCode).toBe(200);
+    }
+    const bad = await app.inject({ method: 'POST', url: '/admin/game/explode', headers: auth(host) });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('rebuilds the market on /admin/game/new and never returns the seed', async () => {
+    const res = await app.inject({ method: 'POST', url: '/admin/game/new', payload: { keepCrews: true }, headers: auth(host) });
+    expect(res.statusCode).toBe(200);
+    expect(h.createMarket).toHaveBeenCalledWith({ keepCrews: true });
+    expect(res.body).not.toContain('seed');
+  });
+});
+
+describe('static hosting', () => {
+  /** A throwaway `web/dist`, so the test does not depend on a build being present. */
+  let dist: string;
+  let web: FastifyInstance;
+
+  beforeEach(async () => {
+    dist = await mkdtemp(join(tmpdir(), 'bx-web-'));
+    await mkdir(join(dist, 'assets'), { recursive: true });
+    await writeFile(join(dist, 'index.html'), '<!doctype html><title>Buccaneer Exchange</title>');
+    await writeFile(join(dist, 'sw.js'), 'self.addEventListener("install", () => {});');
+    await writeFile(join(dist, 'assets', 'app.abc123.js'), 'console.log(1);');
+    web = Fastify({ logger: false });
+    await registerWeb(web, dist);
+    await web.ready();
+  });
+
+  afterEach(async () => {
+    await web.close();
+    await rm(dist, { recursive: true, force: true });
+  });
+
+  it('serves the app shell, and the same shell for a deep client route', async () => {
+    for (const url of ['/', '/companies/krkn', '/standings']) {
+      const res = await web.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toContain('Buccaneer Exchange');
+      expect(res.headers['cache-control']).toMatch(/no-cache/);
+    }
+  });
+
+  it('caches hashed assets for a year and never the service worker', async () => {
+    const asset = await web.inject({ method: 'GET', url: '/assets/app.abc123.js' });
+    expect(asset.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    const sw = await web.inject({ method: 'GET', url: '/sw.js' });
+    expect(sw.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('never swallows the API surface or a non-GET request', async () => {
+    for (const url of ['/api/nope', '/auth/nope', '/admin/nope', '/orders/nope', '/health/nope']) {
+      const res = await web.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(404);
+      expect(res.headers['content-type']).toMatch(/json/);
+    }
+    const post = await web.inject({ method: 'POST', url: '/not-a-route' });
+    expect(post.statusCode).toBe(404);
+    expect(post.headers['content-type']).toMatch(/json/);
+  });
+
+  it('keeps the SPA fallback away from the API on the real server too', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/not-a-route', headers: auth(crewA) });
+    expect(res.statusCode).toBe(404);
+    expect(res.headers['content-type']).toMatch(/json/);
+  });
+});
+
+describe('GET /api/stream', () => {
+  it('opens a real SSE stream for a token in the query string', async () => {
+    const address = await app.listen({ port: 0, host: '127.0.0.1' });
+    const controller = new AbortController();
+    const response = await fetch(`${address}/api/stream?token=${crewA}`, { signal: controller.signal });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
+    expect(response.headers.get('x-accel-buffering')).toBe('no');
+
+    const reader = response.body!.getReader();
+    let text = '';
+    while (!text.includes('event: snapshot')) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      text += new TextDecoder().decode(chunk.value);
+    }
+    expect(text).toContain('event: snapshot');
+    expect(text).toContain(`"id":"${CREW_A}"`);
+    expect(text).not.toContain('fairValue');
+    controller.abort();
+    await reader.cancel().catch(() => undefined);
+  });
+
+  it('refuses a stream token that has been revoked', async () => {
+    const address = await app.listen({ port: 0, host: '127.0.0.1' });
+    store.crews.bumpTokenVersion(CREW_A);
+    const response = await fetch(`${address}/api/stream?token=${crewA}`);
+    expect(response.status).toBe(401);
+    await response.text();
   });
 });

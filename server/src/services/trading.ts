@@ -15,24 +15,26 @@
  *   3. `engine.reserveFlow` adds the signed quantity to pending flow
  *      SYNCHRONOUSLY, before any await, so concurrent orders price in each
  *      other's impact and the per-crew interval cap holds.
- *   4. One Firestore transaction, queued per crew in-process, re-checks
- *      idempotency and the phase, reads the team and its holdings, runs
- *      computeFill, and writes team, holding, trade and order. The trade's time
+ *   4. One SQLite transaction (`store.tx`), queued per crew in-process, re-checks
+ *      idempotency and the phase, reads the crew and its holdings, runs
+ *      computeFill, and writes crew, holding, trade and order. The trade's time
  *      and tick are the moment it was priced. If the transaction fails for any
  *      reason (or finds a duplicate that already filled) the reservation is released.
- *   5. Rejections are recorded best-effort as `status: 'rejected'` order docs,
- *      never over a filled one, never for a crew whose team doc does not exist
+ *   5. Rejections are recorded best-effort as `status: 'rejected'` order rows,
+ *      never over a filled one, never for a crew whose row does not exist
  *      (checked in the recording transaction, whatever the rejection), and never
  *      while a host rebuild has halted trading (see haltTrading).
+ *   6. A fill publishes the crew's portfolio to that crew's own stream connections
+ *      (realtime/hub.ts) — never to anyone else's.
  *
  * Error text follows docs/design/COPY.md §9 (ticket-errors): each message is
  * the COPY `title` then the filled-in COPY `message`.
  *
- * Firestore and the audit log load lazily inside executeOrder, so the pure fill
- * math imports without initializing Firebase (unit tests never touch it).
+ * The store is a lazily opened singleton, so the pure fill math below imports
+ * without touching SQLite (unit tests never open a database).
  */
 
-import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import { randomUUID } from 'node:crypto';
 import {
   CURRENCY,
   MODEL,
@@ -44,10 +46,12 @@ import {
   type OrderRequest,
   type OrderSide,
   type Phase,
-  type Team,
   type Trade,
 } from '@deca/shared';
 import { formatMoney } from '../lib/money';
+import { auditLog } from '../lib/logger';
+import { store } from '../store';
+import { publishPortfolio } from '../realtime/hub';
 import type { GameEngine } from '../engine/loop';
 
 export type TradeErrorCode =
@@ -336,7 +340,6 @@ export function checkPriceProtection(
     );
   }
 }
-
 // ---------------------------------------------------------------------------
 // Execution (IO)
 // ---------------------------------------------------------------------------
@@ -399,17 +402,14 @@ export function tradeErrorFromEngine(
 }
 
 /**
- * Per-crew in-process queue for order transactions and rejection records.
- * Orders from one crew touch the same team doc, so concurrent transactions only
- * contend (and can deadlock until a lock timeout) without buying anything; the
- * engine is a single authority process, so a local queue serializes them. A
- * duplicate clientOrderId then waits for the first fill and answers with it.
- * Flow is still reserved before queueing, so pricing stays synchronous.
- * Every crew-data write of executeOrder runs inside this queue.
+ * Per-crew in-process queue for order writes. SQLite transactions are serial anyway, but the queue
+ * keeps a crew's orders in arrival order, lets `settleTeamOrders` wait for them before a removal,
+ * and lets a duplicate clientOrderId wait for the first fill and answer with it. Flow is reserved
+ * before queueing, so pricing stays synchronous. Every crew-data write of executeOrder runs here.
  */
 const teamQueues = new Map<string, Promise<void>>();
 
-async function serialByTeam<T>(teamId: string, fn: () => Promise<T>): Promise<T> {
+async function serialByTeam<T>(teamId: string, fn: () => T | Promise<T>): Promise<T> {
   const prev = teamQueues.get(teamId) ?? Promise.resolve();
   const run = prev.then(fn);
   const tail = run.then(
@@ -433,7 +433,7 @@ export async function settleTeamOrders(teamId: string): Promise<void> {
  * Trading halt for a host rebuild (POST /admin/game/new). The engine keeps its
  * in-memory phase until it reloads, so without a halt orders would keep filling
  * while the market data is being deleted and rewritten. While halted, orders are
- * rejected as market_closed (with no order doc), before pricing and again inside
+ * rejected as market_closed (with no order row), before pricing and again inside
  * the transaction; `haltTrading` resolves once already-queued order writes finish.
  */
 let halted = false;
@@ -447,51 +447,48 @@ export function resumeTrading(): void {
   halted = false;
 }
 
-async function io(): Promise<{
-  db: Firestore;
-  auditLog: (action: string, actor: string, payload?: Record<string, unknown>) => Promise<void>;
-}> {
-  const [{ db }, { auditLog }] = await Promise.all([import('../firebase'), import('../lib/logger')]);
-  return { db, auditLog };
+/**
+ * How far back a retry looks for its own trade. The Store exposes `trades.forCrew(id, limit)` and
+ * no by-id read; a crew cannot place more than a few hundred trades in a 30-minute game, so this
+ * covers every retry of a filled order. (Swap to `store.trades.get(id)` if the Store grows one.)
+ */
+const TRADE_LOOKUP_LIMIT = 1000;
+
+function findTrade(teamId: string, tradeId: string): Trade | null {
+  return store.trades.forCrew(teamId, TRADE_LOOKUP_LIMIT).find((t) => t.id === tradeId && t.teamId === teamId) ?? null;
 }
 
-/** This crew's trade behind a filled order doc, or null. */
-async function filledTrade(db: Firestore, orderRef: DocumentReference, teamId: string): Promise<Trade | null> {
-  const rec = (await orderRef.get()).data() as OrderRecord | undefined;
-  if (rec?.status !== 'filled' || !rec.tradeId || rec.teamId !== teamId) return null;
-  const trade = (await db.doc(`trades/${rec.tradeId}`).get()).data() as Trade | undefined;
-  return trade?.teamId === teamId ? trade : null;
+/** This crew's trade behind a filled order row, or null. */
+function filledTrade(teamId: string, clientOrderId: string): Trade | null {
+  const rec = store.orders.byClientId(teamId, clientOrderId);
+  if (!rec || rec.status !== 'filled' || !rec.tradeId || rec.teamId !== teamId) return null;
+  return findTrade(teamId, rec.tradeId);
 }
 
-/** Codes that leave no order doc: there is no crew to own it (never recreate data for a removed crew). */
+/** Codes that leave no order row: there is no crew to own it (never recreate data for a removed crew). */
 const UNRECORDED: ReadonlySet<TradeErrorCode> = new Set(['no_team']);
 
 /**
- * Best-effort rejection record. Never overwrites a filled order: if a duplicate
- * of this order already filled, returns that trade so the caller can answer
- * idempotently instead of rejecting. Writes nothing for a crew whose account does
- * not exist, whatever the rejection: a removed crew's device can keep sending
- * orders until its sign-in expires, and each one would otherwise leave an order
- * doc behind the removal (shown to a crew re-created under that name).
+ * Best-effort rejection record. Never overwrites a filled order: if a duplicate of this order
+ * already filled, returns that trade so the caller can answer idempotently instead of rejecting.
+ * Writes nothing for a crew whose account does not exist, whatever the rejection: a removed crew's
+ * device can keep sending orders until its token is refused, and each one would otherwise leave an
+ * order row behind the removal (shown to a crew re-created under that name).
  */
-async function recordRejection(
-  db: Firestore,
-  orderRef: DocumentReference,
+function recordRejection(
   base: Omit<OrderRecord, 'status' | 'code' | 'reason' | 'tradeId'>,
   err: TradeError,
-): Promise<Trade | null> {
+): Trade | null {
   try {
-    return await db.runTransaction(async (tx) => {
-      const rec = (await tx.get(orderRef)).data() as OrderRecord | undefined;
+    return store.tx(() => {
+      const rec = store.orders.byClientId(base.teamId, base.clientOrderId);
       if (rec?.status === 'filled' && rec.teamId === base.teamId) {
-        if (!rec.tradeId) return null;
-        const trade = (await tx.get(db.doc(`trades/${rec.tradeId}`))).data() as Trade | undefined;
-        return trade?.teamId === base.teamId ? trade : null;
+        return rec.tradeId ? findTrade(base.teamId, rec.tradeId) : null;
       }
       if (halted || UNRECORDED.has(err.code)) return null;
-      if (!(await tx.get(db.doc(`teams/${base.teamId}`))).exists) return null;
+      if (!store.crews.get(base.teamId)) return null;
       const record: OrderRecord = { ...base, status: 'rejected', code: err.code, reason: err.message };
-      tx.set(orderRef, record);
+      store.orders.insert(record);
       return null;
     });
   } catch (writeErr) {
@@ -524,11 +521,9 @@ export function executeOrder(engine: TradingEngine, teamId: string, order: Order
 }
 
 async function executeOrderOnce(engine: TradingEngine, teamId: string, order: OrderRequest): Promise<Trade> {
-  const { db, auditLog } = await io();
   const orderId = `${teamId}_${order.clientOrderId}`;
-  const orderRef = db.doc(`orders/${orderId}`);
 
-  const prior = await filledTrade(db, orderRef, teamId);
+  const prior = filledTrade(teamId, order.clientOrderId);
   if (prior) return prior;
 
   const base = (): Omit<OrderRecord, 'status' | 'code' | 'reason' | 'tradeId'> => ({
@@ -543,7 +538,7 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
   });
   const reject = async (err: TradeError): Promise<Trade> => {
     const record = base();
-    const duplicate = await serialByTeam(teamId, () => recordRejection(db, orderRef, record, err));
+    const duplicate = await serialByTeam(teamId, () => recordRejection(record, err));
     if (duplicate) return duplicate;
     throw err;
   };
@@ -572,18 +567,16 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
     throw err;
   }
 
-  // --- Transaction. Release the reservation if it fails or turns out to be a duplicate. ---
+  // --- One SQLite transaction. Release the reservation if it fails or turns out to be a duplicate. ---
   const r = reservation;
-  const teamRef = db.doc(`teams/${teamId}`);
-  const holdingRef = db.doc(`teams/${teamId}/holdings/${order.companyId}`);
   let duplicate = false;
-  const fillTransaction = (): Promise<Trade> =>
-    db.runTransaction(async (tx) => {
+  const fillTransaction = (): Trade =>
+    store.tx(() => {
       duplicate = false;
-      const rec = (await tx.get(orderRef)).data() as OrderRecord | undefined;
+      const rec = store.orders.byClientId(teamId, order.clientOrderId);
       if (rec?.status === 'filled' && rec.tradeId && rec.teamId === teamId) {
-        const existing = (await tx.get(db.doc(`trades/${rec.tradeId}`))).data() as Trade | undefined;
-        if (existing?.teamId === teamId) {
+        const existing = findTrade(teamId, rec.tradeId);
+        if (existing) {
           duplicate = true;
           return existing;
         }
@@ -593,25 +586,22 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
       if (halted) throw marketClosedError('lobby');
       if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
 
-      const teamSnap = await tx.get(teamRef);
-      if (!teamSnap.exists) throw tradeError('no_team');
-      const team = teamSnap.data() as Partial<Team>;
+      const team = store.crews.get(teamId);
+      if (!team) throw tradeError('no_team');
       if (team.tradingDisabled) throw tradeError('trading_disabled');
 
-      const holdingsSnap = await tx.get(db.collection(`teams/${teamId}/holdings`));
       const cash = team.cashBalance ?? 0;
       let owned = 0;
       let avgCost = 0;
       let otherValue = 0;
       let otherHoldings = 0;
-      for (const doc of holdingsSnap.docs) {
-        const h = doc.data() as Holding;
-        if (doc.id === order.companyId) {
+      for (const h of store.holdings.forCrew(teamId)) {
+        if (h.companyId === order.companyId) {
           owned = h.shares ?? 0;
           avgCost = h.avgCost ?? 0;
         } else if ((h.shares ?? 0) > 0) {
           otherHoldings++;
-          otherValue += h.shares * engine.getPrice(doc.id);
+          otherValue += h.shares * engine.getPrice(h.companyId);
         }
       }
 
@@ -630,9 +620,8 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
         currencySymbol: symbol,
       });
 
-      const tradeId = db.collection('trades').doc().id;
       const t: Trade = {
-        id: tradeId,
+        id: randomUUID(),
         teamId,
         companyId: order.companyId,
         side: order.side,
@@ -656,12 +645,12 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
         side: order.side,
         quantity: order.quantity,
         status: 'filled',
-        tradeId,
+        tradeId: t.id,
         createdAt: pricedAt,
         tick: r.tick,
       };
 
-      tx.update(teamRef, {
+      store.crews.update(teamId, {
         cashBalance: f.cashAfter,
         realizedPnl: (team.realizedPnl ?? 0) + f.realizedPnl,
         feesPaid: (team.feesPaid ?? 0) + f.fee,
@@ -670,12 +659,12 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
       });
       if (f.sharesAfter > 0) {
         const holding: Holding = { companyId: order.companyId, shares: f.sharesAfter, avgCost: f.avgCostAfter };
-        tx.set(holdingRef, holding);
+        store.holdings.upsert(teamId, holding);
       } else {
-        tx.delete(holdingRef);
+        store.holdings.remove(teamId, order.companyId);
       }
-      tx.set(db.doc(`trades/${tradeId}`), t);
-      tx.set(orderRef, filled);
+      store.trades.insert(t);
+      store.orders.insert(filled);
       return t;
     });
 
@@ -692,6 +681,9 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
     r.release();
     return trade;
   }
+
+  // The crew's own screens update the moment the money moves; everyone else sees it at the tick.
+  publishPortfolio(teamId);
 
   await auditLog('order.fill', teamId, {
     tradeId: trade.id,

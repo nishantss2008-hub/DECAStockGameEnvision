@@ -16,11 +16,19 @@ export const DEFAULT_FEE_BPS = 10;
 /** One hour in milliseconds. */
 export const HOUR_MS = 3_600_000;
 
-/** Game lengths the host may choose in the lobby (1h … 48h), in ms. */
-export const GAME_LENGTH_OPTIONS_MS = [1, 2, 4, 8, 12, 24, 48].map((h) => h * HOUR_MS);
+/** One minute in milliseconds. */
+export const MINUTE_MS = 60_000;
 
-/** Default game length (48h). */
-export const DEFAULT_GAME_LENGTH_MS = 48 * HOUR_MS;
+/**
+ * Game lengths the host may choose in the lobby (10 … 30 minutes), in ms.
+ *
+ * A game runs at most 30 minutes (2026-09-15 requirement). With the 5s tick
+ * floor in `deriveClock` that is 120–360 ticks and 8 sessions of 75–270s.
+ */
+export const GAME_LENGTH_OPTIONS_MS = [10, 15, 20, 30].map((m) => m * MINUTE_MS);
+
+/** Default game length (30 minutes — the longest option). */
+export const DEFAULT_GAME_LENGTH_MS = 30 * MINUTE_MS;
 
 /**
  * Host position-limit choices: the most of a crew's total account value one
@@ -123,12 +131,9 @@ export const MODEL = {
   priceProtection: 0.02,
 } as const;
 
-/** Email domain used to map a team name to a Firebase Auth credential. */
-export const TEAM_EMAIL_DOMAIN = 'deca-pirates.game';
-
 /**
- * Canonical team-name → slug. MUST be identical on the server (which creates the
- * Auth user + teamId) and the web client (which derives the login email), or
+ * Canonical team-name → slug. MUST be identical on the server (which stores the crew
+ * under this id) and the web client (which signs in with the name a crew types), or
  * teams with punctuation in their names can never log in. Single source of truth.
  *   "Anne's Revenge" → "anne-s-revenge"
  */

@@ -1,27 +1,13 @@
 /**
- * Append-only audit log. Writes to the server-only `logs` collection (clients
- * cannot read it — see firestore.rules). Every meaningful action is recorded.
+ * Append-only audit log. Writes to the server-only `audit_log` table (no route
+ * exposes it to a crew). Every meaningful action is recorded.
  */
 
-import { db } from '../firebase';
+import { store } from '../store';
 
-export interface LogEntry {
-  action: string;
-  actor: string; // uid, teamId, 'engine', or 'admin'
-  payload: Record<string, unknown>;
-  timestamp: number;
-}
+export type { LogEntry } from '../store/types';
 
-export async function auditLog(
-  action: string,
-  actor: string,
-  payload: Record<string, unknown> = {},
-): Promise<void> {
-  const entry: LogEntry = { action, actor, payload, timestamp: Date.now() };
-  try {
-    await db.collection('logs').add(entry);
-  } catch (err) {
-    // Never let logging failures break gameplay; surface to stderr.
-    console.error('[audit] failed to write log', action, err);
-  }
+export async function auditLog(action: string, actor: string, payload: Record<string, unknown> = {}): Promise<void> {
+  // store.audit.add already swallows and reports write failures: logging must never break gameplay.
+  store.audit.add(action, actor, payload);
 }

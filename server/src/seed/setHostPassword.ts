@@ -4,15 +4,15 @@
  *   ADMIN_PASSWORD='a-long-password' npm run set-host-password      # from the environment
  *   npm run set-host-password                                        # asks twice, without echo
  *
- * Crews, the market and the running game are untouched. The server reads `_auth/_admin` at every
- * sign-in, so the new password works at once, with no restart. Host sessions signed in with the old
- * password are signed out within an hour.
+ * Crews, the market and the running game are untouched. The server reads `meta.admin_password_hash`
+ * at every sign-in, so the new password works at once, with no restart. Host sessions signed in with
+ * the old password stop working immediately (the host session generation is bumped).
  *
- * If the deployed server has ADMIN_PASSWORD set (a Cloud Run secret), it applies that value at every
- * start, so update the secret too or the next restart puts it back.
+ * If the deployed server has ADMIN_PASSWORD set, it applies that value at every start, so update the
+ * deployment secret too or the next restart puts it back.
  *
- * The password is never printed. Like `npm run seed`, this uses server/service-account.json, or the
- * emulators when FIRESTORE_EMULATOR_HOST is set.
+ * The password is never printed. The database is DB_FILE (default ./data/game.db) — the same file the
+ * server uses, so this is safe to run while the server is up (SQLite WAL handles the concurrent write).
  */
 
 import { config } from '../config';
@@ -24,16 +24,16 @@ async function main(): Promise<void> {
     interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
     prompt: hiddenPrompt,
   });
-  // Firebase loads only once a password is in hand, so a typo in the prompt never touches the database.
-  const [{ emulatorMode }, { setHostPassword }] = await Promise.all([import('../firebase'), import('../services/hostPassword')]);
-  const target = emulatorMode ? `the local emulators (${process.env.FIRESTORE_EMULATOR_HOST})` : `project ${process.env.GCLOUD_PROJECT || 'decastockenvision'}`;
+  // The database opens only once a password is in hand, so a typo in the prompt never touches it.
+  const [{ setHostPassword }, { closeStore }] = await Promise.all([import('../services/hostPassword'), import('../store')]);
   const result = await setHostPassword(password);
   if (result === 'unchanged') {
-    console.log(`The host password in ${target} already matches. Nothing changed.`);
+    console.log(`The host password in ${config.dbFile} already matches. Nothing changed.`);
   } else {
-    console.log(`Host password set in ${target}. Sign in with the name "admin" and the new password.`);
+    console.log(`Host password set in ${config.dbFile}. Sign in with the name "admin" and the new password.`);
     console.log('Crews, the market and the game were not changed.');
   }
+  closeStore();
 }
 
 main()

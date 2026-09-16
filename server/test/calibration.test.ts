@@ -3,10 +3,14 @@
  * (research-math review §SANITY, spec §12). Fixed seeds, no player flow,
  * 25 companies with rank-uniform quality q, spread 0.30 (normal edge),
  * qEff = 0.75·q + 0.25·ξ. Bands are tolerant to seed-set variation.
+ *
+ * Games are the shortest and longest host options (10 and 30 minutes, i.e. 120
+ * and 360 ticks). The model is scale-free, so the bands are the same ones the
+ * 1h/48h runs met before Wave A0.
  */
 import { beforeAll, describe, it, expect } from 'vitest';
 import { mean, standardDeviation, sampleCorrelation } from 'simple-statistics';
-import { deriveClock, HOUR_MS, EDGE_SPREAD, impactLambda, spearman } from '@deca/shared';
+import { deriveClock, MINUTE_MS, EDGE_SPREAD, impactLambda, spearman } from '@deca/shared';
 import { Prng, deriveSeed } from '../src/lib/prng';
 import { derive, marketStep, companyStep, initialState, idioVolFor, surpriseFor, effectiveQuality, type ModelCompany } from '../src/engine/model';
 import { buildSchedule, jumpsAtTick } from '../src/engine/news';
@@ -22,8 +26,8 @@ function acf1(r: number[]): number {
   return den === 0 ? 0 : num / den;
 }
 
-function runGame(seed: string, hours: number): GameStats {
-  const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, SPREAD); const N = clock.totalTicks;
+function runGame(seed: string, minutes: number): GameStats {
+  const clock = deriveClock(minutes * MINUTE_MS); const d = derive(clock, SPREAD); const N = clock.totalTicks;
   const qs: number[] = []; const companies: ModelCompany[] = [];
   for (let k = 0; k < NCO; k++) {
     const id = `C${k}`; const q = -1 + (2 * (k + 0.5)) / NCO;
@@ -68,28 +72,28 @@ const summary = (gs: GameStats[]): Summary => ({
 });
 
 describe('calibration (research SANITY bands)', () => {
-  let elapsedMs = Infinity; let s1: Summary; let s48: Summary; let sAll: Summary;
+  let elapsedMs = Infinity; let s10: Summary; let s30: Summary; let sAll: Summary;
   beforeAll(() => {
     const t0 = Date.now();
-    const games1h = Array.from({ length: 30 }, (_, g) => runGame(`cal-1h-${g}`, 1));
-    const games48h = Array.from({ length: 12 }, (_, g) => runGame(`cal-48h-${g}`, 48));
+    const games10m = Array.from({ length: 30 }, (_, g) => runGame(`cal-10m-${g}`, 10));
+    const games30m = Array.from({ length: 30 }, (_, g) => runGame(`cal-30m-${g}`, 30));
     elapsedMs = Date.now() - t0;
-    s1 = summary(games1h); s48 = summary(games48h); sAll = summary([...games1h, ...games48h]);
-    console.log(`calibration: ${elapsedMs} ms`, JSON.stringify({ '1h': s1, '48h': s48, all: sAll }, (_k, v) => (typeof v === 'number' ? +v.toFixed(4) : v)));
+    s10 = summary(games10m); s30 = summary(games30m); sAll = summary([...games10m, ...games30m]);
+    console.log(`calibration: ${elapsedMs} ms`, JSON.stringify({ '10m': s10, '30m': s30, all: sAll }, (_k, v) => (typeof v === 'number' ? +v.toFixed(4) : v)));
   }, 120_000); // generous: parallel agents and CI load can slow the simulation several-fold
 
   it('runs within the 45 s budget', () => {
     expect(elapsedMs).toBeLessThan(45_000);
   });
-  it('per-game realized vol is in [0.34, 0.42] at 1h and 48h and scale-invariant', () => {
-    for (const s of [s1, s48]) { expect(s.vol).toBeGreaterThanOrEqual(0.34); expect(s.vol).toBeLessThanOrEqual(0.42); }
-    expect(Math.abs(s1.vol - s48.vol)).toBeLessThan(0.03);
+  it('per-game realized vol is in [0.34, 0.42] at 10 and 30 minutes and scale-invariant', () => {
+    for (const s of [s10, s30]) { expect(s.vol).toBeGreaterThanOrEqual(0.34); expect(s.vol).toBeLessThanOrEqual(0.42); }
+    expect(Math.abs(s10.vol - s30.vol)).toBeLessThan(0.03);
   });
   it('tick returns have no linear predictability (|mean ACF1| ≤ 0.03)', () => {
-    for (const s of [s1, s48]) expect(Math.abs(s.acf1)).toBeLessThanOrEqual(0.03);
+    for (const s of [s10, s30]) expect(Math.abs(s.acf1)).toBeLessThanOrEqual(0.03);
   });
   it('mean pairwise tick-return correlation is in [0.15, 0.32]', () => {
-    for (const s of [s1, s48]) { expect(s.pairCorr).toBeGreaterThanOrEqual(0.15); expect(s.pairCorr).toBeLessThanOrEqual(0.32); }
+    for (const s of [s10, s30]) { expect(s.pairCorr).toBeGreaterThanOrEqual(0.15); expect(s.pairCorr).toBeLessThanOrEqual(0.32); }
   });
   it('top quality quintile beats the bottom in ≥ 85% of seeds with a spread in [0.25, 0.50]', () => {
     expect(sAll.topWins).toBeGreaterThanOrEqual(0.85);

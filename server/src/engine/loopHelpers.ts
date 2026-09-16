@@ -2,8 +2,8 @@
  * Pure helpers for the engine loop, market service and leaderboard (no I/O).
  *
  * Everything here is deterministic and unit-tested in `test/loopHelpers.test.ts`.
- * The Firestore types are imported as types only, so this module never
- * initializes Firebase.
+ * The storage types are imported as types only, so the pure layer never pulls in
+ * the database driver.
  */
 
 import {
@@ -22,7 +22,6 @@ import {
   type GameSettings,
   type GameState,
   type Grade,
-  type HistoryChunk,
   type IndexQuote,
   type LeaderboardEntry,
   type MarketBreadth,
@@ -31,14 +30,11 @@ import {
   type ResearchEdge,
   type RevealLabel,
   type SettingsInput,
-  type ValueChunk,
 } from '@deca/shared';
-import type { Firestore, WriteBatch } from 'firebase-admin/firestore';
+import type { ValuePoint } from '../store/types';
 
 /** Composite and sector indexes start every game at this value. */
 export const INDEX_BASE = 1000;
-/** Firestore allows 500 writes per batch; stay well below it. */
-export const BATCH_LIMIT = 450;
 /** Points in a leaderboard sparkline. */
 export const SPARK_POINTS = 40;
 
@@ -145,7 +141,7 @@ export function buildReveal(i: RevealInput): CompanyReveal {
 
 // ─── Company snapshots and breadth ───────────────────────────────────────────
 
-/** The mutable, per-tick part of a `companies/{id}` doc. */
+/** The mutable, per-tick part of a `companies` row. */
 export interface Snapshot {
   currentPrice: number;
   startPrice: number;
@@ -219,35 +215,7 @@ export function marketBreadth(snaps: Snapshot[]): MarketBreadth {
   return b;
 }
 
-// ─── History chunks ──────────────────────────────────────────────────────────
-
-/**
- * Writes tick t into its chunk: returns a fresh chunk when t is past this one,
- * forward-fills any skipped ticks and truncates anything recorded after t.
- */
-export function appendChunk(chunk: HistoryChunk, t: number, price: number, volume: number): HistoryChunk {
-  const c = chunkOf(t);
-  const out = chunk.chunk === c ? chunk : { chunk: c, startTick: c * HISTORY_CHUNK, prices: [], volumes: [] };
-  const i = t - out.startTick;
-  if (out.prices.length > i) out.prices.length = i;
-  if (out.volumes.length > i) out.volumes.length = i;
-  while (out.prices.length < i) out.prices.push(out.prices[out.prices.length - 1] ?? price);
-  while (out.volumes.length < i) out.volumes.push(0);
-  out.prices.push(price);
-  out.volumes.push(volume);
-  return out;
-}
-
-/** Same as appendChunk for a value series chunk (composite index, team value). */
-export function appendValue(chunk: ValueChunk, t: number, value: number): ValueChunk {
-  const c = chunkOf(t);
-  const out = chunk.chunk === c ? chunk : { chunk: c, startTick: c * HISTORY_CHUNK, values: [] };
-  const i = t - out.startTick;
-  if (out.values.length > i) out.values.length = i;
-  while (out.values.length < i) out.values.push(out.values[out.values.length - 1] ?? value);
-  out.values.push(value);
-  return out;
-}
+// ─── Tick bookkeeping ────────────────────────────────────────────────────────
 
 /** True when a session starts in (prevTick, tick]; with no previous tick, when tick opens a session. */
 export function crossedSession(prevTick: number | undefined, tick: number, sessionTicks: number): boolean {
@@ -256,7 +224,7 @@ export function crossedSession(prevTick: number | undefined, tick: number, sessi
   return Math.floor(tick / sessionTicks) > Math.floor(prevTick / sessionTicks);
 }
 
-/** `news/{source}-{tick}-{firstCompanyId}-{seq}`; deterministic so a retried commit overwrites itself. */
+/** `{source}-{tick}-{firstCompanyId}-{seq}`; deterministic so a retried commit overwrites itself. */
 export function newsDocId(source: string, tick: number, firstId: string | undefined, seq: number): string {
   return `${source}-${tick}-${firstId ?? 'market'}-${seq}`;
 }
@@ -288,36 +256,22 @@ export function putSeriesValue(series: TeamSeries | undefined, tick: number, val
   return s;
 }
 
-/** Chunk docs covering ticks fromTick..toTick of the series (copies). */
-export function seriesChunks(series: TeamSeries, fromTick: number, toTick: number): ValueChunk[] {
-  const out: ValueChunk[] = [];
+/**
+ * The series' points for ticks fromTick..toTick as `price_history`-style rows, clamped
+ * to what the series actually covers. Ticks before the series start are not invented.
+ */
+export function seriesRows(series: TeamSeries, fromTick: number, toTick: number): ValuePoint[] {
   const end = series.start + series.values.length - 1;
   const from = Math.max(fromTick, series.start);
   const to = Math.min(toTick, end);
-  if (to < from) return out;
-  for (let c = chunkOf(from); c <= chunkOf(to); c++) {
-    const startTick = c * HISTORY_CHUNK;
-    const a = Math.max(0, startTick - series.start);
-    const b = Math.min(series.values.length, startTick + HISTORY_CHUNK - series.start);
-    if (b <= a) continue;
-    // Slots before the series start (first chunk only) take the first value so indexes stay aligned.
-    const lead = Math.max(0, series.start - startTick);
-    const values = [...new Array<number>(lead).fill(series.values[0]!), ...series.values.slice(a, b)];
-    out.push({ chunk: c, startTick, values });
-  }
+  const out: ValuePoint[] = [];
+  for (let t = from; t <= to; t++) out.push({ tick: t, value: series.values[t - series.start]! });
   return out;
 }
 
-/** Rebuilds a series from stored chunks (any order); gaps between chunks forward-fill. */
-export function seriesFromChunks(chunks: ValueChunk[]): TeamSeries | undefined {
-  const sorted = chunks.filter((c) => c.values.length > 0).sort((a, b) => a.startTick - b.startTick);
-  let s: TeamSeries | undefined;
-  for (const c of sorted) {
-    c.values.forEach((v, i) => {
-      s = putSeriesValue(s ?? { start: c.startTick, values: [] }, c.startTick + i, v);
-    });
-  }
-  return s;
+/** Rebuilds a series from stored `crew_history` values, where index i is tick `start + i`. */
+export function seriesFromValues(values: number[], start: number = 0): TeamSeries | undefined {
+  return values.length > 0 ? { start, values: [...values] } : undefined;
 }
 
 // ─── Standings ───────────────────────────────────────────────────────────────
@@ -423,7 +377,7 @@ export function mergeSettings(current: GameSettings, input: SettingsInput): Game
   });
 }
 
-/** Only the settings fields of a state (Firestore docs must not carry extra keys by accident). */
+/** Only the settings fields of a state (the stored row must not carry extra keys by accident). */
 export function settingsOf(s: GameSettings): GameSettings {
   return normalizeSettings(s);
 }
@@ -455,7 +409,7 @@ function numOrNull(x: unknown): number | null {
 }
 
 /**
- * A complete GameState from a possibly partial (or v1) `game/state` doc. The
+ * A complete GameState from a possibly partial (or v1) `game_state` row. The
  * clock fields are always rederived from the game length.
  */
 export function normalizeState(raw: Partial<GameState> | undefined, now: number): GameState {
@@ -473,55 +427,6 @@ export function normalizeState(raw: Partial<GameState> | undefined, now: number)
     lastTickAt: numOrNull(r.lastTickAt),
     marketCreatedAt: numOrNull(r.marketCreatedAt) ?? 0,
   };
-}
-
-// ─── Firestore batching ──────────────────────────────────────────────────────
-
-export type BatchOp = (batch: WriteBatch) => void;
-
-/** Applies `ops` in order, committing every `limit` ops. Returns the number of commits. */
-export async function commitInBatches(db: Pick<Firestore, 'batch'>, ops: BatchOp[], limit: number = BATCH_LIMIT): Promise<number> {
-  let commits = 0;
-  for (let i = 0; i < ops.length; i += limit) {
-    const batch = db.batch();
-    for (const op of ops.slice(i, i + limit)) op(batch);
-    await batch.commit();
-    commits++;
-  }
-  return commits;
-}
-
-/**
- * Commits `ops` in batches of at most `limit`, with every `tail` op in the LAST
- * batch. The tail (engine state and game state) is then written only after every
- * earlier batch has succeeded, and always in the same batch as each other, so a
- * failure part-way through a long catch-up can never leave `_engine/state` ahead
- * of `game/state`. Returns the number of commits.
- */
-export async function commitWithTail(
-  db: Pick<Firestore, 'batch'>,
-  ops: BatchOp[],
-  tail: BatchOp[],
-  limit: number = BATCH_LIMIT,
-): Promise<number> {
-  if (tail.length > limit) throw new Error(`commitWithTail: a tail of ${tail.length} ops does not fit in one batch of ${limit}`);
-  const groups: BatchOp[][] = [];
-  for (let i = 0; i < ops.length; i += limit) groups.push(ops.slice(i, i + limit));
-  const last = groups.pop() ?? [];
-  if (last.length + tail.length <= limit) {
-    groups.push([...last, ...tail]);
-  } else {
-    groups.push(last, tail);
-  }
-  let commits = 0;
-  for (const group of groups) {
-    if (group.length === 0) continue;
-    const batch = db.batch();
-    for (const op of group) op(batch);
-    await batch.commit();
-    commits++;
-  }
-  return commits;
 }
 
 // ─── User-facing engine messages (docs/design/COPY.md wording) ────────────────
@@ -562,3 +467,14 @@ export const engineMessages = {
   notRunning: 'News can be sent only while the game is running or paused.',
   noNewsCompanies: "We couldn't find any of those companies. Pick at least one from the list.",
 } as const;
+
+// ─── Server-only `meta` keys the engine owns ─────────────────────────────────
+
+/**
+ * `meta` key holding host news queued but not yet fired, as a JSON `ScheduledEvent[]`.
+ * The schedule itself lives in `news_schedule`; a queued host event has no committed tick
+ * yet (it fires at the next tick, whenever that is), so it is not a row there.
+ */
+export const PENDING_NEWS_KEY = 'news_pending';
+/** `meta` key holding the game seed (written by the market service, read by the engine). */
+export const SEED_KEY = 'seed';

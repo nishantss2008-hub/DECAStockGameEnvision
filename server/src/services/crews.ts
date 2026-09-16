@@ -2,14 +2,16 @@
  * Crew management for the host console (spec §8): create, reset password,
  * turn trading on or off, and remove.
  *
- * A crew is a public-to-itself `teams/{id}` doc plus a server-only `_auth/{id}`
- * login (scrypt hash). The id is the canonical slug of the crew name, which is
- * also the Firebase custom-token uid and the `teamId` claim.
+ * A crew is one row in `crews`: its public fields, its scrypt password hash and its
+ * `token_version`. The id is the canonical slug of the crew name, which is also the
+ * `teamId` claim in the session token.
+ *
+ * Sign-out is instant now: a password reset bumps `token_version`, and a removal deletes the row,
+ * so every token already issued to that crew fails its next `verifyToken` (auth/sessions.ts).
  */
 
-import { slugifyTeamName, type LeaderboardEntry, type Leaderboard, type Team } from '@deca/shared';
-import { revokeSessions } from '../auth/sessions';
-import { db } from '../firebase';
+import { slugifyTeamName, type Holding, type LeaderboardEntry, type Team } from '@deca/shared';
+import { store } from '../store';
 import { HOST_ERRORS } from '../lib/hostCopy';
 import { hashPassword } from '../lib/password';
 import { settleTeamOrders } from './trading';
@@ -39,7 +41,7 @@ function assertCrewId(teamId: string): void {
   }
 }
 
-/** Creates the crew login and a team doc holding `startingCapital` cents of cash. */
+/** Creates the crew with `startingCapital` cents of cash and its login hash, in one transaction. */
 export async function createCrew(
   name: string,
   password: string,
@@ -53,84 +55,46 @@ export async function createCrew(
   if (!id || RESERVED.has(id)) throw crewError('bad_name');
 
   const passwordHash = hashPassword(password);
-  const authRef = db.doc(`_auth/${id}`);
-  const teamRef = db.doc(`teams/${id}`);
-  await db.runTransaction(async (tx) => {
-    const [authSnap, teamSnap] = await Promise.all([tx.get(authRef), tx.get(teamRef)]);
-    if (authSnap.exists || teamSnap.exists) throw crewError('exists');
-    const team: Team = {
-      id,
-      name: displayName,
-      cashBalance: startingCapital,
-      totalValue: startingCapital,
-      rank: 0,
-      realizedPnl: 0,
-      feesPaid: 0,
-      tradeCount: 0,
-      tradingDisabled: false,
-      sessionOpenValue: startingCapital,
-      holdingsCount: 0,
-      createdAt: Date.now(),
-      sessionStartRank: 0,
-    };
-    tx.create(authRef, { passwordHash, role: 'team', teamId: id });
-    tx.create(teamRef, team);
+  store.tx(() => {
+    if (store.crews.get(id)) throw crewError('exists');
+    store.crews.create({ id, name: displayName, passwordHash, startingCapital, createdAt: Date.now() });
   });
   return { id, name: displayName };
 }
 
 /**
- * Replaces the crew's password hash, then revokes the crew's sessions: devices signed in with the old
- * password can't renew their sign-in, so they are signed out within an hour.
+ * Replaces the crew's password hash and bumps its token version, so every device signed in with
+ * the old password is signed out on its next request.
  */
 export async function resetCrewPassword(teamId: string, password: string): Promise<void> {
   assertCrewId(teamId);
-  const authRef = db.doc(`_auth/${teamId}`);
   const passwordHash = hashPassword(password);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(authRef);
-    if (!snap.exists || (snap.data() as { role?: string }).role !== 'team') throw crewError('not_found');
-    tx.update(authRef, { passwordHash });
+  store.tx(() => {
+    if (!store.crews.get(teamId)) throw crewError('not_found');
+    store.crews.update(teamId, { passwordHash });
+    store.crews.bumpTokenVersion(teamId);
   });
-  await revokeSessions(teamId);
 }
 
 /** Turns trading on or off for one crew (checked inside every order transaction). */
 export async function setCrewTrading(teamId: string, enabled: boolean): Promise<void> {
   assertCrewId(teamId);
-  const teamRef = db.doc(`teams/${teamId}`);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(teamRef);
-    if (!snap.exists) throw crewError('not_found');
-    tx.update(teamRef, { tradingDisabled: !enabled });
+  store.tx(() => {
+    if (!store.crews.get(teamId)) throw crewError('not_found');
+    store.crews.update(teamId, { tradingDisabled: !enabled });
   });
 }
 
-/** Deletes every doc matching `field == value` in a top-level collection, in batches. */
-async function deleteWhere(collection: string, field: string, value: string): Promise<number> {
-  let deleted = 0;
-  for (;;) {
-    const snap = await db.collection(collection).where(field, '==', value).limit(400).get();
-    if (snap.empty) return deleted;
-    const batch = db.batch();
-    for (const doc of snap.docs) batch.delete(doc.ref);
-    await batch.commit();
-    deleted += snap.size;
-  }
-}
-
 /**
- * Drops the crew from `leaderboard/current` (live and final entries) and renumbers the ranks. Movement arrows
- * compare with prevRank, so every crew whose prevRank was below the removed crew's moves up one place too.
- * After the end nothing recomputes the standings, so the remaining crews' own `rank` follows the pruned final
- * standings (in a live game the standings refresh that follows the removal does that).
+ * Drops the crew from the standings (live and final entries) and renumbers the ranks. Movement
+ * arrows compare with prevRank, so every crew whose prevRank was below the removed crew's moves up
+ * one place too. After the end nothing recomputes the standings, so the remaining crews' own `rank`
+ * follows the pruned final standings (in a live game the refresh after the removal does that).
  */
-async function removeFromLeaderboard(teamId: string): Promise<void> {
-  const ref = db.doc('leaderboard/current');
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) return;
-    const lb = snap.data() as Partial<Leaderboard>;
+function removeFromLeaderboard(teamId: string): void {
+  store.tx(() => {
+    const lb = store.leaderboard.get();
+    if (!lb) return;
     const prune = <T extends LeaderboardEntry>(entries: T[]): T[] => {
       const gone = entries.find((e) => e.teamId === teamId);
       return entries
@@ -141,67 +105,62 @@ async function removeFromLeaderboard(teamId: string): Promise<void> {
     const inEntries = lb.entries?.some((e) => e.teamId === teamId) ?? false;
     const inFinal = lb.final?.entries?.some((e) => e.teamId === teamId) ?? false;
     if (!inEntries && !inFinal) return;
-    const entries = inEntries ? prune(lb.entries!) : undefined;
-    const finalEntries = inFinal ? prune(lb.final!.entries) : undefined;
-    const crewDocs = finalEntries ? await Promise.all(finalEntries.map((e) => tx.get(db.doc(`teams/${e.teamId}`)))) : [];
-
-    const update: Record<string, unknown> = {};
-    if (entries) update.entries = entries;
-    if (finalEntries) update.final = { ...lb.final, entries: finalEntries };
-    tx.update(ref, update);
-    finalEntries?.forEach((e, i) => {
-      const crew = crewDocs[i]!;
-      if (crew.exists && (crew.data() as Partial<Team>).rank !== e.rank) tx.update(crew.ref, { rank: e.rank });
+    const entries = inEntries ? prune(lb.entries) : lb.entries;
+    const finalEntries = inFinal && lb.final ? prune(lb.final.entries) : undefined;
+    store.leaderboard.set({
+      ...lb,
+      entries,
+      ...(finalEntries && lb.final ? { final: { ...lb.final, entries: finalEntries } } : {}),
     });
-  });
-}
-
-/**
- * Deletes the team doc. In the same transaction every crew that started the session ranked below it moves up
- * one place (`sessionStartRank`), so the removal itself shows no movement arrow for anyone.
- */
-async function deleteTeamDoc(teamId: string): Promise<void> {
-  const teamRef = db.doc(`teams/${teamId}`);
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(teamRef);
-    if (!snap.exists) return;
-    const start = Number((snap.data() as Partial<Team>).sessionStartRank) || 0;
-    const below = start > 0 ? (await tx.get(db.collection('teams').where('sessionStartRank', '>', start))).docs : [];
-    for (const doc of below) {
-      if (doc.id === teamId) continue;
-      tx.update(doc.ref, { sessionStartRank: (Number((doc.data() as Partial<Team>).sessionStartRank) || 1) - 1 });
+    // The final standings are the last word on rank, so the crews' own rows follow them.
+    for (const e of finalEntries ?? []) {
+      const crew = store.crews.get(e.teamId);
+      if (crew && crew.rank !== e.rank) store.crews.update(e.teamId, { rank: e.rank });
     }
-    tx.delete(teamRef);
   });
 }
 
 /**
- * Removes a crew: its login first (no new sign-ins), its sessions (no renewed
- * sign-ins), then the team doc (every later order fails as no_team with the COPY
- * message and writes nothing), then, once the crew's in-flight order writes have
- * settled, its holdings and history, research-grade stats, trades, orders and
- * standings rows. Sweeping before the orders settle could leave a holding, trade
- * or order written just after the sweep. A failure part-way is safe to retry.
+ * Every crew that started the session ranked below the removed one moves up a place, so the
+ * removal itself shows no movement arrow for anyone.
+ */
+function shiftSessionStartRanks(teamId: string, removed: Team): void {
+  const start = Number(removed.sessionStartRank) || 0;
+  if (start <= 0) return;
+  for (const crew of store.crews.all()) {
+    if (crew.id === teamId) continue;
+    const rank = Number(crew.sessionStartRank) || 0;
+    if (rank > start) store.crews.update(crew.id, { sessionStartRank: rank - 1 });
+  }
+}
+
+/**
+ * Removes a crew: its token version first (no request from its devices authenticates again), then,
+ * once the crew's in-flight order writes have settled, the row itself — which takes its holdings,
+ * history, research stats, trades and orders with it — and finally its standings entry. Sweeping
+ * before the orders settle could leave a holding, trade or order written just after the sweep.
+ * A failure part-way is safe to retry.
  *
- * Run it through `engine.runCrewRemoval` (as the host route does): that keeps every
- * tick and standings recompute from running alongside, so none can write the crew's
- * history or stats back, and refreshes the live standings afterwards.
+ * Run it through `engine.runCrewRemoval` (as the host route does): that keeps every tick and
+ * standings recompute from running alongside, so none can write the crew's history or stats back,
+ * and refreshes the live standings afterwards.
  */
 export async function removeCrew(teamId: string): Promise<void> {
   assertCrewId(teamId);
-  const authRef = db.doc(`_auth/${teamId}`);
-  const teamRef = db.doc(`teams/${teamId}`);
-  const [authSnap, teamSnap] = await Promise.all([authRef.get(), teamRef.get()]);
-  const isCrewLogin = authSnap.exists && (authSnap.data() as { role?: string }).role === 'team';
-  if (!isCrewLogin && !teamSnap.exists) throw crewError('not_found');
+  const crew = store.crews.get(teamId);
+  if (!crew) throw crewError('not_found');
 
-  if (isCrewLogin) await authRef.delete();
-  await revokeSessions(teamId);
-  await deleteTeamDoc(teamId);
+  // Signed out immediately, even though the row lives a moment longer.
+  store.crews.bumpTokenVersion(teamId);
   await settleTeamOrders(teamId);
-  await db.recursiveDelete(teamRef);
-  await db.doc(`_teamStats/${teamId}`).delete();
-  await deleteWhere('trades', 'teamId', teamId);
-  await deleteWhere('orders', 'teamId', teamId);
-  await removeFromLeaderboard(teamId);
+
+  store.tx(() => {
+    shiftSessionStartRanks(teamId, crew);
+    // Explicit, so a store that does not cascade still leaves no orphan position.
+    for (const h of store.holdings.forCrew(teamId) as Holding[]) store.holdings.remove(teamId, h.companyId);
+    // Takes the crew's holdings, history, stats, trades and orders with the row (spec §8): a crew
+    // re-created under the same slug must never inherit the old one's ledger.
+    store.crews.remove(teamId);
+  });
+  removeFromLeaderboard(teamId);
 }

@@ -4,8 +4,8 @@ import {
   DEFAULT_GAME_LENGTH_MS,
   DEFAULT_MAX_POSITION_PCT,
   DEFAULT_STARTING_CAPITAL,
-  HOUR_MS,
-  type HistoryChunk,
+  GAME_LENGTH_OPTIONS_MS,
+  deriveClock,
 } from '@deca/shared';
 import {
   compositeValue,
@@ -15,8 +15,6 @@ import {
   indexQuote,
   advanceSnapshot,
   marketBreadth,
-  appendChunk,
-  appendValue,
   crossedSession,
   newsDocId,
   normalizeSettings,
@@ -26,10 +24,8 @@ import {
   buildReveal,
   rankEntries,
   putSeriesValue,
-  seriesChunks,
-  seriesFromChunks,
-  commitInBatches,
-  commitWithTail,
+  seriesRows,
+  seriesFromValues,
   engineMessages,
   sessionStartRank,
   type Snapshot,
@@ -121,24 +117,7 @@ describe('loop helpers: company snapshot', () => {
   });
 });
 
-describe('loop helpers: history chunks and value series', () => {
-  it('appends prices per tick and opens a new chunk at the boundary', () => {
-    let c: HistoryChunk = { chunk: 0, startTick: 0, prices: [500], volumes: [0] };
-    for (let t = 1; t <= 119; t++) c = appendChunk(c, t, 500 + t, t);
-    expect(c.prices).toHaveLength(120); expect(c.prices[119]).toBe(619);
-    const next = appendChunk(c, 120, 777, 3);
-    expect(next).toEqual({ chunk: 1, startTick: 120, prices: [777], volumes: [3] });
-  });
-  it('forward-fills a gap and truncates a rewind', () => {
-    let c: HistoryChunk = { chunk: 0, startTick: 0, prices: [500], volumes: [0] };
-    c = appendChunk(c, 3, 520, 2);
-    expect(c.prices).toEqual([500, 500, 500, 520]); expect(c.volumes).toEqual([0, 0, 0, 2]);
-    c = appendChunk(c, 2, 510, 1);
-    expect(c.prices).toEqual([500, 500, 510]);
-    const v = appendValue({ chunk: 0, startTick: 0, values: [1000] }, 2, 1010.5);
-    expect(v.values).toEqual([1000, 1000, 1010.5]);
-    expect(appendValue(v, 120, 999)).toEqual({ chunk: 1, startTick: 120, values: [999] });
-  });
+describe('loop helpers: tick bookkeeping and value series', () => {
   it('detects session boundary crossings, including catch-up', () => {
     expect(crossedSession(undefined, 90, 90)).toBe(true);
     expect(crossedSession(undefined, 91, 90)).toBe(false);
@@ -146,20 +125,24 @@ describe('loop helpers: history chunks and value series', () => {
     expect(crossedSession(90, 95, 90)).toBe(false);
     expect(crossedSession(95, 95, 90)).toBe(false);
   });
-  it('team value series fills gaps, starts at the chunk start and splits into chunks', () => {
+  it('crew value series fills gaps, starts at the chunk start and turns into rows', () => {
     let s = putSeriesValue(undefined, 125, 5000);
     expect(s.start).toBe(120); expect(s.values).toEqual([5000, 5000, 5000, 5000, 5000, 5000]);
     s = putSeriesValue(s, 128, 5100);
     expect(s.values.slice(-3)).toEqual([5000, 5000, 5100]);
-    s = putSeriesValue(s, 241, 5200);
-    const chunks = seriesChunks(s, 126, 241);
-    expect(chunks.map((c) => [c.chunk, c.startTick, c.values.length])).toEqual([[1, 120, 120], [2, 240, 2]]);
-    expect(chunks[1]!.values).toEqual([5100, 5200]);
-    const back = seriesFromChunks([chunks[1]!, chunks[0]!]);
-    expect(back).toEqual(s);
-    expect(seriesFromChunks([])).toBeUndefined();
-    s = putSeriesValue(s, 130, 4000);
-    expect(s.start + s.values.length - 1).toBe(130);
+    // Rows are clamped to what the series covers: nothing before its start, nothing after its end.
+    expect(seriesRows(s, 126, 128)).toEqual([{ tick: 126, value: 5000 }, { tick: 127, value: 5000 }, { tick: 128, value: 5100 }]);
+    expect(seriesRows(s, 0, 1_000)).toHaveLength(9);
+    expect(seriesRows(s, 200, 300)).toEqual([]);
+    s = putSeriesValue(s, 126, 4000);
+    expect(s.start + s.values.length - 1).toBe(126);
+  });
+  it('a stored crew_history series round-trips through seriesFromValues', () => {
+    expect(seriesFromValues([])).toBeUndefined();
+    const s = seriesFromValues([10, 20, 30])!;
+    expect(s).toEqual({ start: 0, values: [10, 20, 30] });
+    expect(seriesRows(s, 0, 2)).toEqual([{ tick: 0, value: 10 }, { tick: 1, value: 20 }, { tick: 2, value: 30 }]);
+    expect(seriesFromValues([5, 6], 120)).toEqual({ start: 120, values: [5, 6] });
   });
   it('news ids are stable per source, tick, first company and sequence', () => {
     expect(newsDocId('scheduled', 12, 'kraken', 0)).toBe('scheduled-12-kraken-0');
@@ -174,7 +157,8 @@ describe('loop helpers: settings and state', () => {
       researchEdge: 'normal', maxPositionPct: DEFAULT_MAX_POSITION_PCT, currency: { name: 'Doubloons', symbol: 'Ð' },
     });
     expect(normalizeSettings({ gameLengthMs: 123, maxPositionPct: 0.25 }).gameLengthMs).toBe(DEFAULT_GAME_LENGTH_MS);
-    expect(normalizeSettings({ gameLengthMs: HOUR_MS, maxPositionPct: 0.25 })).toMatchObject({ gameLengthMs: HOUR_MS, maxPositionPct: 0.25 });
+    const shortest = GAME_LENGTH_OPTIONS_MS[0]!;
+    expect(normalizeSettings({ gameLengthMs: shortest, maxPositionPct: 0.25 })).toMatchObject({ gameLengthMs: shortest, maxPositionPct: 0.25 });
   });
   it('merges a settings input field by field, including currency parts', () => {
     const base = normalizeSettings(undefined);
@@ -183,12 +167,16 @@ describe('loop helpers: settings and state', () => {
     expect(base.currency.symbol).toBe('Ð');
   });
   it('lobby state carries the derived clock', () => {
-    const st = lobbyState(normalizeSettings({ gameLengthMs: HOUR_MS }), 42);
-    expect(st).toMatchObject({ phase: 'lobby', startAt: null, endAt: null, pausedAt: null, endedAt: null, currentTick: 0, tickIntervalMs: 5000, totalTicks: 720, sessionTicks: 90, serverTime: 42, lastTickAt: null, marketCreatedAt: 42, maxPositionPct: DEFAULT_MAX_POSITION_PCT });
+    const len = GAME_LENGTH_OPTIONS_MS[0]!;
+    const { tickIntervalMs, totalTicks, sessionTicks } = deriveClock(len);
+    const st = lobbyState(normalizeSettings({ gameLengthMs: len }), 42);
+    expect(st).toMatchObject({ phase: 'lobby', startAt: null, endAt: null, pausedAt: null, endedAt: null, currentTick: 0, tickIntervalMs, totalTicks, sessionTicks, serverTime: 42, lastTickAt: null, marketCreatedAt: 42, maxPositionPct: DEFAULT_MAX_POSITION_PCT });
   });
   it('normalizeState keeps persisted fields and rederives the clock from the length', () => {
-    const st = normalizeState({ phase: 'live', startAt: 10, endAt: 20, currentTick: 7, gameLengthMs: 2 * HOUR_MS, lastTickAt: 15, marketCreatedAt: 3 }, 99);
-    expect(st).toMatchObject({ phase: 'live', startAt: 10, endAt: 20, currentTick: 7, tickIntervalMs: 10_000, totalTicks: 720, lastTickAt: 15, marketCreatedAt: 3, maxPositionPct: DEFAULT_MAX_POSITION_PCT });
+    const len = GAME_LENGTH_OPTIONS_MS.at(-1)!;
+    const { tickIntervalMs, totalTicks, sessionTicks } = deriveClock(len);
+    const st = normalizeState({ phase: 'live', startAt: 10, endAt: 20, currentTick: 7, gameLengthMs: len, lastTickAt: 15, marketCreatedAt: 3 }, 99);
+    expect(st).toMatchObject({ phase: 'live', startAt: 10, endAt: 20, currentTick: 7, tickIntervalMs, totalTicks, sessionTicks, lastTickAt: 15, marketCreatedAt: 3, maxPositionPct: DEFAULT_MAX_POSITION_PCT });
     expect(normalizeState(undefined, 5)).toMatchObject({ phase: 'lobby', marketCreatedAt: 0, serverTime: 5 });
   });
 });
@@ -224,54 +212,7 @@ describe('loop helpers: reveal and standings', () => {
   });
 });
 
-describe('loop helpers: batching and messages', () => {
-  it('commits ops in batches of at most 450', async () => {
-    const commits: number[] = [];
-    const fakeDb = { batch: () => { let n = 0; return { set: () => { n++; }, commit: async () => { commits.push(n); } }; } };
-    const ops = Array.from({ length: 1000 }, () => (b: { set: () => void }) => b.set());
-    await commitInBatches(fakeDb as never, ops as never);
-    expect(commits).toEqual([450, 450, 100]);
-    commits.length = 0; await commitInBatches(fakeDb as never, []);
-    expect(commits).toEqual([]);
-  });
-  it('commitWithTail keeps every tail op in the last batch, after every other batch, for any op count', async () => {
-    for (const n of [0, 1, 2, 447, 448, 449, 450, 451, 898, 899, 900, 901, 1349]) {
-      const commits: string[][] = [];
-      const fakeDb = { batch: () => { const paths: string[] = []; return { set: (p: string) => { paths.push(p); }, commit: async () => { commits.push(paths); } }; } };
-      const ops = Array.from({ length: n }, (_, i) => (b: { set: (p: string) => void }) => b.set(`op${i}`));
-      const tail = ['_engine/state', 'game/state'].map((p) => (b: { set: (p: string) => void }) => b.set(p));
-      const count = await commitWithTail(fakeDb as never, ops as never, tail as never);
-      expect(count, `n=${n}`).toBe(commits.length);
-      expect(commits.every((c) => c.length <= 450), `n=${n}`).toBe(true);
-      expect(commits.flat(), `n=${n}`).toEqual([...Array.from({ length: n }, (_, i) => `op${i}`), '_engine/state', 'game/state']);
-      expect(commits.at(-1)!.slice(-2), `n=${n}`).toEqual(['_engine/state', 'game/state']);
-      expect(commits.slice(0, -1).flat().some((p) => !p.startsWith('op')), `n=${n}`).toBe(false);
-    }
-  });
-  it('commitWithTail: a batch that fails mid-way commits no tail op', async () => {
-    const committed: string[] = [];
-    let commitNo = 0;
-    const fakeDb = {
-      batch: () => {
-        const paths: string[] = [];
-        return {
-          set: (p: string) => { paths.push(p); },
-          commit: async () => {
-            if (++commitNo === 2) throw new Error('injected');
-            committed.push(...paths);
-          },
-        };
-      },
-    };
-    const ops = Array.from({ length: 1000 }, (_, i) => (b: { set: (p: string) => void }) => b.set(`op${i}`));
-    const tail = ['_engine/state', 'game/state'].map((p) => (b: { set: (p: string) => void }) => b.set(p));
-    await expect(commitWithTail(fakeDb as never, ops as never, tail as never)).rejects.toThrow('injected');
-    expect(committed).toHaveLength(450);
-    expect(committed).not.toContain('_engine/state');
-    expect(committed).not.toContain('game/state');
-    // A tail too big for one batch is a programming error, never a silent split.
-    await expect(commitWithTail(fakeDb as never, [], Array.from({ length: 451 }, () => tail[0]!) as never)).rejects.toThrow(/tail/);
-  });
+describe('loop helpers: engine messages', () => {
   it('uses the COPY.md wording for engine errors', () => {
     expect(engineMessages.marketClosed('lobby')).toBe('Trading opens when the host starts the game. You can research companies and preview orders now.');
     expect(engineMessages.marketClosed('paused')).toBe('The host has paused trading. We kept your order details, so you can place it as soon as trading resumes.');

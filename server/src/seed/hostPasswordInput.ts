@@ -1,6 +1,6 @@
 /**
  * Where `npm run set-host-password` gets the password: ADMIN_PASSWORD, or a hidden prompt asked twice.
- * Pure (no Firebase), so it is unit-tested; the CLI is src/seed/setHostPassword.ts.
+ * Pure (no database, no I/O), so it is unit-tested; the CLI is src/seed/setHostPassword.ts.
  */
 
 import { createInterface } from 'node:readline';

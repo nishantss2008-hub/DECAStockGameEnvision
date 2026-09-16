@@ -3,6 +3,7 @@ import {
   DEFAULT_MAX_POSITION_PCT,
   GAME_LENGTH_OPTIONS_MS,
   HOUR_MS,
+  MINUTE_MS,
   MODEL,
   POSITION_LIMIT_OPTIONS,
   SESSIONS_PER_GAME,
@@ -379,26 +380,24 @@ describe('impact, fill and order-limit contracts (review of 1b/1c)', () => {
 // ---------------------------------------------------------------- clock
 
 describe('clock for every game length option', () => {
+  // Every option is below the 5s tick floor, so the cadence is 5s throughout.
   const expected: Record<number, { tickIntervalMs: number; totalTicks: number; sessionTicks: number; tabs: string[] }> = {
-    1: { tickIntervalMs: 5_000, totalTicks: 720, sessionTicks: 90, tabs: ['5M', '15M', 'All'] },
-    2: { tickIntervalMs: 10_000, totalTicks: 720, sessionTicks: 90, tabs: ['5M', '15M', '1H', 'All'] },
-    4: { tickIntervalMs: 20_000, totalTicks: 720, sessionTicks: 90, tabs: ['5M', '15M', '1H', 'All'] },
-    8: { tickIntervalMs: 30_000, totalTicks: 960, sessionTicks: 120, tabs: ['5M', '15M', '1H', 'All'] },
-    12: { tickIntervalMs: 30_000, totalTicks: 1440, sessionTicks: 180, tabs: ['15M', '1H', '6H', 'All'] },
-    24: { tickIntervalMs: 30_000, totalTicks: 2880, sessionTicks: 360, tabs: ['15M', '1H', '6H', 'All'] },
-    48: { tickIntervalMs: 30_000, totalTicks: 5760, sessionTicks: 720, tabs: ['1H', '6H', '24H', 'All'] },
+    10: { tickIntervalMs: 5_000, totalTicks: 120, sessionTicks: 15, tabs: ['1M', '5M', 'All'] },
+    15: { tickIntervalMs: 5_000, totalTicks: 180, sessionTicks: 23, tabs: ['1M', '5M', 'All'] },
+    20: { tickIntervalMs: 5_000, totalTicks: 240, sessionTicks: 30, tabs: ['1M', '5M', 'All'] },
+    30: { tickIntervalMs: 5_000, totalTicks: 360, sessionTicks: 45, tabs: ['1M', '5M', '15M', 'All'] },
   };
 
-  it('covers exactly the seven options', () => {
-    expect(GAME_LENGTH_OPTIONS_MS).toEqual([1, 2, 4, 8, 12, 24, 48].map((h) => h * HOUR_MS));
+  it('covers exactly the four options', () => {
+    expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20, 30].map((m) => m * MINUTE_MS));
   });
 
   for (const len of GAME_LENGTH_OPTIONS_MS) {
-    const hours = len / HOUR_MS;
-    it(`derives a consistent clock for ${hours}h`, () => {
+    const minutes = len / MINUTE_MS;
+    it(`derives a consistent clock for ${minutes} minutes`, () => {
       const c = deriveClock(len);
-      const e = expected[hours]!;
-      expect(c).toEqual({ gameLengthMs: len, tickIntervalMs: e.tickIntervalMs, totalTicks: e.totalTicks, sessionTicks: e.sessionTicks, hours });
+      const e = expected[minutes]!;
+      expect(c).toEqual({ gameLengthMs: len, tickIntervalMs: e.tickIntervalMs, totalTicks: e.totalTicks, sessionTicks: e.sessionTicks, hours: len / HOUR_MS });
       expect(c.tickIntervalMs).toBe(Math.min(30_000, Math.max(5_000, Math.round(len / 720))));
       expect(c.totalTicks).toBe(Math.floor(len / c.tickIntervalMs));
       expect(c.sessionTicks).toBe(Math.max(1, Math.round(c.totalTicks / SESSIONS_PER_GAME)));

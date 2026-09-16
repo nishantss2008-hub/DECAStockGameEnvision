@@ -17,7 +17,7 @@ import {
 } from '@deca/shared';
 import type { ZodError } from 'zod';
 import { requireAdmin } from '../auth/middleware';
-import { db } from '../firebase';
+import { store } from '../store';
 import { engine, EngineError } from '../engine/loop';
 import { HOST_ERRORS } from '../lib/hostCopy';
 import { auditLog } from '../lib/logger';
@@ -230,10 +230,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.get('/admin/teams', { preHandler: requireAdmin }, async () => {
-    const snap = await db.collection('teams').get();
-    return { teams: snap.docs.map((d) => d.data()) };
-  });
+  app.get('/admin/teams', { preHandler: requireAdmin }, async () => ({ teams: store.crews.all() }));
 
   // ----- Market and news (host only: carries hidden quality and the schedule) ------------------
   app.get('/admin/market', { preHandler: requireAdmin }, async () => ({ rows: engine.adminMarket() }));
@@ -264,9 +261,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, tick: engine.state.currentTick };
   });
 
-  // ----- Audit log (server-only collection; admins read it through here) ----------------------
-  app.get('/admin/logs', { preHandler: requireAdmin }, async () => {
-    const snap = await db.collection('logs').orderBy('timestamp', 'desc').limit(200).get();
-    return { logs: snap.docs.map((d) => d.data()) };
-  });
+  // ----- Audit log (server-only table; admins read it through here) --------------------------
+  app.get('/admin/logs', { preHandler: requireAdmin }, async () => ({ logs: store.audit.recent(200) }));
 }

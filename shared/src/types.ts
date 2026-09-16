@@ -324,12 +324,6 @@ export interface Leaderboard {
   final?: { endedAt: number; entries: FinalEntry[] };
 }
 
-/** Custom claims attached to a Firebase Auth user. */
-export interface AuthClaims {
-  role: Role;
-  teamId?: string;
-}
-
 /** Standard JSON error envelope returned by the authority service. */
 export interface ApiError {
   error: string;

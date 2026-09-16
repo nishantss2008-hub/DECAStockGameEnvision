@@ -87,7 +87,7 @@ describe('deploy scripts', () => {
         expect(server.dependencies, `${spec} (imported by the server) must be a production dependency`).toHaveProperty(name);
       }
       if (entry === 'src/index.ts') {
-        expect([...packages].map(packageName)).toEqual(expect.arrayContaining(['fastify', 'firebase-admin', '@deca/shared']));
+        expect([...packages].map(packageName)).toEqual(expect.arrayContaining(['fastify', '@fastify/static', 'better-sqlite3', '@deca/shared']));
       }
     });
   }

@@ -29,6 +29,9 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
+server/data/
 
 # OS / editor
 .DS_Store

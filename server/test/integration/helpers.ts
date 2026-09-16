@@ -1,101 +1,112 @@
 /**
- * Shared helpers for the emulator integration tests (not a test file: vitest only collects *.int.test.ts).
+ * Shared setup for the integration suites (not a test file: vitest only collects *.int.test.ts).
  *
- * Everything here talks to the local emulators that setup.ts has already checked for; nothing reaches a real
- * project.
+ * Every suite drives the REAL stack — a real SQLite file on disk, the real store, the real engine
+ * loop, the real session tokens and the real Fastify app — with nothing mocked. No emulator, no
+ * network, no credentials: each suite opens its own database under the OS temp directory and
+ * deletes it afterwards.
  */
 
-import type { DocumentReference, WriteBatch } from 'firebase-admin/firestore';
-import { adminAuth, db } from '../../src/firebase';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { FastifyInstance } from 'fastify';
+import { openStore, store, useStore, type Store } from '../../src/store';
+import { resetSessionSecretCache } from '../../src/auth/sessions';
+import { resetLeaderboardCache } from '../../src/services/leaderboard';
+import { createMarket } from '../../src/services/market';
+import { createCrew } from '../../src/services/crews';
+import { closeAll } from '../../src/realtime/hub';
 
-export const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function data<T>(path: string): Promise<T | undefined> {
-  return (await db.doc(path).get()).data() as T | undefined;
-}
-
-/** Wipes every document in the emulator project (setup.ts guarantees a local demo- emulator). */
-export async function clearEmulator(): Promise<void> {
-  const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const project = process.env.GCLOUD_PROJECT;
-  const res = await fetch(`http://${host}/emulator/v1/projects/${project}/databases/(default)/documents`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`could not clear the Firestore emulator: HTTP ${res.status}`);
-}
-
-/** Exchanges a custom token at the Auth emulator for an ID token (what a browser does after /auth/login). */
-export async function idTokenFor(customToken: string): Promise<string> {
-  const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
-  if (!host) throw new Error('FIREBASE_AUTH_EMULATOR_HOST is not set');
-  const res = await fetch(`http://${host}/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=demo-api-key`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ token: customToken, returnSecureToken: true }),
-  });
-  const body = (await res.json()) as { idToken?: string };
-  if (!body.idToken) throw new Error(`Auth emulator sign-in failed: ${JSON.stringify(body)}`);
-  return body.idToken;
-}
-
-/** An ID token for a crew or the host, minted directly (skips the password check). */
-export async function tokenFor(uid: string): Promise<string> {
-  const claims = uid === 'admin' ? { role: 'admin' } : { role: 'team', teamId: uid };
-  return idTokenFor(await adminAuth.createCustomToken(uid, claims));
+/** A temp database that survives a "restart": closing and reopening keeps the same file. */
+export interface TempDb {
+  /** The open store — read it again after `reopen()`, which replaces it. */
+  store(): Store;
+  file: string;
+  /** Closes the store and opens the same FILE again, as a process restart would. */
+  reopen(): Store;
+  cleanup(): void;
 }
 
 /**
- * Makes the next batch commit that writes `path` fail, as if the process died before that batch reached
- * Firestore (earlier batches of the same logical commit still land). Returns a function that removes the hook.
+ * Opens a fresh database file and installs it as the process store, so the engine singleton, the
+ * services and the routes all read and write it.
  */
-export function crashCommitWriting(path: string): () => void {
-  const original = db.batch.bind(db);
-  let armed = true;
-  const hooked = db as unknown as { batch: () => WriteBatch };
-  hooked.batch = () => {
-    const real = original();
-    const paths: string[] = [];
-    const proxy: WriteBatch = new Proxy(real, {
-      get(target, prop) {
-        if (prop === 'set' || prop === 'update' || prop === 'delete' || prop === 'create') {
-          return (ref: DocumentReference, ...rest: unknown[]) => {
-            paths.push(ref.path);
-            (target as unknown as Record<string, (...a: unknown[]) => unknown>)[prop]!(ref, ...rest);
-            return proxy;
-          };
-        }
-        if (prop === 'commit') {
-          return async () => {
-            if (armed && paths.includes(path)) {
-              armed = false;
-              throw new Error(`injected crash before the batch writing ${path}`);
-            }
-            return target.commit();
-          };
-        }
-        const value = Reflect.get(target, prop, target) as unknown;
-        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
-      },
-    });
-    return proxy;
-  };
-  return () => {
-    delete (db as unknown as { batch?: unknown }).batch;
+export function tempDb(label: string): TempDb {
+  const dir = mkdtempSync(join(tmpdir(), `bx-${label}-`));
+  const file = join(dir, 'game.db');
+  let open = openStore(file);
+  useStore(open);
+  resetSessionSecretCache();
+  resetLeaderboardCache();
+
+  return {
+    file,
+    store: () => open,
+    reopen(): Store {
+      open.close();
+      open = openStore(file);
+      useStore(open);
+      // A restart keeps the session secret: it lives in `meta`, not in memory.
+      resetSessionSecretCache();
+      resetLeaderboardCache();
+      return open;
+    },
+    cleanup(): void {
+      closeAll();
+      try {
+        open.close();
+      } catch {
+        /* already closed */
+      }
+      useStore(null);
+      rmSync(dir, { recursive: true, force: true });
+    },
   };
 }
 
-/** Paths of every document under `root` (a doc or collection path), at any depth. */
-export async function pathsUnder(root: string): Promise<string[]> {
-  const out: string[] = [];
-  const walkDoc = async (ref: DocumentReference): Promise<void> => {
-    if ((await ref.get()).exists) out.push(ref.path);
-    for (const col of await ref.listCollections()) {
-      for (const doc of await col.listDocuments()) await walkDoc(doc);
-    }
-  };
-  const segments = root.split('/').length;
-  if (segments % 2 === 0) {
-    await walkDoc(db.doc(root));
-  } else {
-    for (const doc of await db.collection(root).listDocuments()) await walkDoc(doc);
+export const HOST_PASSWORD = 'anchor-chain-99';
+export const CREW_PASSWORD = 'kraken-tide-42';
+
+export interface SeededWorld {
+  seed: string;
+  companyIds: string[];
+}
+
+/** A fresh market in the lobby plus the given crews, exactly as `npm run seed` + the host console make. */
+export async function seedWorld(
+  opts: { seed: string; crews: string[]; settings?: Parameters<typeof createMarket>[0]['settings'] },
+): Promise<SeededWorld> {
+  await createMarket({
+    seed: opts.seed,
+    keepCrews: false,
+    adminPassword: HOST_PASSWORD,
+    settings: opts.settings,
+  });
+  // `store` is the process proxy: it always resolves the store `tempDb` installed.
+  const startingCapital = store.game.get()?.startingCapital ?? 1_000_000;
+  for (const name of opts.crews) await createCrew(name, CREW_PASSWORD, startingCapital);
+  return { seed: opts.seed, companyIds: store.companies.all().map((c) => c.id) };
+}
+
+/** `POST /auth/login`, returning the token a phone would keep. */
+export async function login(app: FastifyInstance, name: string, password: string): Promise<string> {
+  const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { name, password } });
+  if (res.statusCode !== 200) throw new Error(`login failed for ${name}: ${res.statusCode} ${res.body}`);
+  return (res.json() as { token: string }).token;
+}
+
+export const bearer = (token: string): Record<string, string> => ({ authorization: `Bearer ${token}` });
+
+/** Drives the engine forward `count` ticks from the game's start, as the interval timer would. */
+export async function runTicks(
+  engineLike: { state: { startAt: number | null; tickIntervalMs: number; currentTick: number }; tickOnce(now: number): Promise<void> },
+  count: number,
+): Promise<void> {
+  const start = engineLike.state.startAt;
+  if (start === null) throw new Error('runTicks: the game has not started');
+  const target = engineLike.state.currentTick + count;
+  for (let tick = engineLike.state.currentTick + 1; tick <= target; tick += 1) {
+    await engineLike.tickOnce(start + tick * engineLike.state.tickIntervalMs);
   }
-  return out.sort();
 }

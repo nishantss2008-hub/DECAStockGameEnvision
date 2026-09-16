@@ -2,15 +2,16 @@
  * Seed CLI: creates a fresh market in the lobby (thin wrapper over services/market).
  *
  * Existing crews are kept and reset to the starting capital. The game seed comes
- * from GAME_SEED or is generated and stored server-only; the admin password comes
- * from ADMIN_PASSWORD, or is generated when no admin login exists yet.
+ * from GAME_SEED or is generated and stored server-only in `meta.seed`; the host
+ * password comes from ADMIN_PASSWORD, or is generated when no host login exists yet.
  *
  * Run: `npm run seed -w @deca/server`  (set GAME_SEED / ADMIN_PASSWORD as needed)
- * For local runs, point FIRESTORE_EMULATOR_HOST at the emulator first.
+ * The database file is DB_FILE, default ./data/game.db — stop the server first.
  */
 
 import { config } from '../config';
 import { createMarket } from '../services/market';
+import { closeStore } from '../store';
 
 async function seed(): Promise<void> {
   const result = await createMarket({
@@ -21,6 +22,7 @@ async function seed(): Promise<void> {
 
   console.log(`Seeded ${result.companies} companies. The game is in the lobby.`);
   console.log('   ────────────────────────────────────────────────');
+  console.log(`   Database:          ${config.dbFile}`);
   console.log('   Admin/host login:  name "admin"');
   if (result.generatedAdminPassword) {
     console.log(`   Admin password:    ${result.generatedAdminPassword}   (generated — save this!)`);
@@ -35,7 +37,10 @@ async function seed(): Promise<void> {
 }
 
 seed()
-  .then(() => process.exit(0))
+  .then(() => {
+    closeStore();
+    process.exit(0);
+  })
   .catch((err) => {
     console.error(err);
     process.exit(1);

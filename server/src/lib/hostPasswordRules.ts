@@ -1,4 +1,4 @@
-/** Host password bounds, shared by the boot hook, the CLI and its prompt (no Firebase import). */
+/** Host password bounds, shared by the boot hook, the CLI and its prompt (no store import). */
 
 /** Same bounds as a crew password (resetPasswordSchema). */
 export const HOST_PASSWORD_MIN = 4;

@@ -1,277 +1,152 @@
 /**
- * Resume safety on the emulator (spec §5.5).
+ * Crash and resume on a real database file: the server is killed mid-game and started again on the
+ * same `DB_FILE`, as a redeploy or an OOM kill would do.
  *
- * The same scripted game (one seed, the same orders at the same ticks) runs three times:
- *   1. control: one engine instance, never stopped
- *   2. restart: the singleton engine is stopped mid-game with an order still pending
- *      (traded but not yet drained into the impact term), then a NEW GameEngine loads
- *      from Firestore and finishes the script
- *   3. recovery: like 2, but `_engine/state` is deleted before the reload, so fair value
- *      is replayed from tick 0 and impact is recovered from the rounded prices
+ * What must survive: the phase and tick, every price, the crews' cash, holdings and ledger, the
+ * standings, the sessions already issued — and the impact of trades that filled AFTER the last
+ * committed tick, which the resumed engine rebuilds from `trades.sinceTick`.
  *
- * The restart must be exact: every price, fill, cash balance, history chunk, news doc,
- * standing and the persisted engine state match the control run. The recovery path
- * replays v, h and m exactly; impact comes back from rounded prices, so prices stay
- * within one cent.
- *
- * Only data that does not depend on wall-clock time is compared (no timestamps or ids).
+ * The prices after a restart are compared against a control run of the SAME seed that never
+ * restarted: resume must change nothing about the market.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  HOUR_MS,
-  estFillPrice,
-  intervalShareCap,
-  type HistoryChunk,
-  type Holding,
-  type Leaderboard,
-  type NewsEvent,
-  type OrderSide,
-  type Team,
-  type Trade,
-  type ValueChunk,
-} from '@deca/shared';
-import { db, emulatorMode } from '../../src/firebase';
-import { GameEngine, engine as singleton } from '../../src/engine/loop';
-import { createMarket } from '../../src/services/market';
-import { createCrew } from '../../src/services/crews';
+import { afterEach, describe, expect, it } from 'vitest';
+import { GAME_LENGTH_OPTIONS_MS } from '@deca/shared';
+import { GameEngine } from '../../src/engine/loop';
 import { executeOrder } from '../../src/services/trading';
-import { resetLeaderboardCache } from '../../src/services/leaderboard';
+import { store } from '../../src/store';
+import { verifyToken } from '../../src/auth/sessions';
+import { buildServer } from '../../src/index';
+import { CREW_PASSWORD, HOST_PASSWORD, bearer, login, runTicks, seedWorld, tempDb, type TempDb } from './helpers';
 
-const SEED = 'resume-int-3b9d';
-const CREW = 'resume-crew';
-const CAPITAL = 20_000_000_000; // 200M Ð: orders big enough to move prices by whole cents stay affordable
-
-type CompanyState = { v: number; m: number; f: number; h: number };
-type EngineDoc = { lastTick: number; hM: number; companies: Record<string, CompanyState> };
-
-type Step =
-  | { kind: 'tick'; to: number }
-  | { kind: 'order'; label: string; orders: Array<{ co: 'a' | 'b'; side: OrderSide; frac: number }> };
-
+const SEED = 'integration-resume-seed';
+const SHORT_GAME = GAME_LENGTH_OPTIONS_MS[0]!;
+const TICKS_BEFORE = 4;
 /**
- * Orders at tick 0, 2, 5 (left pending across the restart), 5 again after the restart,
- * and 9; ticks include multi-tick catch-ups (2 → 5, 6 → 9).
+ * Deep pockets on purpose: only an order worth a noticeable slice of a company's average daily
+ * volume moves the price at all, and the pending-flow rebuild is only observable when it does.
  */
-const SCRIPT: Step[] = [
-  { kind: 'order', label: 'order@0', orders: [{ co: 'a', side: 'buy', frac: 0.3 }] },
-  { kind: 'tick', to: 2 },
-  { kind: 'order', label: 'order@2', orders: [{ co: 'b', side: 'buy', frac: 0.3 }, { co: 'a', side: 'sell', frac: 0.05 }] },
-  { kind: 'tick', to: 5 },
-  { kind: 'order', label: 'order@5', orders: [{ co: 'a', side: 'buy', frac: 0.2 }, { co: 'b', side: 'sell', frac: 0.1 }] },
-  { kind: 'order', label: 'order@5-after', orders: [{ co: 'a', side: 'buy', frac: 0.1 }] },
-  { kind: 'tick', to: 6 },
-  { kind: 'tick', to: 9 },
-  { kind: 'order', label: 'order@9', orders: [{ co: 'a', side: 'sell', frac: 0.15 }] },
-  { kind: 'tick', to: 12 },
-];
+const STARTING_CAPITAL = 1_000_000_000_00;
+const BIG_ORDER = 200_000;
+const TICKS_AFTER = 3;
 
-interface Checkpoint {
-  label: string;
-  tick: number;
-  prices: Record<string, number>;
+let db: TempDb | null = null;
+
+afterEach(() => {
+  db?.cleanup();
+  db = null;
+});
+
+/** A seeded, started game with one crew, driven to `TICKS_BEFORE`. */
+async function gameAtTick4(label: string): Promise<GameEngine> {
+  db = tempDb(label);
+  await seedWorld({ seed: SEED, crews: ['Saltwind'], settings: { gameLengthMs: SHORT_GAME, startingCapital: STARTING_CAPITAL } });
+  const engine = new GameEngine();
+  await engine.load();
+  await engine.startGame();
+  await runTicks(engine, TICKS_BEFORE);
+  return engine;
 }
 
-interface RunResult {
-  checkpoints: Checkpoint[];
-  /** Quote for the first post-restart order, taken just before it was placed. */
-  quoteAfterRestart: ReturnType<GameEngine['quote']>;
-  fills: Array<Omit<Trade, 'id' | 'executedAt' | 'clientOrderId'>>;
-  engineDoc: EngineDoc;
-  chunks: Record<string, HistoryChunk>;
-  composite: number[];
-  news: Array<Omit<NewsEvent, 'firedAt'>>;
-  team: Pick<Team, 'cashBalance' | 'totalValue' | 'realizedPnl' | 'feesPaid' | 'tradeCount' | 'holdingsCount' | 'rank'>;
-  holdings: Holding[];
-  teamValues: number[];
-  teamStats: { exposure: number; weight: number; lastTick: number };
-  standings: Array<Pick<Leaderboard['entries'][number], 'teamId' | 'totalValue' | 'returnPct' | 'cashPct' | 'spark' | 'rank'>>;
-}
+const pricesNow = (): Record<string, number> =>
+  Object.fromEntries(store.companies.all().map((c) => [c.id, c.currentPrice]));
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+describe('resume from the database file', () => {
+  it('a restarted engine picks up the phase, tick, prices, crews and standings it left behind', async () => {
+    const before = await gameAtTick4('resume-state');
+    const app = await buildServer({ logger: false });
+    const token = await login(app, 'Saltwind', CREW_PASSWORD);
+    const company = store.companies.all()[0]!.id;
+    await executeOrder(before, 'saltwind', { companyId: company, side: 'buy', quantity: 80, clientOrderId: 'before-crash' });
 
-async function data<T>(path: string): Promise<T | undefined> {
-  return (await db.doc(path).get()).data() as T | undefined;
-}
+    const snapshot = {
+      tick: before.state.currentTick,
+      prices: pricesNow(),
+      cash: store.crews.get('saltwind')!.cashBalance,
+      holding: store.holdings.get('saltwind', company)!.shares,
+      leaderboard: store.leaderboard.get(),
+      trades: store.trades.forCrew('saltwind', 50).map((t) => t.id),
+    };
+    await app.close();
 
-async function clearEmulator(): Promise<void> {
-  const host = process.env.FIRESTORE_EMULATOR_HOST;
-  const project = process.env.GCLOUD_PROJECT;
-  const res = await fetch(`http://${host}/emulator/v1/projects/${project}/databases/(default)/documents`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`could not clear the Firestore emulator: HTTP ${res.status}`);
-}
+    // ── the process dies here; another one opens the same file ──
+    db!.reopen();
+    const after = new GameEngine();
+    await after.load();
 
-async function runScript(mode: 'control' | 'restart' | 'recovery'): Promise<RunResult> {
-  await clearEmulator();
-  resetLeaderboardCache();
-  await createMarket({
-    seed: SEED,
-    keepCrews: false,
-    adminPassword: 'pw',
-    settings: { gameLengthMs: HOUR_MS, startingCapital: CAPITAL, maxPositionPct: 1 },
-  });
-  await createCrew('Resume Crew', 'pass', CAPITAL);
+    expect(after.state.phase).toBe('live');
+    expect(after.state.currentTick).toBe(snapshot.tick);
+    expect(pricesNow()).toEqual(snapshot.prices);
+    expect(store.crews.get('saltwind')!.cashBalance).toBe(snapshot.cash);
+    expect(store.holdings.get('saltwind', company)!.shares).toBe(snapshot.holding);
+    expect(store.leaderboard.get()).toEqual(snapshot.leaderboard);
+    expect(store.trades.forCrew('saltwind', 50).map((t) => t.id)).toEqual(snapshot.trades);
 
-  // The control run uses its own instance; the interrupted runs start on the process singleton.
-  let eng: GameEngine = mode === 'control' ? new GameEngine() : singleton;
-  await eng.load(); // load() never starts the wall-clock timer
-  await eng.startGame();
-  expect(eng.state).toMatchObject({ phase: 'live', startingCapital: CAPITAL, maxPositionPct: 1 });
-  const { startAt, tickIntervalMs } = eng.state as { startAt: number; tickIntervalMs: number };
-
-  // Two liquid-enough companies with the smallest one-interval notional, so the orders are affordable.
-  const byCost = [...eng.companies()].sort(
-    (x, y) => intervalShareCap(x.sharesOutstanding) * x.startPriceCents - intervalShareCap(y.sharesOutstanding) * y.startPriceCents,
-  );
-  const ids = { a: byCost[0]!.id, b: byCost[1]!.id };
-  const qty = (co: 'a' | 'b', frac: number) => Math.max(1, Math.floor(frac * intervalShareCap(eng.getCompany(ids[co])!.sharesOutstanding)));
-
-  const checkpoints: Checkpoint[] = [];
-  const snapshotPrices = (label: string) =>
-    checkpoints.push({ label, tick: eng.state.currentTick, prices: Object.fromEntries(eng.companies().map((c) => [c.id, eng.getPrice(c.id)])) });
-  let quoteAfterRestart: RunResult['quoteAfterRestart'] | undefined;
-  let n = 0;
-
-  for (const step of SCRIPT) {
-    if (step.kind === 'tick') {
-      await eng.tickOnce(startAt + step.to * tickIntervalMs + 10);
-      expect(eng.state.currentTick).toBe(step.to);
-      snapshotPrices(`tick ${step.to}`);
-      await sleep(5); // orders after a tick are priced strictly after its lastTickAt
-      continue;
-    }
-
-    if (step.label === 'order@5-after' && mode !== 'control') {
-      // ─── Restart: stop mid-game with the order@5 flow still pending, then load a new instance. ───
-      await eng.stop();
-      if (mode === 'recovery') await db.doc('_engine/state').delete();
-      resetLeaderboardCache(); // a real restart has no in-memory standings either
-      const pendingState = (await data<EngineDoc>('_engine/state'))?.companies[ids.a];
-      eng = new GameEngine();
-      await eng.load();
-      expect(eng.state).toMatchObject({ phase: 'live', currentTick: 5, startAt });
-
-      if (mode === 'restart') {
-        // Sensitivity: the rebuilt pending flow must be priced in (a quote without it differs).
-        const c = eng.getCompany(ids.a)!;
-        const s = pendingState!;
-        const q = qty('a', 0.1);
-        const withoutPending = estFillPrice('buy', Math.exp(s.v + s.m + s.f), c.lambda, q, 0);
-        expect(Math.abs(eng.quote(ids.a, 'buy', q, CREW).fillPrice / withoutPending - 1)).toBeGreaterThan(1e-4);
-      }
-    }
-
-    if (step.label === 'order@5-after') {
-      const o = step.orders[0]!;
-      quoteAfterRestart = eng.quote(ids[o.co], o.side, qty(o.co, o.frac), CREW);
-    }
-    for (const o of step.orders) {
-      await executeOrder(eng, CREW, { companyId: ids[o.co], side: o.side, quantity: qty(o.co, o.frac), clientOrderId: `resume-${n++}` });
-    }
-    snapshotPrices(step.label);
-  }
-
-  const engineDoc = (await data<EngineDoc>('_engine/state'))!;
-  const chunks: Record<string, HistoryChunk> = {};
-  for (const c of eng.companies()) chunks[c.id] = (await data<HistoryChunk>(`companies/${c.id}/history/0`))!;
-  const trades = (await db.collection('trades').where('teamId', '==', CREW).get()).docs
-    .map((d) => d.data() as Trade)
-    .sort((x, y) => Number(x.clientOrderId.split('-')[1]) - Number(y.clientOrderId.split('-')[1]));
-  const team = (await data<Team>(`teams/${CREW}`))!;
-  const board = (await data<Leaderboard>('leaderboard/current'))!;
-  const stats = (await data<RunResult['teamStats']>(`_teamStats/${CREW}`))!;
-
-  const result: RunResult = {
-    checkpoints,
-    quoteAfterRestart: quoteAfterRestart!,
-    fills: trades.map(({ id: _id, executedAt: _at, clientOrderId: _c, ...rest }) => rest),
-    engineDoc,
-    chunks,
-    composite: (await data<ValueChunk>('market/summary/history/0'))!.values,
-    news: (await db.collection('news').get()).docs
-      .map((d) => {
-        const { firedAt: _f, ...rest } = d.data() as NewsEvent;
-        return rest;
-      })
-      .sort((x, y) => (x.id < y.id ? -1 : 1)),
-    team: {
-      cashBalance: team.cashBalance,
-      totalValue: team.totalValue,
-      realizedPnl: team.realizedPnl,
-      feesPaid: team.feesPaid,
-      tradeCount: team.tradeCount,
-      holdingsCount: team.holdingsCount,
-      rank: team.rank,
-    },
-    holdings: (await db.collection(`teams/${CREW}/holdings`).get()).docs.map((d) => d.data() as Holding).sort((x, y) => (x.companyId < y.companyId ? -1 : 1)),
-    teamValues: (await data<ValueChunk>(`teams/${CREW}/history/0`))!.values,
-    teamStats: { exposure: stats.exposure, weight: stats.weight, lastTick: stats.lastTick },
-    standings: board.entries.map(({ teamId, totalValue, returnPct, cashPct, spark, rank }) => ({ teamId, totalValue, returnPct, cashPct, spark, rank })),
-  };
-  await eng.stop();
-  return result;
-}
-
-describe('engine resume on the emulator', () => {
-  let control: RunResult;
-
-  beforeAll(async () => {
-    expect(emulatorMode).toBe(true);
-    expect(process.env.GCLOUD_PROJECT).toMatch(/^demo-/);
-    await singleton.stop();
-    control = await runScript('control');
+    // The session secret lives in `meta`, so a token issued before the restart still authenticates.
+    const restarted = await buildServer({ logger: false });
+    expect(verifyToken(token)).toMatchObject({ role: 'team', teamId: 'saltwind' });
+    const res = await restarted.inject({ method: 'GET', url: '/api/portfolio', headers: bearer(token) });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { team: { id: string } }).team.id).toBe('saltwind');
+    await restarted.close();
+    await after.stop();
   });
 
-  afterAll(async () => {
-    await singleton.stop();
-    await db.terminate();
+  it('rebuilds the flow of trades filled after the last committed tick, so prices match a run that never crashed', async () => {
+    // ── control: one uninterrupted process ──
+    const control = await gameAtTick4('resume-control');
+    const company = store.companies.all()[0]!.id;
+    await executeOrder(control, 'saltwind', { companyId: company, side: 'buy', quantity: BIG_ORDER, clientOrderId: 'after-tick-4' });
+    await runTicks(control, TICKS_AFTER);
+    const expected = pricesNow();
+    const expectedTick = control.state.currentTick;
+    await control.stop();
+    db!.cleanup();
+    db = null;
+
+    // Guard against a vacuous comparison: without that trade the same seed ends somewhere else,
+    // so an engine that dropped the pending flow on resume WOULD fail the assertion below.
+    const untraded = await gameAtTick4('resume-untraded');
+    await runTicks(untraded, TICKS_AFTER);
+    expect(pricesNow()).not.toEqual(expected);
+    await untraded.stop();
+    db!.cleanup();
+    db = null;
+
+    // ── the same game, with a restart between the trade and the next tick ──
+    const crashed = await gameAtTick4('resume-crashed');
+    expect(company).toBe(store.companies.all()[0]!.id);
+    await executeOrder(crashed, 'saltwind', { companyId: company, side: 'buy', quantity: BIG_ORDER, clientOrderId: 'after-tick-4' });
+    await crashed.stop();
+
+    db!.reopen();
+    const resumed = new GameEngine();
+    await resumed.load();
+    expect(resumed.state.currentTick).toBe(TICKS_BEFORE);
+    await runTicks(resumed, TICKS_AFTER);
+
+    expect(resumed.state.currentTick).toBe(expectedTick);
+    // The trade's impact is applied exactly once: not lost, and not replayed on top of itself.
+    expect(pricesNow()).toEqual(expected);
+    await resumed.stop();
   });
 
-  it('the control run trades and moves prices (the scenario is not trivial)', () => {
-    expect(control.fills).toHaveLength(7);
-    expect(control.checkpoints.at(-1)!.tick).toBe(12);
-    expect(control.team.tradeCount).toBe(7);
-    expect(control.chunks[control.fills[0]!.companyId]!.prices).toHaveLength(13);
-    expect(control.chunks[control.fills[0]!.companyId]!.volumes.some((v) => v > 0)).toBe(true);
-    expect(control.engineDoc.lastTick).toBe(12);
-    // The orders are large enough that impact shows up in whole cents: f is not negligible.
-    const f = Math.abs(control.engineDoc.companies[control.fills[0]!.companyId]!.f);
-    expect(f).toBeGreaterThan(1e-3);
-  });
+  it('keeps the host login and the game seed server-side across a restart', async () => {
+    const engine = await gameAtTick4('resume-host');
+    await engine.stop();
+    db!.reopen();
+    const after = new GameEngine();
+    await after.load();
 
-  it('stop mid-game + a new GameEngine instance continues exactly like the uninterrupted run', async () => {
-    const resumed = await runScript('restart');
+    const app = await buildServer({ logger: false });
+    const host = await login(app, 'admin', HOST_PASSWORD);
+    expect(verifyToken(host)).toMatchObject({ role: 'admin' });
 
-    expect(resumed.checkpoints).toEqual(control.checkpoints);
-    expect(resumed.quoteAfterRestart).toEqual(control.quoteAfterRestart); // pending flow and interval use were rebuilt
-    expect(resumed.fills).toEqual(control.fills);
-    expect(resumed.engineDoc).toEqual(control.engineDoc);
-    expect(resumed.chunks).toEqual(control.chunks);
-    expect(resumed.composite).toEqual(control.composite);
-    expect(resumed.news).toEqual(control.news);
-    expect(resumed.team).toEqual(control.team);
-    expect(resumed.holdings).toEqual(control.holdings);
-    expect(resumed.teamValues).toEqual(control.teamValues);
-    expect(resumed.teamStats).toEqual(control.teamStats);
-    expect(resumed.standings).toEqual(control.standings);
-  });
-
-  it('with _engine/state lost, the reload replays fair value exactly and recovers impact to within a cent', async () => {
-    const recovered = await runScript('recovery');
-
-    expect(recovered.engineDoc.lastTick).toBe(control.engineDoc.lastTick);
-    expect(recovered.engineDoc.hM).toBe(control.engineDoc.hM);
-    for (const [id, s] of Object.entries(control.engineDoc.companies)) {
-      const r = recovered.engineDoc.companies[id]!;
-      expect({ id, v: r.v, m: r.m, h: r.h }).toEqual({ id, v: s.v, m: s.m, h: s.h });
-      expect(Math.abs(r.f - s.f), id).toBeLessThan(1e-3);
-    }
-    expect(recovered.checkpoints.map((c) => [c.label, c.tick])).toEqual(control.checkpoints.map((c) => [c.label, c.tick]));
-    recovered.checkpoints.forEach((cp, i) => {
-      for (const [id, price] of Object.entries(control.checkpoints[i]!.prices)) {
-        expect(Math.abs(cp.prices[id]! - price), `${cp.label} ${id}`).toBeLessThanOrEqual(1);
-      }
-    });
-    expect(recovered.fills.map((t) => [t.companyId, t.side, t.quantity, t.tick])).toEqual(control.fills.map((t) => [t.companyId, t.side, t.quantity, t.tick]));
+    // The seed is stored, and no response carries it.
+    expect(store.meta.get('seed')).toBe(SEED);
+    const bootstrap = await app.inject({ method: 'GET', url: '/api/bootstrap', headers: bearer(host) });
+    expect(JSON.stringify(bootstrap.json())).not.toContain(SEED);
+    await app.close();
+    await after.stop();
   });
 });

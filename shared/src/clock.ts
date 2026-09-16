@@ -3,7 +3,7 @@
  * count and 8 equal trading sessions (spec §5.1).
  */
 
-import { HISTORY_CHUNK, HOUR_MS, SESSIONS_PER_GAME } from './constants.js';
+import { HISTORY_CHUNK, HOUR_MS, MINUTE_MS, SESSIONS_PER_GAME } from './constants.js';
 import { clamp } from './mathx.js';
 
 export interface GameClock {
@@ -55,8 +55,8 @@ export interface RangeTab {
   ticks: number | null;
 }
 
-const MINUTE_MS = 60_000;
 const RANGE_CANDIDATES: { key: string; label: string; ms: number }[] = [
+  { key: '1m', label: '1M', ms: MINUTE_MS },
   { key: '5m', label: '5M', ms: 5 * MINUTE_MS },
   { key: '15m', label: '15M', ms: 15 * MINUTE_MS },
   { key: '1h', label: '1H', ms: HOUR_MS },

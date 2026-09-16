@@ -1,15 +1,19 @@
 /**
- * Custom-token login. Teams/admin authenticate with a name + password; the server
- * verifies a hashed password stored in the server-only `_auth` collection and
- * mints a Firebase CUSTOM TOKEN (signed locally with the service account — no
- * Firebase user accounts, no email/password provider). The client exchanges it via
- * signInWithCustomToken, and the developer claims (role/teamId) flow into the ID
- * token so the existing Firestore rules + auth middleware keep working unchanged.
+ * Login. A crew (or the host) signs in with a name and password; the server checks the scrypt hash
+ * it stores — `crews.password_hash` for a crew, `meta.admin_password_hash` for the host — and
+ * issues its own HS256 session token (auth/sessions.ts). There is no identity provider and no
+ * account to create: the roster is the crews the host made.
+ *
+ * The answer is `{ token, role, teamId, expiresAt }`; the client keeps the token and sends it as
+ * `Authorization: Bearer`. A wrong name and a wrong password give the same message, so the form
+ * never reveals which crews exist.
  */
 
 import type { FastifyInstance } from 'fastify';
-import { loginSchema, slugifyTeamName } from '@deca/shared';
-import { adminAuth, db } from '../firebase';
+import { loginSchema, slugifyTeamName, type Role } from '@deca/shared';
+import { store } from '../store';
+import { hostPasswordHash } from '../services/hostPassword';
+import { currentTokenVersion, issueToken } from '../auth/sessions';
 import { verifyPassword } from '../lib/password';
 import { auditLog } from '../lib/logger';
 
@@ -25,17 +29,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!slug) return reply.code(400).send({ error: 'bad_name', message: 'Invalid name' });
 
     const isAdmin = slug === ADMIN_SLUG;
-    const snap = await db.doc(isAdmin ? '_auth/_admin' : `_auth/${slug}`).get();
-    const data = snap.data() as { passwordHash?: string } | undefined;
+    const hash = isAdmin ? hostPasswordHash() : store.crews.passwordHash(slug);
     // Generic failure message — never reveal whether the crew exists.
-    if (!data?.passwordHash || !verifyPassword(parsed.data.password, data.passwordHash)) {
+    if (!hash || !verifyPassword(parsed.data.password, hash)) {
       return reply.code(401).send({ error: 'bad_login', message: 'Wrong crew name or password' });
     }
 
-    const uid = isAdmin ? 'admin' : slug;
-    const claims = isAdmin ? { role: 'admin' } : { role: 'team', teamId: slug };
-    const token = await adminAuth.createCustomToken(uid, claims);
-    await auditLog('auth.login', uid, { role: claims.role });
-    return { token };
+    const role: Role = isAdmin ? 'admin' : 'team';
+    const teamId = isAdmin ? undefined : slug;
+    const { token, expiresAt } = issueToken({ role, teamId, tokenVersion: currentTokenVersion(role, teamId) });
+    await auditLog('auth.login', isAdmin ? 'admin' : slug, { role });
+    return { token, role, teamId, expiresAt };
   });
 }
