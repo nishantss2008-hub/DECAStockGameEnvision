@@ -45,7 +45,12 @@ import {
   type SettingsInput,
 } from '@deca/shared';
 import { config } from '../config';
-import { publishNews as hubNews, publishPhase as hubPhase, publishTick as hubTick } from '../realtime/hub';
+import {
+  publishNews as hubNews,
+  publishPhase as hubPhase,
+  publishSnapshot as hubSnapshot,
+  publishTick as hubTick,
+} from '../realtime/hub';
 import { ROSTER } from '../seed/roster';
 import { store as processStore, type Store } from '../store';
 import type { StoredScheduledEvent } from '../store/types';
@@ -139,9 +144,16 @@ export interface RealtimeHub {
   publishTick(payload: TickPayload): void;
   publishNews(events: NewsEvent[]): void;
   publishPhase(game: GameState): void;
+  /** Optional on a test double: the whole-world resend (end of game). */
+  publishSnapshot?(): void;
 }
 
-const liveHub: RealtimeHub = { publishTick: hubTick, publishNews: hubNews, publishPhase: hubPhase };
+const liveHub: RealtimeHub = {
+  publishTick: hubTick,
+  publishNews: hubNews,
+  publishPhase: hubPhase,
+  publishSnapshot: hubSnapshot,
+};
 let hub: RealtimeHub = liveHub;
 
 /** Replaces the realtime hub (tests). Pass null to restore the live SSE hub. */
@@ -924,6 +936,9 @@ export class GameEngine {
     finalizeLeaderboard(store, this);
     this.finalized = true;
     this.publishNews(news);
+    // The reveal only becomes public at this instant, so every connection is handed a fresh snapshot
+    // BEFORE the phase event: the results screen fills in without anyone reconnecting for it.
+    this.publishSnapshot();
     this.publishPhase(next);
   }
 
@@ -951,6 +966,15 @@ export class GameEngine {
       hub.publishNews(events);
     } catch (err) {
       console.error('[engine] publishNews failed', err);
+    }
+  }
+
+  /** Whole-world resend. A hub that does not implement it (a test double) is simply skipped. */
+  private publishSnapshot(): void {
+    try {
+      hub.publishSnapshot?.();
+    } catch (err) {
+      console.error('[engine] publishSnapshot failed', err);
     }
   }
 

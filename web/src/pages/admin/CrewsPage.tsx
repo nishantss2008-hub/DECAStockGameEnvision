@@ -156,11 +156,11 @@ function CrewDetail({ team, game, onBack }: { team: Team; game: GameState | null
   const sym = game?.currency.symbol;
 
   const setTrading = (enabled: boolean) =>
-    void run('trading', () => apiPost(`/admin/teams/${encodeURIComponent(team.id)}/trading`, { enabled }), {
+    void run('trading', () => apiPost(`/api/admin/teams/${encodeURIComponent(team.id)}/trading`, { enabled }), {
       success: `${team.name}: ${enabled ? C.tradingAllowed : C.tradingOff}`,
     });
   const remove = async () => {
-    const result = await run('remove', () => apiDelete(`/admin/teams/${encodeURIComponent(team.id)}`), { success: fill(C.removed, { crew: team.name }) });
+    const result = await run('remove', () => apiDelete(`/api/admin/teams/${encodeURIComponent(team.id)}`), { success: fill(C.removed, { crew: team.name }) });
     if (result.ok) onBack();
   };
 

@@ -16,6 +16,7 @@ import {
   publishNews,
   publishPhase,
   publishPortfolio,
+  publishSnapshot,
   publishTick,
   subscribe,
   type StreamEvent,
@@ -132,6 +133,39 @@ describe('opening a stream', () => {
     subscribe(host.reply, { role: 'admin' });
     const data = (host.events()[0] as Extract<StreamEvent, { type: 'snapshot' }>).data;
     expect(data.portfolio).toBeNull();
+  });
+});
+
+describe('publishSnapshot', () => {
+  it('resends the world to every connection, each filtered for who is holding it', () => {
+    const a = fakeReply();
+    const b = fakeReply();
+    const hostConn = fakeReply();
+    subscribe(a.reply, { role: 'team', teamId: CREW_A });
+    subscribe(b.reply, { role: 'team', teamId: CREW_B });
+    subscribe(hostConn.reply, { role: 'admin' });
+
+    store.game.set(gameState('ended'));
+    publishSnapshot();
+
+    expect(typesOf(a)).toEqual(['snapshot', 'snapshot']);
+    expect(typesOf(b)).toEqual(['snapshot', 'snapshot']);
+    expect(typesOf(hostConn)).toEqual(['snapshot', 'snapshot']);
+
+    const resent = (c: FakeConnection) => (c.events()[1] as Extract<StreamEvent, { type: 'snapshot' }>).data;
+    expect(resent(a).portfolio?.team?.id).toBe(CREW_A);
+    expect(JSON.stringify(resent(a).portfolio)).not.toContain(CREW_B);
+    expect(resent(b).portfolio?.team?.id).toBe(CREW_B);
+    expect(resent(hostConn).portfolio).toBeNull();
+    // The game has ended, so the resend is where the reveal arrives.
+    expect(resent(a).companies.find((c) => c.id === KRKN)?.reveal?.grade).toBe('A');
+  });
+
+  it('carries no hidden data while the game is still running', () => {
+    const a = fakeReply();
+    subscribe(a.reply, { role: 'team', teamId: CREW_A });
+    publishSnapshot();
+    expect(a.frames.join('')).not.toContain('fairValue');
   });
 });
 

@@ -78,7 +78,7 @@ describe('a whole game, end to end on a real database file', () => {
   });
 
   it('the host starts the game and the engine goes live', async () => {
-    const res = await app.inject({ method: 'POST', url: '/admin/game/start', headers: bearer(host) });
+    const res = await app.inject({ method: 'POST', url: '/api/admin/game/start', headers: bearer(host) });
     expect(res.statusCode).toBe(200);
     expect(json<{ phase: string }>(res).phase).toBe('live');
     expect(engine.state.phase).toBe('live');
@@ -174,7 +174,7 @@ describe('a whole game, end to end on a real database file', () => {
     );
     expect(live.companies.every((c) => (c as { reveal?: unknown }).reveal === undefined)).toBe(true);
 
-    const ended = await app.inject({ method: 'POST', url: '/admin/game/end', headers: bearer(host) });
+    const ended = await app.inject({ method: 'POST', url: '/api/admin/game/end', headers: bearer(host) });
     expect(ended.statusCode).toBe(200);
     expect(engine.state.phase).toBe('ended');
 
@@ -193,7 +193,7 @@ describe('a whole game, end to end on a real database file', () => {
 
   it('kept an audit trail of the host actions and the logins', async () => {
     const logs = json<{ logs: { action: string }[] }>(
-      await app.inject({ method: 'GET', url: '/admin/logs', headers: bearer(host) }),
+      await app.inject({ method: 'GET', url: '/api/admin/logs', headers: bearer(host) }),
     ).logs.map((l) => l.action);
     expect(logs).toEqual(expect.arrayContaining(['auth.login', 'game.start', 'game.end', 'order.fill']));
   });

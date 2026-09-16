@@ -1,5 +1,5 @@
 /**
- * Host Audit (MOBILE §7.18, Control › More › Audit, `/admin/audit`): `GET /admin/logs` rows as a plain list with
+ * Host Audit (MOBILE §7.18, Control › More › Audit, `/admin/audit`): `GET /api/admin/logs` rows as a plain list with
  * a Refresh button; ≥744 a table. Pushed from Control, so it has a back button.
  */
 import { useMemo } from 'react';
@@ -32,7 +32,7 @@ export default function AuditPage() {
   const { game } = useGame();
   const { teams } = useAdminTeams();
   const layout = useShellLayout();
-  const { data, error, refresh } = useAdminPoll<{ logs: LogEntry[] }>('/admin/logs', 60_000);
+  const { data, error, refresh } = useAdminPoll<{ logs: LogEntry[] }>('/api/admin/logs', 60_000);
   const names = useMemo(() => Object.fromEntries(teams.map((t) => [t.id, t.name])), [teams]);
   const logs = data?.logs ?? [];
   const actor = (a: string) => (a === 'admin' || a === 'engine' ? a : names[a] ?? 'Host');

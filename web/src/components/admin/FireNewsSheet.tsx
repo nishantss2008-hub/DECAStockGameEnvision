@@ -63,7 +63,7 @@ export function FireNewsSheet({ open, onClose, game, companies }: { open: boolea
 
   const publish = async () => {
     if (problem) return;
-    const result = await run('fire', () => apiPost<{ tick: number }>('/admin/news', { companyIds: ids, type, magnitude, headline: headline.trim(), body: body.trim() }), { quiet: true });
+    const result = await run('fire', () => apiPost<{ tick: number }>('/api/admin/news', { companyIds: ids, type, magnitude, headline: headline.trim(), body: body.trim() }), { quiet: true });
     if (result.ok) {
       announce(fill(N.queued, { tick: (result.value.tick ?? game?.currentTick ?? 0) + 1 }), 'order');
       onClose();

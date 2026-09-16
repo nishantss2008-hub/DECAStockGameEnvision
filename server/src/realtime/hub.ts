@@ -151,6 +151,21 @@ export function publishPhase(game: GameState): void {
 }
 
 /**
+ * Rebuilds every connection's opening payload in place, one snapshot per connection so each is
+ * filtered for its own role and crew.
+ *
+ * Used when the world changed wholesale rather than by a tick: a new game (every company, price,
+ * holding and news item is different) and the end of a game (the reveal is now public). Without it
+ * only the host that pressed the button would see the change, and everyone else would have to
+ * reconnect to catch up.
+ */
+export function publishSnapshot(): void {
+  for (const c of [...connections.values()]) {
+    c.send({ type: 'snapshot', data: buildSnapshot({ role: c.role, teamId: c.teamId }) });
+  }
+}
+
+/**
  * Private: the crew's own cash, holdings, trades and orders, sent only to that crew's connections.
  * Reads nothing when the crew has no connection open.
  */

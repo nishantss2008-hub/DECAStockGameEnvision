@@ -1,5 +1,5 @@
 /**
- * Host Market (MOBILE §7.18, `/admin/market`): the classified view from `GET /admin/market` every 5 s — last price,
+ * Host Market (MOBILE §7.18, `/admin/market`): the classified view from `GET /api/admin/market` every 5 s — last price,
  * session %, volume, net crew flow, and the hidden quality score, grade, fair value and deviation — under a
  * "Host only: never project this screen" banner. Phone: one row per company plus a "What these numbers mean"
  * legend; ≥744: a table whose column headers carry the "?".
@@ -39,7 +39,7 @@ const LEGEND = [
 export default function MarketPage() {
   useDocumentTitle('Market');
   const { game } = useGame();
-  const { data, error, refresh } = useAdminPoll<{ rows: AdminMarketRow[] }>('/admin/market', MARKET_POLL_MS);
+  const { data, error, refresh } = useAdminPoll<{ rows: AdminMarketRow[] }>('/api/admin/market', MARKET_POLL_MS);
   const layout = useShellLayout();
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const sym = game?.currency.symbol;

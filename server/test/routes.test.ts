@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import { openStore, useStore, type Store } from '../src/store';
 import { currentTokenVersion, issueToken, resetSessionSecretCache } from '../src/auth/sessions';
 import { CREW_A, CREW_B, GALE, KRKN, PASSWORD_A, gameState, seedWorld } from './helpers/apiFixtures';
@@ -104,8 +104,8 @@ vi.mock('../src/services/leaderboard', () => ({
 
 const KRKN_ID = 'krkn';
 
-const { buildServer, registerWeb } = await import('../src/index');
-const { closeAll } = await import('../src/realtime/hub');
+const { buildServer, legacyAdminRoutes, registerWeb } = await import('../src/index');
+const { closeAll, connectionCount, subscribe } = await import('../src/realtime/hub');
 
 // ---------------------------------------------------------------------------
 
@@ -132,7 +132,14 @@ const CREW_OR_HOST = [
   '/api/stream',
 ];
 const CREW_ONLY = ['/api/portfolio', '/api/portfolio/history?from=0&to=12', '/api/trades', '/api/orders'];
-const ADMIN_GETS = ['/admin/teams', '/admin/market', '/admin/news/scheduled', '/admin/logs'];
+const ADMIN_GETS = [
+  '/api/admin/teams',
+  '/api/admin/market',
+  '/api/admin/news/scheduled',
+  '/api/admin/logs',
+  '/api/admin/trades?limit=10',
+  `/api/admin/teams/${CREW_A}/holdings`,
+];
 
 beforeEach(async () => {
   h.phase = 'live';
@@ -197,14 +204,14 @@ describe('role separation', () => {
   });
 
   it.each([
-    ['POST', '/admin/settings'],
-    ['POST', '/admin/game/start'],
-    ['POST', '/admin/game/new'],
-    ['POST', '/admin/teams'],
-    ['POST', `/admin/teams/${CREW_A}/password`],
-    ['POST', `/admin/teams/${CREW_A}/trading`],
-    ['DELETE', `/admin/teams/${CREW_A}`],
-    ['POST', '/admin/news'],
+    ['POST', '/api/admin/settings'],
+    ['POST', '/api/admin/game/start'],
+    ['POST', '/api/admin/game/new'],
+    ['POST', '/api/admin/teams'],
+    ['POST', `/api/admin/teams/${CREW_A}/password`],
+    ['POST', `/api/admin/teams/${CREW_A}/trading`],
+    ['DELETE', `/api/admin/teams/${CREW_A}`],
+    ['POST', '/api/admin/news'],
   ])('%s %s refuses a crew token', async (method, url) => {
     const res = await app.inject({ method: method as 'POST', url, headers: auth(crewA), payload: {} });
     expect(res.statusCode).toBe(403);
@@ -235,9 +242,9 @@ describe('hidden data never reaches a crew before the end', () => {
       expect(res.body).not.toContain('top-secret-seed');
     }
     // The schedule and the quality table have host-only routes, and they still carry the numbers.
-    const scheduled = await app.inject({ method: 'GET', url: '/admin/news/scheduled', headers: auth(host) });
+    const scheduled = await app.inject({ method: 'GET', url: '/api/admin/news/scheduled', headers: auth(host) });
     expect(body<{ events: unknown[] }>(scheduled).events).toHaveLength(1);
-    const market = await app.inject({ method: 'GET', url: '/admin/market', headers: auth(host) });
+    const market = await app.inject({ method: 'GET', url: '/api/admin/market', headers: auth(host) });
     expect(market.body).toContain('fairValue');
   });
 });
@@ -298,7 +305,7 @@ describe('POST /auth/login', () => {
     const session = body<{ token: string; role: string; teamId?: string }>(res);
     expect(session.role).toBe('admin');
     expect(session.teamId).toBeUndefined();
-    expect((await app.inject({ method: 'GET', url: '/admin/teams', headers: auth(session.token) })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/admin/teams', headers: auth(session.token) })).statusCode).toBe(200);
   });
 
   it('rejects a malformed body', async () => {
@@ -336,7 +343,7 @@ describe('POST /orders', () => {
   it('records a rejection and releases the reservation when the crew cannot trade', async () => {
     await app.inject({
       method: 'POST',
-      url: `/admin/teams/${CREW_A}/trading`,
+      url: `/api/admin/teams/${CREW_A}/trading`,
       payload: { enabled: false },
       headers: auth(host),
     });
@@ -380,11 +387,11 @@ describe('POST /orders', () => {
   });
 });
 
-describe('/admin crew management', () => {
+describe('/api/admin crew management', () => {
   it('creates a crew that can sign in at once', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/admin/teams',
+      url: '/api/admin/teams',
       payload: { name: 'Gale Runners', password: 'anchors-aweigh-7' },
       headers: auth(host),
     });
@@ -399,7 +406,7 @@ describe('/admin crew management', () => {
 
     const dup = await app.inject({
       method: 'POST',
-      url: '/admin/teams',
+      url: '/api/admin/teams',
       payload: { name: 'gale runners', password: 'anchors-aweigh-7' },
       headers: auth(host),
     });
@@ -410,7 +417,7 @@ describe('/admin crew management', () => {
     expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(200);
     const reset = await app.inject({
       method: 'POST',
-      url: `/admin/teams/${CREW_A}/password`,
+      url: `/api/admin/teams/${CREW_A}/password`,
       payload: { password: 'brand-new-pass-3' },
       headers: auth(host),
     });
@@ -425,7 +432,7 @@ describe('/admin crew management', () => {
   });
 
   it('removes a crew with its holdings, trades, orders and standings row', async () => {
-    const res = await app.inject({ method: 'DELETE', url: `/admin/teams/${CREW_A}`, headers: auth(host) });
+    const res = await app.inject({ method: 'DELETE', url: `/api/admin/teams/${CREW_A}`, headers: auth(host) });
     expect(res.statusCode).toBe(200);
     expect(store.crews.get(CREW_A)).toBeNull();
     expect(store.holdings.forCrew(CREW_A)).toEqual([]);
@@ -440,35 +447,35 @@ describe('/admin crew management', () => {
   });
 
   it('answers 404 for a crew that is not there', async () => {
-    const res = await app.inject({ method: 'DELETE', url: '/admin/teams/ghost-crew', headers: auth(host) });
+    const res = await app.inject({ method: 'DELETE', url: '/api/admin/teams/ghost-crew', headers: auth(host) });
     expect(res.statusCode).toBe(404);
   });
 
   it('lists crews and the audit log for the host', async () => {
     const teams = body<{ teams: { id: string }[] }>(
-      await app.inject({ method: 'GET', url: '/admin/teams', headers: auth(host) }),
+      await app.inject({ method: 'GET', url: '/api/admin/teams', headers: auth(host) }),
     );
     expect(teams.teams.map((t) => t.id).sort()).toEqual([CREW_B, CREW_A].sort());
     await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
     const logs = body<{ logs: { action: string }[] }>(
-      await app.inject({ method: 'GET', url: '/admin/logs', headers: auth(host) }),
+      await app.inject({ method: 'GET', url: '/api/admin/logs', headers: auth(host) }),
     );
     expect(logs.logs.some((l) => l.action === 'auth.login')).toBe(true);
   });
 });
 
-describe('/admin game control', () => {
+describe('/api/admin game control', () => {
   it('runs the game actions and refuses an unknown one', async () => {
     for (const action of ['start', 'pause', 'resume', 'end']) {
-      const res = await app.inject({ method: 'POST', url: `/admin/game/${action}`, headers: auth(host) });
+      const res = await app.inject({ method: 'POST', url: `/api/admin/game/${action}`, headers: auth(host) });
       expect(res.statusCode).toBe(200);
     }
-    const bad = await app.inject({ method: 'POST', url: '/admin/game/explode', headers: auth(host) });
+    const bad = await app.inject({ method: 'POST', url: '/api/admin/game/explode', headers: auth(host) });
     expect(bad.statusCode).toBe(400);
   });
 
-  it('rebuilds the market on /admin/game/new and never returns the seed', async () => {
-    const res = await app.inject({ method: 'POST', url: '/admin/game/new', payload: { keepCrews: true }, headers: auth(host) });
+  it('rebuilds the market on /api/admin/game/new and never returns the seed', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/admin/game/new', payload: { keepCrews: true }, headers: auth(host) });
     expect(res.statusCode).toBe(200);
     expect(h.createMarket).toHaveBeenCalledWith({ keepCrews: true });
     expect(res.body).not.toContain('seed');
@@ -488,6 +495,7 @@ describe('static hosting', () => {
     await writeFile(join(dist, 'assets', 'app.abc123.js'), 'console.log(1);');
     web = Fastify({ logger: false });
     await registerWeb(web, dist);
+    await legacyAdminRoutes(web);
     await web.ready();
   });
 
@@ -513,7 +521,9 @@ describe('static hosting', () => {
   });
 
   it('never swallows the API surface or a non-GET request', async () => {
-    for (const url of ['/api/nope', '/auth/nope', '/admin/nope', '/orders/nope', '/health/nope']) {
+    // `/admin/*` is the host console's client-side space now: an unknown one is a stale API call
+    // (308 → /api/admin/*, asserted below) for a fetch, and the app shell for a navigation.
+    for (const url of ['/api/nope', '/auth/nope', '/orders/nope', '/health/nope']) {
       const res = await web.inject({ method: 'GET', url });
       expect(res.statusCode).toBe(404);
       expect(res.headers['content-type']).toMatch(/json/);
@@ -523,10 +533,106 @@ describe('static hosting', () => {
     expect(post.headers['content-type']).toMatch(/json/);
   });
 
+  /**
+   * The host console's own URLs. `/admin/market` and `/admin/news` were host API routes once, so a
+   * reload, a deep link or a PWA launch on them answered with JSON 404 instead of the app.
+   */
+  it('serves the app shell for a navigation to any /admin route', async () => {
+    for (const url of ['/admin', '/admin/crews', '/admin/news', '/admin/market', '/admin/tape', '/admin/audit']) {
+      const res = await web.inject({ method: 'GET', url, headers: { accept: 'text/html,application/xhtml+xml,*/*' } });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toMatch(/html/);
+      expect(res.body).toContain('Buccaneer Exchange');
+      expect(res.headers['cache-control']).toMatch(/no-cache/);
+    }
+  });
+
+  it('redirects a non-HTML call on an old host API path to /api/admin', async () => {
+    const get = await web.inject({ method: 'GET', url: '/admin/market?x=1', headers: { accept: 'application/json' } });
+    expect(get.statusCode).toBe(308);
+    expect(get.headers.location).toBe('/api/admin/market?x=1');
+    const post = await web.inject({ method: 'POST', url: '/admin/teams', payload: { name: 'Gale' } });
+    expect(post.statusCode).toBe(308);
+    expect(post.headers.location).toBe('/api/admin/teams');
+  });
+
   it('keeps the SPA fallback away from the API on the real server too', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/not-a-route', headers: auth(crewA) });
     expect(res.statusCode).toBe(404);
     expect(res.headers['content-type']).toMatch(/json/);
+  });
+});
+
+describe('the host API lives under /api/admin', () => {
+  it('answers JSON for a host token, even on a request that would take HTML', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/admin/market',
+      headers: { ...auth(host), accept: 'text/html,*/*' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/json/);
+    expect(body<{ rows: { companyId: string }[] }>(res).rows[0]!.companyId).toBe(KRKN_ID);
+  });
+
+  it('redirects the old paths on the real server, method and query intact', async () => {
+    const res = await app.inject({ method: 'POST', url: '/admin/game/new', payload: {}, headers: auth(host) });
+    expect(res.statusCode).toBe(308);
+    expect(res.headers.location).toBe('/api/admin/game/new');
+    const list = await app.inject({ method: 'GET', url: '/admin/trades?limit=10', headers: auth(host) });
+    expect(list.statusCode).toBe(308);
+    expect(list.headers.location).toBe('/api/admin/trades?limit=10');
+  });
+});
+
+describe('host reads across every crew', () => {
+  it('lists recent fills from all crews and clamps ?limit', async () => {
+    const all = body<{ trades: { teamId: string }[] }>(
+      await app.inject({ method: 'GET', url: '/api/admin/trades', headers: auth(host) }),
+    );
+    expect(new Set(all.trades.map((t) => t.teamId))).toEqual(new Set([CREW_A, CREW_B]));
+    const one = body<{ trades: unknown[] }>(
+      await app.inject({ method: 'GET', url: '/api/admin/trades?limit=1', headers: auth(host) }),
+    );
+    expect(one.trades).toHaveLength(1);
+  });
+
+  it('reads one crew’s holdings and 404s for a crew that is not there', async () => {
+    const res = body<{ teamId: string; holdings: { companyId: string; shares: number }[] }>(
+      await app.inject({ method: 'GET', url: `/api/admin/teams/${CREW_A}/holdings`, headers: auth(host) }),
+    );
+    expect(res.teamId).toBe(CREW_A);
+    expect(res.holdings.map((hld) => hld.companyId)).toEqual([KRKN]);
+    const gone = await app.inject({ method: 'GET', url: '/api/admin/teams/ghost-crew/holdings', headers: auth(host) });
+    expect(gone.statusCode).toBe(404);
+  });
+});
+
+describe('a new game reaches every connected client', () => {
+  /** The smallest stand-in for a phone's open stream: the raw surface the hub writes to. */
+  function fakeConnection(): { frames: string[]; reply: FastifyReply } {
+    const frames: string[] = [];
+    const raw = {
+      writeHead: () => raw,
+      write: (chunk: string) => {
+        frames.push(chunk);
+        return true;
+      },
+      end: () => undefined,
+      on: () => raw,
+    };
+    return { frames, reply: { hijack: () => undefined, raw } as unknown as FastifyReply };
+  }
+
+  it('broadcasts a fresh snapshot to every crew, not just the host that pressed it', async () => {
+    const crew = fakeConnection();
+    subscribe(crew.reply, { role: 'team', teamId: CREW_A });
+    expect(connectionCount()).toBe(1);
+    const opening = crew.frames.filter((f) => f.startsWith('event: snapshot')).length;
+
+    const res = await app.inject({ method: 'POST', url: '/api/admin/game/new', payload: { keepCrews: true }, headers: auth(host) });
+    expect(res.statusCode).toBe(200);
+    expect(crew.frames.filter((f) => f.startsWith('event: snapshot'))).toHaveLength(opening + 1);
   });
 });
 

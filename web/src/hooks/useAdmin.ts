@@ -76,7 +76,7 @@ function usePoll<T>(path: string | null, intervalMs: number): UseAdminPollResult
   return { data, error, refresh };
 }
 
-/** Polls a host API GET route (`/admin/market`, `/admin/news/scheduled`, `/admin/logs`). */
+/** Polls a host API GET route (`/api/admin/market`, `/api/admin/news/scheduled`, `/api/admin/logs`). */
 export function useAdminPoll<T>(path: string, intervalMs: number): UseAdminPollResult<T> {
   return usePoll<T>(path, intervalMs);
 }
@@ -98,7 +98,7 @@ export interface UseAdminTeamsResult extends SnapshotStatus {
 
 const byName = (a: Team, b: Team) => (a.name ?? '').localeCompare(b.name ?? '', undefined, { sensitivity: 'base' }) || a.id.localeCompare(b.id);
 
-export const ADMIN_TEAMS_PATH = '/admin/teams';
+export const ADMIN_TEAMS_PATH = '/api/admin/teams';
 
 /** Every crew, by name (host rule); crews get an empty result and send no request. */
 export function useAdminTeams(): UseAdminTeamsResult {
@@ -119,7 +119,7 @@ export interface UseAdminTapeResult extends SnapshotStatus {
 /** Every crew's fills, newest first (host rule); crews get an empty result and send no request. */
 export function useAdminTape(max = ADMIN_TAPE_LIMIT): UseAdminTapeResult {
   const { role, loading: authLoading } = useAuth();
-  const path = role === 'admin' ? `/admin/trades?limit=${max}` : null;
+  const path = role === 'admin' ? `/api/admin/trades?limit=${max}` : null;
   const { data, error } = usePoll<{ trades?: Trade[] }>(path, ADMIN_POLL_MS);
   return { trades: data?.trades ?? EMPTY_TRADES, ...status(path, data, error, authLoading) };
 }
@@ -131,7 +131,7 @@ export interface UseAdminHoldingsResult extends SnapshotStatus {
 /** One crew's non-empty holdings, host only. */
 export function useAdminHoldings(teamId: string | null): UseAdminHoldingsResult {
   const { role } = useAuth();
-  const path = role === 'admin' && teamId ? `/admin/teams/${encodeURIComponent(teamId)}/holdings` : null;
+  const path = role === 'admin' && teamId ? `/api/admin/teams/${encodeURIComponent(teamId)}/holdings` : null;
   const { data, error } = usePoll<{ holdings?: Holding[] }>(path, ADMIN_POLL_MS);
   const holdings = data?.holdings ? data.holdings.filter((h) => h.shares !== 0) : EMPTY_HOLDINGS;
   return { holdings, ...status(path, data, error) };

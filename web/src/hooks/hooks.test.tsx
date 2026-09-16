@@ -270,7 +270,7 @@ describe('host hooks', () => {
     const host = renderHook(() => useAdminTeams());
     expect(host.result.current.loading).toBe(true);
     await waitFor(() => expect(host.result.current.teams.map((t) => t.id)).toEqual(['a', 'b']));
-    expect(apiGetMock).toHaveBeenCalledWith('/admin/teams');
+    expect(apiGetMock).toHaveBeenCalledWith('/api/admin/teams');
   });
 });
 
@@ -301,7 +301,7 @@ describe('timers', () => {
   it('useAdminPoll polls, keeps the last data on error, refreshes on demand and stops on unmount', async () => {
     apiGetMock.mockReset();
     apiGetMock.mockResolvedValueOnce({ rows: 1 }).mockRejectedValueOnce(new Error('Server down')).mockResolvedValue({ rows: 3 });
-    const { result, unmount } = renderHook(() => useAdminPoll<{ rows: number }>('/admin/market', 5_000));
+    const { result, unmount } = renderHook(() => useAdminPoll<{ rows: number }>('/api/admin/market', 5_000));
     await act(async () => {
       await Promise.resolve();
     });
@@ -315,7 +315,7 @@ describe('timers', () => {
       await Promise.resolve();
     });
     expect(result.current).toMatchObject({ data: { rows: 3 }, error: null });
-    expect(apiGetMock).toHaveBeenCalledWith('/admin/market');
+    expect(apiGetMock).toHaveBeenCalledWith('/api/admin/market');
     unmount();
     const calls = apiGetMock.mock.calls.length;
     await act(async () => {

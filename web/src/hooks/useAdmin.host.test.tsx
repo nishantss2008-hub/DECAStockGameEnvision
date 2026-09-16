@@ -31,7 +31,7 @@ describe('host tape and holdings hooks', () => {
     apiGetMock.mockResolvedValue({ trades: [{ id: 't1', teamId: 'a', side: 'buy', quantity: 5, executedAt: 2 }] });
     const host = renderHook(() => useAdminTape());
     await waitFor(() => expect(host.result.current.trades.map((t) => t.id)).toEqual(['t1']));
-    expect(apiGetMock).toHaveBeenCalledWith('/admin/trades?limit=100');
+    expect(apiGetMock).toHaveBeenCalledWith('/api/admin/trades?limit=100');
   });
 
   it('useAdminHoldings reads one crew’s holdings and hides empty positions', async () => {
@@ -47,6 +47,6 @@ describe('host tape and holdings hooks', () => {
     });
     const host = renderHook(() => useAdminHoldings('crew1'));
     await waitFor(() => expect(host.result.current.holdings).toEqual([{ companyId: 'krkn', shares: 10, avgCost: 100 }]));
-    expect(apiGetMock).toHaveBeenCalledWith('/admin/teams/crew1/holdings');
+    expect(apiGetMock).toHaveBeenCalledWith('/api/admin/teams/crew1/holdings');
   });
 });

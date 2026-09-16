@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
@@ -26,7 +26,86 @@ import { closeStore } from './store';
 import { applyAdminPasswordFromEnv } from './services/hostPassword';
 
 /** Paths the SPA fallback must never swallow: they are API surface, and a 404 there is a 404. */
-const API_PREFIXES = ['/api', '/auth', '/admin', '/orders', '/health'];
+export const API_PREFIXES = ['/api', '/auth', '/orders', '/health'];
+
+/**
+ * `/admin/*` belongs to the host console's client-side routes (`/admin`, `/admin/crews`,
+ * `/admin/market`, …). The host API used to live there and now answers under `/api/admin/*`.
+ */
+export function isLegacyAdminPath(url: string): boolean {
+  const path = pathOf(url);
+  return path === '/admin' || path.startsWith('/admin/');
+}
+
+/** The path part of a request URL, without the query string. */
+export function pathOf(url: string): string {
+  const q = url.indexOf('?');
+  return q === -1 ? url : url.slice(0, q);
+}
+
+/** A browser navigation (a typed URL, a reload, a PWA launch) rather than a fetch/XHR call. */
+export function wantsHtml(req: { method: string; headers: { accept?: string } }): boolean {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  return typeof req.headers.accept === 'string' && req.headers.accept.includes('text/html');
+}
+
+/**
+ * What counts against the per-minute budget: the API surface only.
+ *
+ * A phone loading the app pulls a hundred-odd static files (and the PWA precaches more), and the
+ * SSE stream is ONE long-lived connection, not a request rate — counting either would 429 a
+ * classroom before it had traded anything.
+ */
+export function countsAgainstLimit(url: string): boolean {
+  const path = pathOf(url);
+  if (path === '/health' || path === '/api/stream') return false;
+  if (isLegacyAdminPath(path)) return true;
+  return API_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * The limiter's bucket: the session token when the request carries one (header, or `?token=` for
+ * EventSource), else the IP. A school hands every phone the same public IP, so keying on the IP
+ * alone would make twenty crews share one crew's worth of budget.
+ */
+export function limiterKey(req: FastifyRequest): string {
+  const header = req.headers.authorization;
+  if (typeof header === 'string' && header.startsWith('Bearer ')) {
+    const token = header.slice(7).trim();
+    if (token) return `t:${token}`;
+  }
+  const query = (req.query as { token?: unknown } | undefined)?.token;
+  if (typeof query === 'string' && query) return `t:${query}`;
+  return `ip:${req.ip}`;
+}
+
+/** COPY §9 ticket-errors tone: what went wrong, and what to do about it. */
+export const RATE_LIMITED = {
+  error: 'rate_limited',
+  message: 'Too many requests from this device. Wait a few seconds, then try again.',
+} as const;
+
+/**
+ * The old host API paths. HTML navigations to them are the host console (serve the app shell);
+ * anything else is a client still calling the pre-`/api` API, and is redirected there with its
+ * method and body intact. Temporary — drop once no deployed client uses the old paths.
+ */
+export async function legacyAdminRoutes(app: FastifyInstance): Promise<void> {
+  const handler = (req: FastifyRequest, reply: FastifyReply): unknown => {
+    if (wantsHtml(req)) {
+      const sendFile = (reply as FastifyReply & { sendFile?: (f: string) => FastifyReply }).sendFile;
+      if (typeof sendFile !== 'function') {
+        return reply.code(404).send({ error: 'not_found', message: 'Not found' });
+      }
+      reply.header('Cache-Control', 'no-cache');
+      return sendFile.call(reply, 'index.html');
+    }
+    return reply.code(308).redirect(`/api${req.url}`);
+  };
+  const method = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+  app.route({ method: [...method], url: '/admin', handler });
+  app.route({ method: [...method], url: '/admin/*', handler });
+}
 
 /** `web/dist` next to the server workspace, unless WEB_DIR names another build. */
 export function webRoot(): string | null {
@@ -52,8 +131,12 @@ export async function registerWeb(app: FastifyInstance, root: string): Promise<v
   });
 
   app.setNotFoundHandler((req, reply) => {
-    const isApi = API_PREFIXES.some((p) => req.url === p || req.url.startsWith(`${p}/`) || req.url.startsWith(`${p}?`));
-    if (isApi || (req.method !== 'GET' && req.method !== 'HEAD')) {
+    const path = pathOf(req.url);
+    const isApi = API_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+    // A fetch for an unknown `/admin/*` path is a stale API call, not a screen: 404 it as API.
+    // (The real server never gets here — legacyAdminRoutes answers those — but registerWeb is
+    // also mounted on its own in tests and deployments that only serve the app.)
+    if (isApi || (isLegacyAdminPath(path) && !wantsHtml(req)) || (req.method !== 'GET' && req.method !== 'HEAD')) {
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     }
     reply.header('Cache-Control', 'no-cache');
@@ -81,12 +164,13 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
 
   await app.register(cors, { origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') });
   await app.register(rateLimit, {
-    max: 240,
+    max: config.rateLimitMax,
     timeWindow: '1 minute',
-    // Key by the auth token when present so crews behind one NAT aren't lumped together.
-    keyGenerator: (req) => (req.headers.authorization as string) ?? req.ip,
-    // The stream is one long-lived connection per phone, not a request rate.
-    allowList: (req) => req.url.startsWith('/api/stream'),
+    // Per session, not per IP: a school NAT puts every crew behind one address.
+    keyGenerator: limiterKey,
+    // Static files, /health and the one long-lived SSE connection are not an API request rate.
+    allowList: (req) => !countsAgainstLimit(req.url),
+    errorResponseBuilder: () => ({ statusCode: 429, ...RATE_LIMITED }),
   });
 
   await app.register(healthRoutes);
@@ -102,6 +186,8 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   } else {
     app.log.info('no web build found — API only (set WEB_DIR or run npm run build:web)');
   }
+  // After the static plugin, so an HTML navigation to /admin/* can be answered with the app shell.
+  await legacyAdminRoutes(app);
   return app;
 }
 

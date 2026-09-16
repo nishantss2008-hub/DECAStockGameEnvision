@@ -1,6 +1,6 @@
 /**
  * Game settings (MOBILE §7.18 Settings, COPY §11): one row per setting with its "?"; in the lobby each row opens
- * an editor sheet with the COPY explanation, and Save posts `/admin/settings`. Locked with `lockedNote` otherwise.
+ * an editor sheet with the COPY explanation, and Save posts `/api/admin/settings`. Locked with `lockedNote` otherwise.
  */
 import { useEffect, useId, useState } from 'react';
 import { ChevronRight, Lock } from 'lucide-react';
@@ -206,7 +206,7 @@ function SettingEditorSheet({ game, setting, onClose }: { game: GameState; setti
 
   const save = async () => {
     if (!body) return;
-    const result = await run('settings', () => apiPost('/admin/settings', body), { success: HOST_SETTINGS.saved, quiet: true });
+    const result = await run('settings', () => apiPost('/api/admin/settings', body), { success: HOST_SETTINGS.saved, quiet: true });
     if (result.ok) onClose();
     else setError(result.message ? `${result.title}. ${result.message}` : result.title);
   };

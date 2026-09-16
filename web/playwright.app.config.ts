@@ -21,9 +21,9 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   outputDir: '../node_modules/.cache/playwright-app',
-  // Service workers are blocked: installing one precaches ~138 files, which on its own pushes a single
-  // host+crew run past the server's 240-requests-per-minute-per-IP limit and answers route chunks with 429.
-  // The PWA/offline behaviour has its own coverage; this run is about the REST + SSE stack.
+  // Service workers are blocked so this run is only the REST + SSE stack; the PWA/offline behaviour has
+  // its own coverage. (The limiter no longer counts static files, so the ~138-file precache is free —
+  // verified with three crews installing it in parallel from one IP — but the block is kept for focus.)
   use: { baseURL: process.env.APP_URL, trace: 'off', actionTimeout: 20_000, serviceWorkers: 'block' },
   projects: [
     { name: 'webkit-iphone15', use: { ...devices['iPhone 15'] } },

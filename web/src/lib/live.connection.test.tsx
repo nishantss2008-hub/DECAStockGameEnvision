@@ -262,6 +262,28 @@ describe('live connection', () => {
     live.stop();
   });
 
+  // The server now resends the whole world when the game ends, reveal included, so the results
+  // screen fills in on the stream the client already has.
+  it('does not reconnect when the end arrives as a snapshot carrying the reveal', async () => {
+    const live = connection();
+    live.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(streams).toHaveLength(1);
+
+    const revealed = {
+      ...BOOTSTRAP,
+      game: { phase: 'ended' },
+      companies: [{ id: 'kraken', currentPrice: 500, reveal: { quality: 0.8 } } as unknown as Snapshot['companies'][number]],
+    } as Snapshot;
+    streams[0]!.push(`event: snapshot\ndata: ${JSON.stringify(revealed)}\n\n`);
+    // The phase event follows the snapshot, as the server publishes them.
+    streams[0]!.push('event: phase\ndata: {"phase":"ended"}\n\n');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().companies.kraken?.reveal).toBeTruthy();
+    expect(streams).toHaveLength(1);
+    live.stop();
+  });
+
   it('does not reconnect again while the game stays ended', async () => {
     const live = connection();
     live.start();

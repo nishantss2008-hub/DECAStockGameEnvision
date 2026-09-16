@@ -25,7 +25,7 @@ export function NewGameSheet({ game, open, onClose }: { game: GameState; open: b
 
   const start = async () => {
     setConfirming(false);
-    const result = await run('newGame', () => apiPost('/admin/game/new', { keepCrews }), { success: N.done });
+    const result = await run('newGame', () => apiPost('/api/admin/game/new', { keepCrews }), { success: N.done });
     // The new market is a whole new world and the server sends no event for it: pull it down.
     if (result.ok) {
       resyncLive();

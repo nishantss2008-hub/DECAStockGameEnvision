@@ -35,16 +35,16 @@ const SESSION_READS = [
 const CREW_READS = ['/api/portfolio', '/api/portfolio/history?from=0&to=5', '/api/trades?limit=10', '/api/orders?limit=10'];
 /** The host console. */
 const ADMIN_ROUTES: [string, string][] = [
-  ['GET', '/admin/teams'],
-  ['GET', '/admin/market'],
-  ['GET', '/admin/news/scheduled'],
-  ['GET', '/admin/logs'],
-  ['POST', '/admin/settings'],
-  ['POST', '/admin/game/start'],
-  ['POST', '/admin/game/new'],
-  ['POST', '/admin/teams'],
-  ['POST', '/admin/news'],
-  ['DELETE', '/admin/teams/blackfin'],
+  ['GET', '/api/admin/teams'],
+  ['GET', '/api/admin/market'],
+  ['GET', '/api/admin/news/scheduled'],
+  ['GET', '/api/admin/logs'],
+  ['POST', '/api/admin/settings'],
+  ['POST', '/api/admin/game/start'],
+  ['POST', '/api/admin/game/new'],
+  ['POST', '/api/admin/teams'],
+  ['POST', '/api/admin/news'],
+  ['DELETE', '/api/admin/teams/blackfin'],
 ];
 
 let app: FastifyInstance;
@@ -134,7 +134,7 @@ describe('authentication', () => {
   it('signs a crew out the moment the host resets its password or removes it', async () => {
     const reset = await app.inject({
       method: 'POST',
-      url: '/admin/teams/saltwind/password',
+      url: '/api/admin/teams/saltwind/password',
       headers: bearer(host),
       payload: { password: 'new-anchor-77' },
     });
@@ -190,13 +190,13 @@ describe('hidden data before the reveal', () => {
   });
 
   it('keeps the seed and the news schedule server-side, and shows the host what only the host may see', async () => {
-    const scheduled = await app.inject({ method: 'GET', url: '/admin/news/scheduled', headers: bearer(host) });
+    const scheduled = await app.inject({ method: 'GET', url: '/api/admin/news/scheduled', headers: bearer(host) });
     expect(scheduled.statusCode).toBe(200);
     expect((scheduled.json() as { events: unknown[] }).events.length).toBeGreaterThan(0);
     // A crew asking for the same thing is turned away, not answered with an empty list.
-    expect((await app.inject({ method: 'GET', url: '/admin/news/scheduled', headers: bearer(saltwind) })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/admin/news/scheduled', headers: bearer(saltwind) })).statusCode).toBe(403);
 
-    const market = await app.inject({ method: 'GET', url: '/admin/market', headers: bearer(host) });
+    const market = await app.inject({ method: 'GET', url: '/api/admin/market', headers: bearer(host) });
     expect(market.body).toContain('"fairValue"');
     expect(market.body).not.toContain('integration-authz-seed');
   });
@@ -214,7 +214,8 @@ describe('hidden data before the reveal', () => {
 
 describe('the static SPA never swallows the API', () => {
   it('answers an unknown API path with JSON 404, not with index.html', async () => {
-    for (const url of ['/api/nope', '/auth/nope', '/admin/nope', '/orders/nope', '/health/nope']) {
+    // `/admin/*` belongs to the host console's client-side routes now (src/index.ts).
+    for (const url of ['/api/nope', '/auth/nope', '/orders/nope', '/health/nope']) {
       const res = await app.inject({ method: 'GET', url });
       expect(res.statusCode, url).toBe(404);
       expect(res.body, url).not.toContain('<!doctype html');

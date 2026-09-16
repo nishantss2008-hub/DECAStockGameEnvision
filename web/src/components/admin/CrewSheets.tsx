@@ -57,7 +57,7 @@ export function AddCrewSheet({ game, open, onClose }: { game: GameState | null; 
       setError(problem === 'name' ? `${HOST_ERRORS.bad_name.title}. ${HOST_ERRORS.bad_name.message}` : C.passwordHint);
       return;
     }
-    const result = await run('add', () => apiPost('/admin/teams', { name: name.trim(), password }), { success: fill(C.added, { crew: name.trim() }), quiet: true });
+    const result = await run('add', () => apiPost('/api/admin/teams', { name: name.trim(), password }), { success: fill(C.added, { crew: name.trim() }), quiet: true });
     if (result.ok) onClose();
     else setError(result.message ? `${result.title}. ${result.message}` : result.title);
   };
@@ -122,7 +122,7 @@ export function ResetPasswordSheet({ team, open, onClose }: { team: Team; open: 
   }, [open]);
 
   const submit = async () => {
-    const result = await run('password', () => apiPost(`/admin/teams/${encodeURIComponent(team.id)}/password`, { password }), {
+    const result = await run('password', () => apiPost(`/api/admin/teams/${encodeURIComponent(team.id)}/password`, { password }), {
       success: fill(C.passwordSaved, { crew: team.name }),
       quiet: true,
     });

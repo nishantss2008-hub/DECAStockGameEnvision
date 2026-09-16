@@ -40,4 +40,10 @@ export const config = {
    * When unset, the first seed generates one.
    */
   adminPassword: process.env.ADMIN_PASSWORD ?? '',
+  /**
+   * API requests allowed per minute per session (or per IP when signed out). Static files, /health
+   * and the SSE stream never count (src/index.ts), so this is the budget for real API calls: a
+   * 20-crew game is a few hundred a minute at the busiest, and the host console polls on top.
+   */
+  rateLimitMax: Math.max(1, Number(process.env.RATE_LIMIT_MAX ?? 600)),
 } as const;

@@ -1,5 +1,5 @@
 /**
- * Host Tape (MOBILE §7.18, `/admin/tape`): live trade rows from a Firestore listener (every crew, newest first,
+ * Host Tape (MOBILE §7.18, `/admin/tape`): live trade rows polled from `GET /api/admin/trades` (every crew, newest first,
  * 100 rows): tick, crew, Bought/Sold, qty, ticker, fill price, fee; filter menu by crew and company. No live-region
  * announcements per trade. ≥744: a table with "?" in the headers.
  */

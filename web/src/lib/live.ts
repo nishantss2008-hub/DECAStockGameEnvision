@@ -175,6 +175,16 @@ export interface LiveConnection {
   running(): boolean;
 }
 
+/**
+ * True once the server has handed over the revealed world (the hidden per-company block it strips
+ * until the game ends). It is what the results screen needs, so it is what decides whether the end
+ * of a game still has to be chased with a reconnect.
+ */
+function hasReveal(state: { companies: Record<string, { reveal?: unknown }> }): boolean {
+  for (const c of Object.values(state.companies)) if (c.reveal) return true;
+  return false;
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -225,10 +235,12 @@ export function createLiveConnection(options: LiveConnectionOptions = {}): LiveC
     }
     const wasEnded = store.getState().game?.phase === 'ended';
     store.apply({ type: message.event, data } as StreamEvent);
-    // The server censors each company (and the leaderboard's final table) until the game ends, and
-    // announces the end with a bare `phase` event — so what the client is holding is still the
-    // censored world. Reopening the stream is what fetches the revealed one for the results screen.
-    if (!wasEnded && store.getState().game?.phase === 'ended') refresh();
+    // The server censors each company (and the leaderboard's final table) until the game ends. It
+    // now resends the whole world at the end, so the reveal usually arrives on the stream itself;
+    // reopening is the fallback for a server (or an event order) that only announced the phase —
+    // without it the results screen would be painting the censored world.
+    const state = store.getState();
+    if (!wasEnded && state.game?.phase === 'ended' && !hasReveal(state)) refresh();
   }
 
   async function readStream(body: ReadableStream<Uint8Array>, gen: number): Promise<void> {

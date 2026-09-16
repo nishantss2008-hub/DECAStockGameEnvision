@@ -920,10 +920,16 @@ describe('engine loop: realtime fan-out', () => {
     const ticks: TickPayload[] = [];
     const news: NewsEvent[][] = [];
     const phases: string[] = [];
+    /** Phase changes and whole-world resends in the order they were published. */
+    const fanout: string[] = [];
     const hub: RealtimeHub = {
       publishTick: (p) => ticks.push(p),
       publishNews: (n) => news.push(n),
-      publishPhase: (g) => phases.push(g.phase),
+      publishPhase: (g) => {
+        phases.push(g.phase);
+        fanout.push(`phase:${g.phase}`);
+      },
+      publishSnapshot: () => fanout.push('snapshot'),
     };
     setRealtimeHub(hub);
 
@@ -951,6 +957,10 @@ describe('engine loop: realtime fan-out', () => {
     await e.resumeGame();
     await e.endGame();
     expect(phases).toEqual(['live', 'paused', 'live', 'ended']);
+    // The reveal becomes public at the end: every connection is resent the world BEFORE the phase
+    // event, so the results screen fills in without anyone reconnecting for it.
+    expect(fanout.slice(-2)).toEqual(['snapshot', 'phase:ended']);
+    expect(fanout.filter((f) => f === 'snapshot')).toHaveLength(1);
     // A hub that throws never fails a tick.
     setRealtimeHub({
       publishTick: () => {

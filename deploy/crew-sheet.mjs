@@ -537,14 +537,14 @@ async function hostLogin(base, password) {
 }
 
 async function createCrew(base, token, name, password, resetExisting) {
-  const res = await request(base, '/admin/teams', { method: 'POST', token, body: { name, password } });
+  const res = await request(base, '/api/admin/teams', { method: 'POST', token, body: { name, password } });
   if (res.ok) return { status: 'created' };
 
   if (res.status === 409 && res.json?.error === 'exists') {
     if (!resetExisting) {
       return { status: 'exists', message: 'a crew with this name is already in the game (use --reset-existing to give it a new password)' };
     }
-    const reset = await request(base, `/admin/teams/${encodeURIComponent(slugifyTeamName(name))}/password`, {
+    const reset = await request(base, `/api/admin/teams/${encodeURIComponent(slugifyTeamName(name))}/password`, {
       method: 'POST',
       token,
       body: { password },

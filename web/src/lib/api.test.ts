@@ -141,7 +141,7 @@ describe('api', () => {
     expect(fetchMock.mock.calls[0]![1].body).toBeUndefined();
     await apiGet('/api/market');
     expect(fetchMock.mock.calls[1]![1].method).toBe('GET');
-    await apiDelete('/admin/teams/saltwind');
+    await apiDelete('/api/admin/teams/saltwind');
     expect(fetchMock.mock.calls[2]![1]).toMatchObject({ method: 'DELETE' });
   });
 

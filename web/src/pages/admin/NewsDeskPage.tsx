@@ -1,5 +1,5 @@
 /**
- * Host News (MOBILE §7.18, `/admin/news`): segmented Scheduled | Fired from `GET /admin/news/scheduled` (tick,
+ * Host News (MOBILE §7.18, `/admin/news`): segmented Scheduled | Fired from `GET /api/admin/news/scheduled` (tick,
  * companies, type, headline) and "Fire news…" (sheet, also opened by `?compose=1` from Control's quick actions).
  * Empty: COPY §12 empty.hostNews.
  */
@@ -34,7 +34,7 @@ export default function NewsDeskPage() {
   const [view, setView] = useState<'scheduled' | 'fired'>('scheduled');
   const { game } = useGame();
   const { companies, byId } = useCompanies();
-  const { data, error, refresh } = useAdminPoll<{ events: ScheduledNewsView[] }>('/admin/news/scheduled', NEWS_POLL_MS);
+  const { data, error, refresh } = useAdminPoll<{ events: ScheduledNewsView[] }>('/api/admin/news/scheduled', NEWS_POLL_MS);
 
   const events = useMemo(() => {
     const all = data?.events ?? [];

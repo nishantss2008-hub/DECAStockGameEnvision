@@ -1,6 +1,11 @@
 /**
- * Host (admin) API (spec §8). Every route requires an admin token, and every
- * mutation writes the audit log.
+ * Host (admin) API (spec §8). Every route lives under `/api/admin/*`, requires an admin token, and
+ * every mutation writes the audit log.
+ *
+ * The `/api` prefix is not decoration: `/admin/*` is the host console's own client-side URL space
+ * (`/admin`, `/admin/crews`, `/admin/news`, …), so an API route there would answer a reload, a
+ * deep link or a PWA launch with JSON instead of the app. src/index.ts keeps a 308 redirect from
+ * the old paths for non-HTML requests.
  *
  * Status codes: 400 bad input · 404 unknown crew · 409 not allowed in the
  * current phase (EngineError), name taken, or a new game is being built · 500 unexpected.
@@ -17,6 +22,7 @@ import {
 } from '@deca/shared';
 import type { ZodError } from 'zod';
 import { requireAdmin } from '../auth/middleware';
+import { publishSnapshot } from '../realtime/hub';
 import { store } from '../store';
 import { engine, EngineError } from '../engine/loop';
 import { HOST_ERRORS } from '../lib/hostCopy';
@@ -34,6 +40,17 @@ const NEW_GAME_DONE = 'New game ready. The game is back in the lobby.';
 const INTERNAL = HOST_ERRORS.internal.message;
 const BUSY = HOST_ERRORS.busy.message;
 const BAD_REQUEST = HOST_ERRORS.bad_request.message;
+
+/** Rows one tape read returns, and its ceiling. */
+const TAPE_LIMIT = 100;
+const TAPE_MAX = 500;
+
+/** `?limit=`, clamped, so one call can never ask for the whole trade table. */
+export function tapeLimit(req: FastifyRequest, fallback = TAPE_LIMIT): number {
+  const raw = Number((req.query as { limit?: unknown } | undefined)?.limit);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(TAPE_MAX, Math.max(1, Math.floor(raw)));
+}
 
 const GAME_ACTIONS = ['start', 'pause', 'resume', 'end'] as const;
 type GameAction = (typeof GAME_ACTIONS)[number];
@@ -101,7 +118,7 @@ function trackCrewChange<T>(change: Promise<T>): Promise<T> {
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ----- Settings (lobby only) -----------------------------------------------------------------
-  app.post('/admin/settings', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/settings', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = settingsSchema.safeParse(req.body ?? {});
     if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
@@ -116,7 +133,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   // ----- New game: regenerate the market, clear dynamic data, reload the engine -----------------
   // Registered before /admin/game/:action; find-my-way matches the static path first either way.
-  app.post('/admin/game/new', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/game/new', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = newGameSchema.safeParse(req.body ?? {});
     if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
@@ -132,6 +149,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       resetLeaderboardCache();
       await engine.reload();
       await auditLog('game.new', actor(req), { keepCrews });
+      // Every company, price, holding and news item is new, and no tick has fired yet: hand every
+      // connected phone the new world at once, so crews land in the fresh lobby without reconnecting.
+      publishSnapshot();
       // Never return the seed.
       return { ok: true, message: NEW_GAME_DONE, phase: engine.state.phase };
     } catch (err) {
@@ -152,7 +172,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ----- Game control: start | pause | resume | end -------------------------------------------
-  app.post('/admin/game/:action', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/game/:action', { preHandler: requireAdmin }, async (req, reply) => {
     const action = (req.params as { action: string }).action as GameAction;
     if (!GAME_ACTIONS.includes(action)) {
       return reply.code(400).send({ error: 'bad_action', message: BAD_REQUEST });
@@ -171,7 +191,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ----- Crews --------------------------------------------------------------------------------
-  app.post('/admin/teams', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/teams', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = createTeamSchema.safeParse(req.body);
     if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
@@ -184,7 +204,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.post('/admin/teams/:id/password', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/teams/:id/password', { preHandler: requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) return badRequest(req, reply, parsed.error);
@@ -198,7 +218,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.post('/admin/teams/:id/trading', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/teams/:id/trading', { preHandler: requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = tradingToggleSchema.safeParse(req.body);
     if (!parsed.success) return badRequest(req, reply, parsed.error);
@@ -212,7 +232,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.delete('/admin/teams/:id', { preHandler: requireAdmin }, async (req, reply) => {
+  app.delete('/api/admin/teams/:id', { preHandler: requireAdmin }, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (newGameInProgress) return busy(reply);
     try {
@@ -230,14 +250,14 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.get('/admin/teams', { preHandler: requireAdmin }, async () => ({ teams: store.crews.all() }));
+  app.get('/api/admin/teams', { preHandler: requireAdmin }, async () => ({ teams: store.crews.all() }));
 
   // ----- Market and news (host only: carries hidden quality and the schedule) ------------------
-  app.get('/admin/market', { preHandler: requireAdmin }, async () => ({ rows: engine.adminMarket() }));
+  app.get('/api/admin/market', { preHandler: requireAdmin }, async () => ({ rows: engine.adminMarket() }));
 
-  app.get('/admin/news/scheduled', { preHandler: requireAdmin }, async () => ({ events: engine.scheduledNews() }));
+  app.get('/api/admin/news/scheduled', { preHandler: requireAdmin }, async () => ({ events: engine.scheduledNews() }));
 
-  app.post('/admin/news', { preHandler: requireAdmin }, async (req, reply) => {
+  app.post('/api/admin/news', { preHandler: requireAdmin }, async (req, reply) => {
     const parsed = fireNewsSchema.safeParse(req.body);
     if (!parsed.success) return badRequest(req, reply, parsed.error);
     if (newGameInProgress) return busy(reply);
@@ -261,6 +281,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, tick: engine.state.currentTick };
   });
 
+  // ----- Reads across every crew (host only: a crew may never see another crew's rows) ---------
+  /** Recent fills across all crews, newest first — the host Tape screen. */
+  app.get('/api/admin/trades', { preHandler: requireAdmin }, async (req) => ({
+    trades: store.trades.recent(tapeLimit(req)),
+  }));
+
+  /** One crew's holdings — the host Crews screen. 404 when the crew is gone. */
+  app.get('/api/admin/teams/:id/holdings', { preHandler: requireAdmin }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!store.crews.get(id)) {
+      return reply.code(404).send({ error: 'not_found', message: HOST_ERRORS.not_found.message });
+    }
+    return { teamId: id, holdings: store.holdings.forCrew(id) };
+  });
+
   // ----- Audit log (server-only table; admins read it through here) --------------------------
-  app.get('/admin/logs', { preHandler: requireAdmin }, async () => ({ logs: store.audit.recent(200) }));
+  app.get('/api/admin/logs', { preHandler: requireAdmin }, async () => ({ logs: store.audit.recent(200) }));
 }

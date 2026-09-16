@@ -2,7 +2,7 @@
  * Guards on what the phone is allowed to reach.
  *
  * - No Firebase anywhere in the web client: the app talks only to the authority server.
- * - No server-only names (`_engine`, `_schedule`, `_teamStats`, `_auth`) and no `/admin/*` route
+ * - No server-only names (`_engine`, `_schedule`, `_teamStats`, `_auth`) and no `/api/admin/*` route
  *   outside src/hooks: the host reads go through the audited hooks, and a crew screen can never
  *   open its own request against a route the rules would deny.
  */

@@ -48,7 +48,7 @@ export function GameControlCard({ game, onNewGame }: { game: GameState; onNewGam
   };
   const perform = async (a: GameAction) => {
     setConfirm(null);
-    await run(a, () => apiPost(`/admin/game/${a}`));
+    await run(a, () => apiPost(`/api/admin/game/${a}`));
   };
   const alert = ALERTS[confirm ?? lastConfirm];
   const clockText = game.phase === 'ended' ? PHASES.ended.pill : fill(PHASES.countdown, { timeLeft });

@@ -74,10 +74,10 @@ async function ensureLobby(host: Page) {
 }
 
 /**
- * Moves the host between console screens by tapping the host tab bar.
- *
- * Not `page.goto`: the server owns the `/admin/*` URL namespace for its host API, so a direct load of
- * a host screen is answered by the API's 404 rather than the app. In the app it is a tab anyway.
+ * Moves the host between console screens by tapping the host tab bar — which is how a host moves
+ * between them in the app. (`page.goto('/admin/…')` also works now that the host API lives under
+ * `/api/admin/*` and the server answers HTML navigations to `/admin/*` with the app shell; the tab
+ * bar is kept here because tapping is what the gate is meant to exercise.)
  */
 async function hostTab(host: Page, name: string) {
   await host.getByRole('navigation', { name: 'Host' }).getByRole('link', { name, exact: true }).click();
