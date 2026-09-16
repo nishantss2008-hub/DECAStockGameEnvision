@@ -35,7 +35,8 @@ import {
   type SectorRefs,
 } from '@deca/shared';
 import { Prng, deriveSeed } from '../lib/prng';
-import { idioVolFor } from '../engine/model';
+import { effectiveQuality, idioVolFor, surpriseFor } from '../engine/model';
+import { buildFunds, type BuiltFund } from './funds';
 import { ROSTER, type RosterEntry } from './roster';
 import researchRaw from './research.json';
 
@@ -50,6 +51,8 @@ export interface GeneratedCompany {
 export interface GeneratedMarket {
   seed: string;
   companies: GeneratedCompany[];
+  /** The three funds, priced entirely from the companies above (spec 2026-09-16 §1). */
+  funds: BuiltFund[];
 }
 
 interface SectorProfile {
@@ -155,11 +158,6 @@ const CYCLICALITY: Record<Sector, number> = {
   'Naval Arms': 0,
   'Cartography & Navigation': 0.05,
   'Treasure Banking': 0.1,
-  'Cursed Relics': 0.15,
-  'Tortuga Hospitality': 0.1,
-  'Parrot & Livestock': 0,
-  'Maps & Instruments': -0.05,
-  'Letters of Marque (Insurance)': -0.15,
 };
 
 // ─── Flavor text (no alcohol words, no film names) ───────────────────────────
@@ -656,5 +654,20 @@ export function generateMarket(seed: string): GeneratedMarket {
     return { company, fundamentals, quality, idioVol: idioVolFor(seed, entry.id, quality.q), startPriceCents };
   });
 
-  return { seed, companies };
+  // 9. The funds: fixed baskets of the companies above, with no state of their own.
+  const funds = buildFunds(
+    companies.map((g) => ({
+      id: g.company.id,
+      ticker: g.company.ticker,
+      sector: g.company.sector,
+      startPriceCents: g.startPriceCents,
+      sharesOutstanding: g.company.sharesOutstanding,
+      adv: g.company.adv,
+      q: g.quality.q,
+      qEff: effectiveQuality(g.quality.q, surpriseFor(seed, g.company.id)),
+      quality: g.quality.score,
+    })),
+  );
+
+  return { seed, companies, funds };
 }

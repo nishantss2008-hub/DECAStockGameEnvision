@@ -35,7 +35,8 @@ function stubEngine(phase = 'live'): TradingEngine {
       startAt: Date.now() - 60_000,
       currency: { name: 'Doubloon', symbol: '⌬' },
     },
-    getCompany: (id: string) => (id === KRKN ? { id: KRKN, ticker: 'KRKN', sharesOutstanding: 1_000_000 } : undefined),
+    getInstrument: (id: string) =>
+      id === KRKN ? { id: KRKN, kind: 'company', name: 'Kraken', ticker: 'KRKN', sharesOutstanding: 1_000_000, positionLimitExempt: false } : undefined,
     getPrice: () => 1000,
     reserveFlow: () => {
       reserved += 1;

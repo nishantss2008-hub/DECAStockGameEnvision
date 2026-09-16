@@ -4,8 +4,13 @@
  * ONE rule governs every read the server answers: hidden data (`q`, `qEff`, `surprise`, `quality`,
  * `grade`, `pillars`, `fairValue`, the seed, the news schedule) never leaves the process before
  * `phase === 'ended'`. Company rows carry all of that inside `reveal`, which the engine writes at
- * the end, so `publicCompany` drops `reveal` until the game has ended. The secrets table, the
- * engine state and the schedule are never read by any crew-facing path at all.
+ * the end, so `publicCompany` drops `reveal` until the game has ended. The secrets tables
+ * (`company_secret`, `fund_secret`), the engine state and the schedule are never read by any
+ * crew-facing path at all.
+ *
+ * A fund is the same rule with one addition: its HOLDINGS and WEIGHTS are public by design —
+ * students must be able to see what a fund holds — while its value-weighted quality lives in
+ * `fund_secret` and reaches a crew only as `Fund.reveal`, after the game has ended.
  *
  * The second rule: a crew sees only its own crew, holdings, trades and orders. Every helper here
  * takes the crew id from the verified token, never from the request.
@@ -13,6 +18,7 @@
 
 import type {
   Company,
+  Fund,
   Fundamentals,
   GameState,
   Holding,
@@ -48,6 +54,7 @@ export interface Snapshot {
   serverTime: number;
   game: GameState | null;
   companies: Company[];
+  funds: Fund[];
   market: MarketSummary | null;
   leaderboard: Leaderboard | null;
   news: NewsEvent[];
@@ -68,6 +75,20 @@ export function publicCompany(company: Company, phase: Phase): Company {
 
 export function publicCompanies(phase: Phase): Company[] {
   return store.companies.all().map((c) => publicCompany(c, phase));
+}
+
+/**
+ * A fund as a crew may see it. The basket (holdings, weights, divisor) is public; the
+ * value-weighted quality inside `reveal` is not, until the game has ended.
+ */
+export function publicFund(fund: Fund, phase: Phase): Fund {
+  if (phase === 'ended' || !fund.reveal) return fund;
+  const { reveal: _reveal, ...rest } = fund;
+  return rest as Fund;
+}
+
+export function publicFunds(phase: Phase): Fund[] {
+  return store.funds.all().map((f) => publicFund(f, phase));
 }
 
 /** Fundamentals are public: the generator keeps every hidden input out of them. */
@@ -102,6 +123,7 @@ export function buildSnapshot(ctx: StreamContext): Snapshot {
     serverTime: Date.now(),
     game,
     companies: publicCompanies(phase),
+    funds: publicFunds(phase),
     market: store.market.get(),
     leaderboard: store.leaderboard.get(),
     news: store.news.recent(SNAPSHOT_NEWS),

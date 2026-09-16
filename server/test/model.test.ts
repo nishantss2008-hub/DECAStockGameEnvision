@@ -72,6 +72,7 @@ describe('model parameters', () => {
   it('drift plus scheduled company jumps has zero mean log return at qEff = 0 (Monte Carlo, 2000 schedules)', () => {
     for (const hours of [1, 48]) {
       const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, 0.3);
+      // 25 is the SYNTHETIC Monte-Carlo universe, not the roster (15): the model is per-company.
       const zero = Array.from({ length: 25 }, (_, i) => ({ id: `z${i}`, name: `Z${i}`, ticker: `Z${i}`, sector: 'Naval Arms', qEff: 0, beta: 1 }));
       const dr = drift({ id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: 1e7, lambda: 0 }, d); // per game (N·dt = 1)
       const samples: number[] = []; // one per schedule: mean over 25 independent qEff = 0 companies

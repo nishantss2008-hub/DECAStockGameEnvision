@@ -27,6 +27,8 @@ export const CREW_B = 'blackfin';
 export const PASSWORD_A = 'kraken-tide-42';
 export const KRKN = 'krkn';
 export const GALE = 'gale';
+/** Both fixture crews have met the market (design §6), so the order gate is out of the way. */
+export const INTRO_AT = 1_700_000_000_000;
 
 export function gameState(phase: Phase = 'live'): GameState {
   const base = lobbyState(normalizeSettings(undefined), Date.now());
@@ -227,6 +229,8 @@ export function seedWorld(store: Store, phase: Phase = 'live'): World {
 
     store.crews.create({ id: CREW_A, name: 'Saltwind', passwordHash: hashPassword(PASSWORD_A), startingCapital: 1_000_000 });
     store.crews.create({ id: CREW_B, name: 'Blackfin', passwordHash: hashPassword('other-password-9'), startingCapital: 1_000_000 });
+    store.crews.update(CREW_A, { introCompletedAt: INTRO_AT });
+    store.crews.update(CREW_B, { introCompletedAt: INTRO_AT });
     store.holdings.upsert(CREW_A, { companyId: KRKN, shares: 10, avgCost: 1000 });
     store.holdings.upsert(CREW_B, { companyId: GALE, shares: 5, avgCost: 2000 });
     store.crewHistory.append([

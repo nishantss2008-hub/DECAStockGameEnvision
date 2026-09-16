@@ -1,6 +1,6 @@
 /**
  * Crew management for the host console (spec §8): create, reset password,
- * turn trading on or off, and remove.
+ * turn trading on or off, mark the "Meet the market" intro done, and remove.
  *
  * A crew is one row in `crews`: its public fields, its scrypt password hash and its
  * `token_version`. The id is the canonical slug of the crew name, which is also the
@@ -73,6 +73,38 @@ export async function resetCrewPassword(teamId: string, password: string): Promi
     if (!store.crews.get(teamId)) throw crewError('not_found');
     store.crews.update(teamId, { passwordHash });
     store.crews.bumpTokenVersion(teamId);
+  });
+}
+
+/**
+ * Marks the crew's "Meet the market" intro complete (design §6) and returns the stored time.
+ * Idempotent: a crew that finishes the flow twice (two devices, a replay from Learn) keeps its
+ * FIRST completion time and gets no error. The crew id comes from the caller's session token,
+ * so a crew can only ever complete its own.
+ */
+export async function completeCrewIntro(teamId: string, at: number = Date.now()): Promise<number> {
+  assertCrewId(teamId);
+  return store.tx(() => {
+    const crew = store.crews.get(teamId);
+    if (!crew) throw crewError('not_found');
+    if (crew.introCompletedAt) return crew.introCompletedAt;
+    store.crews.update(teamId, { introCompletedAt: at });
+    return at;
+  });
+}
+
+/**
+ * Host override for the intro gate: mark a crew complete (a phone that died mid-flow must not cost
+ * a crew its competition) or clear it, sending the crew back through the flow before its next order.
+ * Returns the stored time, or null when cleared.
+ */
+export async function setCrewIntro(teamId: string, completed: boolean, at: number = Date.now()): Promise<number | null> {
+  if (completed) return completeCrewIntro(teamId, at);
+  assertCrewId(teamId);
+  return store.tx(() => {
+    if (!store.crews.get(teamId)) throw crewError('not_found');
+    store.crews.update(teamId, { introCompletedAt: null });
+    return null;
   });
 }
 

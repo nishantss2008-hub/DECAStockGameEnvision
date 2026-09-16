@@ -194,6 +194,7 @@ const crewSeries = (id: string): number[] => store.crewHistory.series(id);
 const TICK_TABLES = [
   /^price_history\//,
   /^companies\//,
+  /^funds\//,
   /^market_summary$/,
   /^market_history$/,
   /^news\//,
@@ -215,7 +216,7 @@ describe('engine loop: tick writes (spec §7/§9)', () => {
     const e = await newMarket();
     await e.startGame();
     const cos = secretCompanies();
-    expect(cos).toHaveLength(25);
+    expect(cos).toHaveLength(15);
     const clock = deriveClock(SHORT);
     const state = gameRow();
     expect(state).toMatchObject({
@@ -300,7 +301,7 @@ describe('engine loop: tick writes (spec §7/§9)', () => {
     }
     const adv = cos.filter((c) => ref.prices[c.id]![END]! > ref.prices[c.id]![OPEN]!).length;
     const dec = cos.filter((c) => ref.prices[c.id]![END]! < ref.prices[c.id]![OPEN]!).length;
-    expect(summary.breadth).toMatchObject({ advancers: adv, decliners: dec, unchanged: 25 - adv - dec, sessionVolume: 0 });
+    expect(summary.breadth).toMatchObject({ advancers: adv, decliners: dec, unchanged: 15 - adv - dec, sessionVolume: 0 });
     expect(compositeSeries(END)).toEqual(
       Array.from({ length: END + 1 }, (_, t) => compositeValue(at(t), starts, shares, ids)),
     );
@@ -492,8 +493,10 @@ describe('engine loop: resilience', () => {
     expect(store.commits).toHaveLength(2);
     const tickCommit = store.commits[0]!;
     for (const key of ['game_state', 'engine_state', 'market_summary', 'market_history']) expect(tickCommit).toContain(key);
-    expect(tickCommit.filter((k) => k.startsWith('price_history/'))).toHaveLength(25);
-    expect(tickCommit.filter((k) => k.startsWith('companies/'))).toHaveLength(25);
+    // 15 companies + 3 funds: a fund's quote is a price row like any other instrument's.
+    expect(tickCommit.filter((k) => k.startsWith('price_history/'))).toHaveLength(18);
+    expect(tickCommit.filter((k) => k.startsWith('companies/'))).toHaveLength(15);
+    expect(tickCommit.filter((k) => k.startsWith('funds/'))).toHaveLength(3);
     expect(store.commits[1]!.some((k) => k === 'leaderboard')).toBe(true);
     // A long catch-up is still one transaction, with one row per company per tick.
     store.commits = [];
@@ -729,16 +732,16 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
     const cos = secretCompanies();
     const byQ = [...cos].sort((x, y) => y.q - x.q);
     const hi = byQ[0]!;
-    const lo = byQ[24]!;
+    const lo = byQ[byQ.length - 1]!;
     addCrew('alpha', 40_000_000, { [hi.id]: 20_000 });
     addCrew('bravo', 70_000_000, { [lo.id]: 10_000 });
-    addCrew('cash-only', 100_000_000);
+    addCrew('cash-only', e.state.startingCapital); // never trades, so startGame resets it to the starting cash
     await e.startGame();
     const startingCapital = e.state.startingCapital;
     const holdings: Record<string, { id: string; shares: number; q: number; cash: number }> = {
       alpha: { id: hi.id, shares: 20_000, q: hi.q, cash: 40_000_000 },
       bravo: { id: lo.id, shares: 10_000, q: lo.q, cash: 70_000_000 },
-      'cash-only': { id: hi.id, shares: 0, q: 0, cash: 100_000_000 },
+      'cash-only': { id: hi.id, shares: 0, q: 0, cash: startingCapital },
     };
     const series: Record<string, number[]> = { alpha: [], bravo: [], 'cash-only': [] };
     const exposure: Record<string, number> = { alpha: 0, bravo: 0, 'cash-only': 0 };
@@ -784,7 +787,7 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
     expect(lastTraded).toBeGreaterThan(closeHi); // impact is in the last price, not in the close
 
     // A crew that bought only after the last price update holds shares at the close but has no time-weighted exposure.
-    const mid = byQ[12]!;
+    const mid = byQ[byQ.length >> 1]!;
     addCrew('late', 90_000_000, { [mid.id]: 5_000 });
     const pricesBefore = priceSeries(hi.id, 4);
     const volumesBefore = volumeSeries(hi.id, 4);
@@ -861,7 +864,10 @@ describe('engine loop: leaderboard, closing mark and reveal', () => {
     addCrew('alpha', 100_000_000);
     addCrew('bravo', 90_000_000);
     await e.startGame();
-    store.crews.update('bravo', { cashBalance: 90_000_000 }); // startGame gave every crew the starting cash
+    // startGame gave every crew the starting cash, so set both explicitly: this test is
+    // about rank movement, not about what the default starting capital happens to be.
+    store.crews.update('alpha', { cashBalance: 100_000_000 });
+    store.crews.update('bravo', { cashBalance: 90_000_000 });
     const S = e.state.sessionTicks;
     const standings = () => Object.fromEntries(store.leaderboard.get()!.entries.map((x) => [x.teamId, [x.rank, x.prevRank]]));
 

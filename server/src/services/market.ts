@@ -4,19 +4,21 @@
  * Shared by the `npm run seed` / `npm run reset` CLIs and POST /admin/game/new.
  * Everything lands in SQLite through `store` (see `store/index.ts`).
  *
- * HIDDEN DATA: the seed goes to the server-only `meta.seed` row and the per-company
- * q / qEff / surprise / quality / grade / pillars go to `company_secret`. Neither
- * may ever be returned to a crew before `phase === 'ended'`.
+ * HIDDEN DATA: the seed goes to the server-only `meta.seed` row, the per-company
+ * q / qEff / surprise / quality / grade / pillars go to `company_secret`, and each fund's
+ * value-weighted q / qEff / quality go to `fund_secret`. None of it may ever be returned
+ * to a crew before `phase === 'ended'`. A fund's HOLDINGS and WEIGHTS are public and live
+ * in the `funds` row itself: students must be able to see what a fund holds.
  */
 
-import type { Company, Fundamentals, GameSettings, MarketSummary } from '@deca/shared';
+import type { Company, Fund, Fundamentals, GameSettings, MarketSummary } from '@deca/shared';
 import { hashPassword } from '../lib/password';
 import { randomToken } from '../lib/secret';
 import { generateMarket } from '../seed/generateMarket';
 import { effectiveQuality, surpriseFor } from '../engine/model';
 import { INDEX_BASE, indexQuote, lobbyState, marketBreadth, normalizeSettings, type Snapshot } from '../engine/loopHelpers';
 import { store } from '../store';
-import type { CompanySecret } from '../store/types';
+import type { CompanySecret, FundSecret } from '../store/types';
 
 export interface CreateMarketOptions {
   seed?: string;
@@ -28,6 +30,7 @@ export interface CreateMarketOptions {
 export interface CreateMarketResult {
   seed: string;
   companies: number;
+  funds: number;
   adminPasswordSet: boolean;
   generatedAdminPassword?: string;
 }
@@ -43,7 +46,9 @@ export const MARKET_CREATED_KEY = 'market_created_at';
  * Clears every piece of market data (companies, secrets, history, engine state,
  * trades, orders, news, leaderboard, crew stats). Crews:
  *   - keepCrews=true: each crew loses its holdings and history and restarts with `startingCapital`.
- *   - keepCrews=false: every crew is deleted (its login goes with it).
+ *     Its login AND its "Meet the market" completion survive: the same crews play the new game,
+ *     and they have already met the market (design §6).
+ *   - keepCrews=false: every crew is deleted (its login and its intro state go with it).
  * The game state, the host login and the audit log are kept.
  */
 export async function clearDynamicData(opts: { keepCrews: boolean; startingCapital: number }): Promise<void> {
@@ -60,7 +65,8 @@ function definedOnly<T extends object>(o: T | undefined): Partial<T> {
  *   1. settings = stored game settings (defaults if none) merged with `opts.settings`
  *   2. clearDynamicData
  *   3. generateMarket(seed or a random token)
- *   4. companies, fundamentals, company_secret and tick-0 price history per company
+ *   4. companies, fundamentals, company_secret and tick-0 price history per company,
+ *      then the funds (public basket) and fund_secret, with their own tick-0 price rows
  *   5. `meta.seed`, the market summary (+ its tick-0 value) and a lobby game state
  *   6. `meta.admin_password_hash` only when a password is given or no host login exists yet
  *
@@ -111,6 +117,15 @@ export async function createMarket(opts: CreateMarketOptions): Promise<CreateMar
     sectors.add(company.sector);
   }
 
+  const funds: Fund[] = [];
+  const fundSecrets: Record<string, FundSecret> = {};
+  for (const g of market.funds) {
+    funds.push(g.fund);
+    fundSecrets[g.fund.id] = g.secret;
+    // A fund's quote is a price_history row like a company's, so every chart path is one path.
+    history.push({ companyId: g.fund.id, tick: 0, price: g.fund.startPrice, volume: 0 });
+  }
+
   const summary: MarketSummary = {
     lastTick: 0,
     updatedAt: now,
@@ -123,6 +138,8 @@ export async function createMarket(opts: CreateMarketOptions): Promise<CreateMar
     store.companies.upsertMany(companies);
     store.fundamentals.upsertMany(fundamentals);
     store.secrets.upsertMany(secrets);
+    store.funds.upsertMany(funds);
+    store.fundSecrets.upsertMany(fundSecrets);
     store.history.append(history);
     store.market.set(summary);
     store.market.appendHistory(0, INDEX_BASE);
@@ -145,6 +162,7 @@ export async function createMarket(opts: CreateMarketOptions): Promise<CreateMar
   return {
     seed,
     companies: market.companies.length,
+    funds: market.funds.length,
     adminPasswordSet,
     ...(generatedAdminPassword ? { generatedAdminPassword } : {}),
   };

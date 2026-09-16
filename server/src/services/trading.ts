@@ -11,7 +11,8 @@
  *      order's outcome and reserves nothing (see inFlightOrders).
  *   1. A retry of an already-filled `orders/{teamId}_{clientOrderId}` returns
  *      the original trade, whatever the market is doing now.
- *   2. Phase, company, quantity and price protection are checked.
+ *   2. Phase, company, quantity, the "Meet the market" intro gate and price
+ *      protection are checked.
  *   3. `engine.reserveFlow` adds the signed quantity to pending flow
  *      SYNCHRONOUSLY, before any await, so concurrent orders price in each
  *      other's impact and the per-crew interval cap holds.
@@ -41,11 +42,13 @@ import {
   feeFor,
   intervalShareCap,
   notionalFor,
+  positionLimitFor,
   type Holding,
   type OrderRecord,
   type OrderRequest,
   type OrderSide,
   type Phase,
+  type Team,
   type Trade,
 } from '@deca/shared';
 import { formatMoney } from '../lib/money';
@@ -64,6 +67,7 @@ export type TradeErrorCode =
   | 'insufficient_shares'
   | 'position_limit'
   | 'interval_limit'
+  | 'intro_required'
   | 'no_team';
 
 export class TradeError extends Error {
@@ -124,6 +128,11 @@ const COPY = {
     message:
       'The host has paused trading. We kept your order details, so you can place it as soon as trading resumes.',
   },
+  intro_required: {
+    title: 'Meet the market first',
+    message:
+      'Finish the short Meet the market tour, then place this order again. It takes about a minute, and nothing else is locked.',
+  },
   trading_disabled: {
     title: 'Trading turned off for your crew',
     message:
@@ -163,7 +172,7 @@ function text(title: string, message: string, vars: Record<string, string> = {})
 const shares = (n: number): string => n.toLocaleString('en-US');
 const pctLabel = (frac: number): string => `${Math.round(frac * 100)}%`;
 
-type StaticCode = 'bad_quantity' | 'unknown_company' | 'trading_disabled' | 'no_team';
+type StaticCode = 'bad_quantity' | 'unknown_company' | 'trading_disabled' | 'intro_required' | 'no_team';
 
 /** A TradeError whose message needs no numbers (COPY title + message). */
 export function tradeError(code: StaticCode): TradeError {
@@ -344,11 +353,15 @@ export function checkPriceProtection(
 // Execution (IO)
 // ---------------------------------------------------------------------------
 
-/** The engine surface trading needs (GameEngine satisfies it). */
-export type TradingEngine = Pick<GameEngine, 'state' | 'getCompany' | 'getPrice' | 'reserveFlow'>;
+/**
+ * The engine surface trading needs (GameEngine satisfies it). Orders are placed on an
+ * INSTRUMENT — a company or a fund — so everything below reads `getInstrument`, and the
+ * engine decides what a reservation means for each kind.
+ */
+export type TradingEngine = Pick<GameEngine, 'state' | 'getInstrument' | 'getPrice' | 'reserveFlow'>;
 
-type EngineCompanyInfo = NonNullable<ReturnType<TradingEngine['getCompany']>>;
-type CompanyContext = Pick<EngineCompanyInfo, 'ticker' | 'sharesOutstanding'>;
+type EngineInstrumentInfo = NonNullable<ReturnType<TradingEngine['getInstrument']>>;
+type CompanyContext = Pick<EngineInstrumentInfo, 'ticker' | 'sharesOutstanding'>;
 
 const ENGINE_TRADE_CODES = new Set(['market_closed', 'unknown_company', 'interval_limit', 'bad_quantity']);
 
@@ -468,6 +481,11 @@ function filledTrade(teamId: string, clientOrderId: string): Trade | null {
 /** Codes that leave no order row: there is no crew to own it (never recreate data for a removed crew). */
 const UNRECORDED: ReadonlySet<TradeErrorCode> = new Set(['no_team']);
 
+/** Has this crew finished the required-once "Meet the market" intro (design §6)? */
+function introDone(team: Pick<Team, 'introCompletedAt'>): boolean {
+  return typeof team.introCompletedAt === 'number' && team.introCompletedAt > 0;
+}
+
 /**
  * Best-effort rejection record. Never overwrites a filled order: if a duplicate of this order
  * already filled, returns that trade so the caller can answer idempotently instead of rejecting.
@@ -544,7 +562,7 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
   };
 
   // --- Validate and reserve flow. Everything from the phase check through reserveFlow is synchronous. ---
-  const company = engine.getCompany(order.companyId);
+  const instrument = engine.getInstrument(order.companyId);
   const symbol = engine.state.currency?.symbol ?? CURRENCY.symbol;
   let reservation: ReturnType<TradingEngine['reserveFlow']>;
   // The moment the order is priced: its trade's time and tick, however long the commit takes. The tick
@@ -553,14 +571,21 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
   try {
     if (halted) throw marketClosedError('lobby');
     if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
-    if (!company) throw tradeError('unknown_company');
+    if (!instrument) throw tradeError('unknown_company');
     if (!Number.isInteger(order.quantity) || order.quantity <= 0) throw tradeError('bad_quantity');
-    checkPriceProtection(engine.getPrice(order.companyId), order.quotedPrice, { ticker: company.ticker, symbol });
+    // The intro gate again, before any flow is reserved: an order that cannot fill must not price
+    // its impact into every other crew's fills. A missing crew falls through to `no_team` below,
+    // which leaves no order row. The transaction's check is the authoritative one.
+    const crew = store.crews.get(teamId);
+    if (crew && !introDone(crew)) throw tradeError('intro_required');
+    // A fund has no price of its own: `getPrice` recomputes its quote from its constituents, so
+    // the 2% check is measured against the underlying, not against a stored fund quote.
+    checkPriceProtection(engine.getPrice(order.companyId), order.quotedPrice, { ticker: instrument.ticker, symbol });
     pricedAt = Date.now();
     try {
       reservation = engine.reserveFlow(teamId, order.companyId, order.side, order.quantity);
     } catch (err) {
-      throw tradeErrorFromEngine(err, engine, company, pricedAt) ?? err;
+      throw tradeErrorFromEngine(err, engine, instrument, pricedAt) ?? err;
     }
   } catch (err) {
     if (err instanceof TradeError) return reject(err);
@@ -589,6 +614,11 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
       const team = store.crews.get(teamId);
       if (!team) throw tradeError('no_team');
       if (team.tradingDisabled) throw tradeError('trading_disabled');
+      // Design §6: the "Meet the market" intro is required once, before a crew's FIRST order.
+      // Checked here, inside the fill transaction, so every order passes it however it arrived —
+      // and against the row as it is at commit time, in case the host marked the crew complete
+      // while this order waited behind the crew's earlier ones.
+      if (!introDone(team)) throw tradeError('intro_required');
 
       const cash = team.cashBalance ?? 0;
       let owned = 0;
@@ -615,8 +645,9 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
         sharesOwned: owned,
         avgCost,
         totalValue: cash + otherValue + owned * r.lastPrice,
-        maxPositionPct: engine.state.maxPositionPct,
-        ticker: company.ticker,
+        // The broad fund is exempt from the host limit; see positionLimitFor (shared/src/funds.ts).
+        maxPositionPct: positionLimitFor(instrument, engine.state.maxPositionPct),
+        ticker: instrument.ticker,
         currencySymbol: symbol,
       });
 

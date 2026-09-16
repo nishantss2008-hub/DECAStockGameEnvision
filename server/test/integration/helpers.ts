@@ -15,7 +15,7 @@ import { openStore, store, useStore, type Store } from '../../src/store';
 import { resetSessionSecretCache } from '../../src/auth/sessions';
 import { resetLeaderboardCache } from '../../src/services/leaderboard';
 import { createMarket } from '../../src/services/market';
-import { createCrew } from '../../src/services/crews';
+import { completeCrewIntro, createCrew } from '../../src/services/crews';
 import { closeAll } from '../../src/realtime/hub';
 
 /** A temp database that survives a "restart": closing and reopening keeps the same file. */
@@ -85,7 +85,12 @@ export async function seedWorld(
   });
   // `store` is the process proxy: it always resolves the store `tempDb` installed.
   const startingCapital = store.game.get()?.startingCapital ?? 1_000_000;
-  for (const name of opts.crews) await createCrew(name, CREW_PASSWORD, startingCapital);
+  for (const name of opts.crews) {
+    const crew = await createCrew(name, CREW_PASSWORD, startingCapital);
+    // Past the lobby: these crews have met the market (design §6), so the required-once intro
+    // gate on the first order is out of the way of whatever the scenario is actually testing.
+    await completeCrewIntro(crew.id);
+  }
   return { seed: opts.seed, companyIds: store.companies.all().map((c) => c.id) };
 }
 

@@ -27,8 +27,10 @@ describe('generateMarket', () => {
     for (let s = 0; s < 20; s++) {
       const m = generateMarket(`g${s}`); const grades = new Set(m.companies.map((g) => g.quality.grade));
       for (const g of GRADES) expect(grades.has(g)).toBe(true);
-      const qs = m.companies.map((g) => g.quality.q); expect(Math.min(...qs)).toBeLessThan(-0.9); expect(Math.max(...qs)).toBeGreaterThan(0.9);
-      losses += m.companies.filter((g) => g.fundamentals.netIncome <= 0).length; total += 25;
+      // q = −1 + 2·(rank0 + 0.5)/15, so the extremes are ±0.9333 — or ±0.8667 when the top (or bottom)
+      // two scores tie exactly, which happens in ~1.5% of seeds (measured over 2,000).
+      const qs = m.companies.map((g) => g.quality.q); expect(Math.min(...qs)).toBeLessThan(-0.85); expect(Math.max(...qs)).toBeGreaterThan(0.85);
+      losses += m.companies.filter((g) => g.fundamentals.netIncome <= 0).length; total += ROSTER.length;
     }
     expect(losses / total).toBeGreaterThan(0.02); expect(losses / total).toBeLessThan(0.2);
   });
@@ -61,7 +63,7 @@ describe('generateMarket', () => {
     expect(analystRating(1200, 1200)).toBe('Hold');
     expect(analystRating(1140, 1200)).toBe('Hold'); expect(analystRating(1139, 1200)).toBe('Sell');
     expect(analystRating(1020, 1200)).toBe('Sell'); expect(analystRating(1019, 1200)).toBe('Strong Sell');
-    expect(analystRating(33_535, 35_300)).toBe('Hold'); // generateMarket('a10') PRRT: exactly −5%
+    expect(analystRating(33_535, 35_300)).toBe('Hold'); // exactly −5%: the Hold floor, not Sell
     const names = ['Strong Buy', 'Buy', 'Hold', 'Sell', 'Strong Sell'] as const;
     for (let price = 1_200; price <= 52_000; price += 5) {
       [20, 8, -5, -15].forEach((pct, i) => {

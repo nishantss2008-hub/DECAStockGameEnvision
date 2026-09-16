@@ -22,6 +22,7 @@ import type {
   CompanySecret,
   CrewRow,
   EngineStateRow,
+  FundSecret,
   LogEntry,
   NewCrew,
   PricePoint,
@@ -39,6 +40,7 @@ interface PriceRow {
 import type { ScheduledEvent } from '../../src/engine/news';
 import type {
   Company,
+  Fund,
   Fundamentals,
   GameSettings,
   GameState,
@@ -58,6 +60,8 @@ interface Tables {
   companies: Record<string, Company>;
   fundamentals: Record<string, Fundamentals>;
   secrets: Record<string, CompanySecret>;
+  funds: Record<string, Fund>;
+  fundSecrets: Record<string, FundSecret>;
   /** companyId → tick → point */
   history: Record<string, Record<number, PricePoint>>;
   market: MarketSummary | null;
@@ -85,6 +89,8 @@ function emptyTables(): Tables {
     companies: {},
     fundamentals: {},
     secrets: {},
+    funds: {},
+    fundSecrets: {},
     history: {},
     market: null,
     marketHistory: {},
@@ -253,6 +259,38 @@ export class MemoryStore implements Store {
     },
   };
 
+  funds = {
+    all: (): Fund[] => Object.values(this.t.funds).map(clone),
+    get: (id: string): Fund | null => (this.t.funds[id] ? clone(this.t.funds[id]!) : null),
+    upsertMany: (fs: Fund[]): void => {
+      this.tx(() => {
+        for (const f of fs) {
+          this.w(`funds/${f.id}`);
+          this.t.funds[f.id] = clone(f);
+        }
+      });
+    },
+    update: (id: string, patch: Partial<Fund>): void => {
+      this.write(`funds/${id}`, () => {
+        const row = this.t.funds[id];
+        if (row) Object.assign(row, clone(patch));
+      });
+    },
+  };
+
+  fundSecrets = {
+    all: (): Record<string, FundSecret> => clone(this.t.fundSecrets),
+    get: (id: string): FundSecret | null => (this.t.fundSecrets[id] ? clone(this.t.fundSecrets[id]!) : null),
+    upsertMany: (s: Record<string, FundSecret>): void => {
+      this.tx(() => {
+        for (const [id, v] of Object.entries(s)) {
+          this.w(`fund_secret/${id}`);
+          this.t.fundSecrets[id] = clone(v);
+        }
+      });
+    },
+  };
+
   history = {
     append: (rows: PriceRow[]): void => {
       this.tx(() => {
@@ -319,6 +357,9 @@ export class MemoryStore implements Store {
           createdAt: row.createdAt ?? Date.now(),
           passwordHash: row.passwordHash,
           tokenVersion: 1,
+          // Design §6: a new crew has not met the market yet. `clearDynamic` keeps this across a
+          // new game with keepCrews (the spread below), exactly as the SQL store does.
+          introCompletedAt: null,
         };
       });
     },
@@ -542,6 +583,8 @@ export function seedMarketInto(store: MemoryStore, seed: string, settings?: Part
   const companies: Company[] = [];
   const fundamentals: Record<string, Fundamentals> = {};
   const secrets: Record<string, CompanySecret> = {};
+  const funds: Fund[] = [];
+  const fundSecrets: Record<string, FundSecret> = {};
   const rows: PriceRow[] = [];
   const sectors = new Set<string>();
 
@@ -570,11 +613,19 @@ export function seedMarketInto(store: MemoryStore, seed: string, settings?: Part
     sectors.add(company.sector);
   }
 
+  for (const g of market.funds) {
+    funds.push(g.fund);
+    fundSecrets[g.fund.id] = g.secret;
+    rows.push({ companyId: g.fund.id, tick: 0, price: g.fund.startPrice, volume: 0 });
+  }
+
   store.tx(() => {
     store.meta.set(SEED_KEY, seed);
     store.companies.upsertMany(companies);
     store.fundamentals.upsertMany(fundamentals);
     store.secrets.upsertMany(secrets);
+    store.funds.upsertMany(funds);
+    store.fundSecrets.upsertMany(fundSecrets);
     store.history.append(rows);
     store.market.set({
       lastTick: 0,

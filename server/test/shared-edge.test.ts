@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_MAX_POSITION_PCT,
+  DEFAULT_GAME_LENGTH_MS,
+  DEFAULT_TICK_INTERVAL_MS,
   GAME_LENGTH_OPTIONS_MS,
   HOUR_MS,
   MINUTE_MS,
@@ -390,6 +392,12 @@ describe('clock for every game length option', () => {
 
   it('covers exactly the four options', () => {
     expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20, 30].map((m) => m * MINUTE_MS));
+  });
+
+  it('DEFAULT_TICK_INTERVAL_MS is the cadence every supported length lands on', () => {
+    // The UI shows it before a game's own settings arrive, so it must not be a stale guess.
+    for (const len of GAME_LENGTH_OPTIONS_MS) expect(deriveClock(len).tickIntervalMs).toBe(DEFAULT_TICK_INTERVAL_MS);
+    expect(deriveClock(DEFAULT_GAME_LENGTH_MS).tickIntervalMs).toBe(DEFAULT_TICK_INTERVAL_MS);
   });
 
   for (const len of GAME_LENGTH_OPTIONS_MS) {

@@ -3,7 +3,10 @@ import { deriveClock, HOUR_MS, SECTORS } from '@deca/shared';
 import { derive } from '../src/engine/model';
 import { buildSchedule, hostEvent } from '../src/engine/news';
 // NewsCompany carries `qEff` (the plan's sample data named this field `q`, which the interface does not have).
-const companies = Array.from({ length: 25 }, (_, i) => ({ id: `c${i}`, name: `Company ${i}`, ticker: `C${i}`, sector: 'Naval Arms', qEff: -1 + 2 * (i + 0.5) / 25, beta: 1 }));
+// N is the SYNTHETIC universe for these Monte-Carlo checks, not the roster (which is 15): the news engine
+// is per-company, so the count here only buys statistical power.
+const N = 25;
+const companies = Array.from({ length: N }, (_, i) => ({ id: `c${i}`, name: `Company ${i}`, ticker: `C${i}`, sector: 'Naval Arms', qEff: -1 + 2 * (i + 0.5) / N, beta: 1 }));
 describe('news schedule', () => {
   const clock = deriveClock(48 * HOUR_MS); const d = derive(clock, 0.3);
   it('is deterministic and sorted', () => {
@@ -13,7 +16,7 @@ describe('news schedule', () => {
   it('averages about K company events and caps jump size', () => {
     let n = 0; let maxAbs = 0;
     for (let s = 0; s < 20; s++) for (const e of buildSchedule(`s${s}`, clock, companies, d)) if (e.source === 'scheduled') { n++; for (const j of Object.values(e.jumps)) maxAbs = Math.max(maxAbs, Math.abs(Math.exp(j) - 1)); }
-    expect(n / (20 * 25)).toBeGreaterThan(d.K * 0.8); expect(n / (20 * 25)).toBeLessThan(d.K * 1.2);
+    expect(n / (20 * N)).toBeGreaterThan(d.K * 0.8); expect(n / (20 * N)).toBeLessThan(d.K * 1.2);
     expect(maxAbs).toBeLessThanOrEqual(0.25 + 1e-9);
   });
   it('good news is more likely for higher quality', () => {
@@ -27,7 +30,7 @@ describe('news schedule', () => {
   it('macro events hit every company with beta-scaled jumps', () => {
     const macro = buildSchedule('m', clock, companies, d).filter((e) => e.source === 'macro');
     expect(macro.length).toBeGreaterThanOrEqual(1); expect(macro.length).toBeLessThanOrEqual(2);
-    expect(macro[0]!.companyIds.length).toBe(25);
+    expect(macro[0]!.companyIds.length).toBe(N);
   });
   it('host events convert magnitude to a log jump', () => {
     const e = hostEvent(10, companies, { companyIds: ['c1'], type: 'merger', magnitude: 0.1, headline: 'H', body: '' });
@@ -50,7 +53,7 @@ describe('news schedule', () => {
     // Theory (S ~ Exp(s), cap 0.25 > 1.4·s for every K): small 1 − e^−0.8 = 55.1%, medium e^−0.8 − e^−1.4 = 20.3%,
     // large e^−1.4 = 24.7%, so each of merger/discovery/scandal/storm is ~6.2% (about 5 SE above 5% with ~10,000 events).
     for (const hours of [1, 12, 48]) {
-      const c = deriveClock(hours * HOUR_MS); const dd = derive(c, 0.3); const seeds = Math.ceil(10_000 / (25 * dd.K));
+      const c = deriveClock(hours * HOUR_MS); const dd = derive(c, 0.3); const seeds = Math.ceil(10_000 / (N * dd.K));
       const counts: Record<string, number> = {}; let n = 0;
       for (let s = 0; s < seeds; s++) for (const e of buildSchedule(`mix${s}`, c, companies, dd)) {
         if (e.source !== 'scheduled') continue; n++; counts[e.type] = (counts[e.type] ?? 0) + 1;

@@ -15,6 +15,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   createTeamSchema,
   fireNewsSchema,
+  introToggleSchema,
   newGameSchema,
   resetPasswordSchema,
   settingsSchema,
@@ -22,14 +23,14 @@ import {
 } from '@deca/shared';
 import type { ZodError } from 'zod';
 import { requireAdmin } from '../auth/middleware';
-import { publishSnapshot } from '../realtime/hub';
+import { publishPortfolio, publishSnapshot } from '../realtime/hub';
 import { store } from '../store';
 import { engine, EngineError } from '../engine/loop';
 import { HOST_ERRORS } from '../lib/hostCopy';
 import { auditLog } from '../lib/logger';
 import { createMarket } from '../services/market';
 import { resetLeaderboardCache } from '../services/leaderboard';
-import { CrewError, createCrew, removeCrew, resetCrewPassword, setCrewTrading } from '../services/crews';
+import { CrewError, createCrew, removeCrew, resetCrewPassword, setCrewIntro, setCrewTrading } from '../services/crews';
 import { haltTrading, resumeTrading } from '../services/trading';
 
 /** COPY.md §11 host-settings wording. */
@@ -230,6 +231,29 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       return crewFailure(req, reply, err);
     }
+  });
+
+  /**
+   * The "Meet the market" intro gate (design §6). `{ completed: true }` marks the crew done —
+   * a phone that died mid-flow, or a late arrival the host walked through in person, must not
+   * cost a crew its competition. `{ completed: false }` sends the crew back through it.
+   * The crews listing (`GET /api/admin/teams`) carries `introCompletedAt` for every crew.
+   */
+  app.post('/api/admin/teams/:id/intro', { preHandler: requireAdmin }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const parsed = introToggleSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(req, reply, parsed.error);
+    if (newGameInProgress) return busy(reply);
+    let introCompletedAt: number | null;
+    try {
+      introCompletedAt = await trackCrewChange(setCrewIntro(id, parsed.data.completed));
+    } catch (err) {
+      return crewFailure(req, reply, err);
+    }
+    // The crew's own screens unlock (or lock) without a reload.
+    publishPortfolio(id);
+    await auditLog('team.intro', actor(req), { teamId: id, completed: parsed.data.completed });
+    return { ok: true, introCompletedAt };
   });
 
   app.delete('/api/admin/teams/:id', { preHandler: requireAdmin }, async (req, reply) => {

@@ -23,17 +23,24 @@
 
 import {
   EDGE_SPREAD,
+  FUND_OPEN_PRICE,
   MODEL,
   deriveClock,
+  fundConstituentShares,
+  fundPrice,
   impactLambda,
   intervalShareCap,
   tickAt,
   type AdminMarketRow,
   type Company,
   type FireNewsInput,
+  type Fund,
+  type FundHolding,
+  type FundReveal,
   type GameClock,
   type GameState,
   type Grade,
+  type InstrumentQuote,
   type HealthResponse,
   type Leaderboard,
   type MarketSummary,
@@ -119,6 +126,41 @@ export interface EngineCompany {
   startPriceCents: number;
 }
 
+/**
+ * A fund in the engine: a fixed basket and the value-weighted quality of what it holds.
+ *
+ * Note what is NOT here — no `idioVol`, no `lambda`, no `surprise`, no `CompanyState`. A
+ * fund has no price state of its own: its quote is recomputed from its constituents every
+ * time it is read, and a fund order's impact lands on the constituents.
+ */
+export interface EngineFund {
+  id: string;
+  ticker: string;
+  name: string;
+  style: Fund['style'];
+  sector?: Sector;
+  holdings: FundHolding[];
+  divisor: number;
+  adv: number;
+  positionLimitExempt: boolean;
+  /** Value-weighted mean of the constituents' visible-fundamentals q. */
+  q: number;
+  qEff: number;
+  quality: number;
+}
+
+/** The tradeable surface of a company OR a fund: what the order path needs, whichever it is. */
+export interface EngineInstrument {
+  id: string;
+  kind: 'company' | 'fund';
+  ticker: string;
+  name: string;
+  /** 0 for a fund: its interval cap comes from its constituents, not from a share count. */
+  sharesOutstanding: number;
+  /** True only for the broad fund (see `positionLimitFor` in shared/src/funds.ts). */
+  positionLimitExempt: boolean;
+}
+
 export class EngineError extends Error {
   constructor(
     public code: string,
@@ -199,7 +241,8 @@ function validCompanyState(s: Partial<CompanyState> | undefined): s is CompanySt
   return !!s && [s.v, s.m, s.f, s.h].every((x) => typeof x === 'number' && Number.isFinite(x));
 }
 
-function snapshotFrom(c: Partial<Company>, start: number, shares: number): Snapshot {
+/** A stored row of ANY instrument (a `companies` or a `funds` row) as a tick snapshot. */
+function snapshotFrom(c: Partial<InstrumentQuote> & { marketCap?: number }, start: number, shares: number): Snapshot {
   const price = finiteOr(c.currentPrice, start);
   return {
     currentPrice: price,
@@ -239,6 +282,25 @@ function snapshotFields(s: Snapshot): Partial<Company> {
   };
 }
 
+/**
+ * The per-tick fields of a `funds` row. A fund's snapshot carries no share count and no
+ * market cap — it is a basket, not a company — so those two are simply left out.
+ */
+function fundSnapshotFields(s: Snapshot): Partial<Fund> {
+  return {
+    currentPrice: s.currentPrice,
+    sessionOpen: s.sessionOpen,
+    sessionHigh: s.sessionHigh,
+    sessionLow: s.sessionLow,
+    sessionVolume: s.sessionVolume,
+    voyageHigh: s.voyageHigh,
+    voyageLow: s.voyageLow,
+    sessionChange: s.sessionChange,
+    voyageChange: s.voyageChange,
+    lastTick: s.lastTick,
+  };
+}
+
 /** Drops the storage columns so the in-memory schedule stays a plain `ScheduledEvent`. */
 function toEvent(row: StoredScheduledEvent): ScheduledEvent {
   const { rowId: _rowId, fired: _fired, ...event } = row;
@@ -266,6 +328,8 @@ export class GameEngine {
   private d: Derived = derive(this.clock, EDGE_SPREAD[this.state.researchEdge]);
   private cos = new Map<string, EngineCompany>();
   private ids: string[] = [];
+  private fnds = new Map<string, EngineFund>();
+  private fundIds: string[] = [];
   private sectorIds = new Map<string, string[]>();
   private starts: Record<string, number> = {};
   private shares: Record<string, number> = {};
@@ -349,9 +413,42 @@ export class GameEngine {
     return this.ids.map((id) => this.cos.get(id)!);
   }
 
-  /** Current price of every company, for the tick fan-out. */
+  getFund(fundId: string): EngineFund | undefined {
+    return this.fnds.get(fundId);
+  }
+
+  funds(): EngineFund[] {
+    return this.fundIds.map((id) => this.fnds.get(id)!);
+  }
+
+  /** The company or the fund behind an id, as the order path sees it. */
+  getInstrument(id: string): EngineInstrument | undefined {
+    const c = this.cos.get(id);
+    if (c) {
+      return { id, kind: 'company', ticker: c.ticker, name: c.name, sharesOutstanding: c.sharesOutstanding, positionLimitExempt: false };
+    }
+    const f = this.fnds.get(id);
+    if (f) return { id, kind: 'fund', ticker: f.ticker, name: f.name, sharesOutstanding: 0, positionLimitExempt: f.positionLimitExempt };
+    return undefined;
+  }
+
+  /**
+   * The hidden quality behind an instrument, for the end-of-game research score: a company's
+   * visible-fundamentals `q`, or a fund's value-weighted average of its constituents'. Buying
+   * the broad fund therefore scores as the market average — "did not pick" — by construction.
+   */
+  qualityOf(id: string): number {
+    return this.cos.get(id)?.q ?? this.fnds.get(id)?.q ?? 0;
+  }
+
+  /** Current price of every company and every fund, for the tick fan-out. */
   prices(): Record<string, number> {
-    return Object.fromEntries(this.ids.map((id) => [id, this.getPrice(id)]));
+    return Object.fromEntries([...this.ids, ...this.fundIds].map((id) => [id, this.getPrice(id)]));
+  }
+
+  /** A fund's quote, always recomputed from live constituent prices (never a stored value). */
+  private fundQuoteNow(f: EngineFund, priceOf: (id: string) => number = (id) => this.getPrice(id)): number {
+    return fundPrice(f, priceOf);
   }
 
   /**
@@ -360,9 +457,11 @@ export class GameEngine {
    * cap when `teamId` is given, else the full cap. Allowed in every phase.
    */
   quote(companyId: string, side: OrderSide, quantity: number, teamId?: string): QuoteResult {
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
+    const fund = this.fnds.get(companyId);
+    if (fund) return this.quoteFund(fund, side, quantity, teamId);
     const c = this.cos.get(companyId);
     if (!c) throw new EngineError('unknown_company', engineMessages.unknownCompany);
-    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
     const lastPrice = this.getPrice(companyId);
     const s = this.es?.companies[companyId] ?? initialState(lastPrice);
     const signed = side === 'buy' ? quantity : -quantity;
@@ -383,10 +482,12 @@ export class GameEngine {
    */
   reserveFlow(teamId: string, companyId: string, side: OrderSide, quantity: number): FlowReservation {
     if (this.state.phase !== 'live') throw new EngineError('market_closed', engineMessages.marketClosed(this.state.phase));
+    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
+    const fund = this.fnds.get(companyId);
+    if (fund) return this.reserveFundFlow(teamId, fund, side, quantity);
     const c = this.cos.get(companyId);
     const s = this.es?.companies[companyId];
     if (!c || !s) throw new EngineError('unknown_company', engineMessages.unknownCompany);
-    if (!Number.isInteger(quantity) || quantity <= 0) throw new EngineError('bad_quantity', engineMessages.badQuantity);
     const cap = intervalShareCap(c.sharesOutstanding);
     const used = this.flow.teamGross(teamId, companyId);
     if (used + quantity > cap) {
@@ -422,8 +523,123 @@ export class GameEngine {
     };
   }
 
+  /**
+   * One constituent leg of a fund order: the company, its state, and the FRACTIONAL share
+   * count this order creates demand for (`quantity · wᵢ / divisor`).
+   */
+  private fundLegs(f: EngineFund, quantity: number): { c: EngineCompany; s: CompanyState; shares: number; weight: number }[] {
+    const weights = new Map(f.holdings.map((h) => [h.companyId, h.weight]));
+    return fundConstituentShares(f, quantity).map((part) => {
+      const c = this.cos.get(part.companyId);
+      if (!c) throw new EngineError('unknown_company', engineMessages.unknownCompany);
+      // Before the game starts there is no price state yet; a preview prices off the start price,
+      // exactly as the company path does.
+      const s = this.es?.companies[part.companyId] ?? initialState(this.getPrice(part.companyId));
+      return { c, s, shares: part.shares, weight: weights.get(part.companyId)! };
+    });
+  }
+
+  /**
+   * Prices a fund order from its constituents: the crew pays Σ wᵢ·fillᵢ / divisor, where each
+   * fillᵢ is the same path-exact impacted price it would pay buying that company directly. That
+   * is what makes the fund and its components cost the same, in either direction.
+   */
+  private priceFundLegs(legs: ReturnType<GameEngine['fundLegs']>, f: EngineFund, sign: number): { fillPrice: number; impactBps: number } {
+    let basket = 0;
+    let value = 0;
+    let impact = 0;
+    for (const leg of legs) {
+      const fill = fillPriceExact(leg.s, leg.c.lambda, this.flow.pendingNet(leg.c.id), sign * leg.shares);
+      basket += leg.weight * fill;
+      const legValue = leg.weight * this.getPrice(leg.c.id);
+      value += legValue;
+      impact += legValue * ((leg.c.lambda * leg.shares) / 2);
+    }
+    return {
+      fillPrice: f.divisor > 0 ? basket / f.divisor : 0,
+      impactBps: value > 0 ? Math.round((impact / value) * 10_000) : 0,
+    };
+  }
+
+  /**
+   * The crew's remaining interval headroom in FUND shares: the tightest constituent's
+   * remaining 1-ADV cap, converted through that constituent's basket weight. A crew that has
+   * already used its KRKN cap directly has no headroom left in a fund that holds KRKN.
+   */
+  private fundIntervalRemaining(f: EngineFund, teamId?: string): number {
+    let remaining = Infinity;
+    for (const leg of this.fundLegs(f, 1)) {
+      const cap = intervalShareCap(leg.c.sharesOutstanding);
+      const used = teamId ? this.flow.teamGross(teamId, leg.c.id) : 0;
+      remaining = Math.min(remaining, leg.shares > 0 ? Math.max(0, cap - used) / leg.shares : Infinity);
+    }
+    return Number.isFinite(remaining) ? Math.floor(remaining) : 0;
+  }
+
+  private quoteFund(f: EngineFund, side: OrderSide, quantity: number, teamId?: string): QuoteResult {
+    const legs = this.fundLegs(f, quantity);
+    const { fillPrice, impactBps } = this.priceFundLegs(legs, f, side === 'buy' ? 1 : -1);
+    return {
+      lastPrice: this.fundQuoteNow(f),
+      fillPrice,
+      impactBps,
+      intervalRemaining: this.fundIntervalRemaining(f, teamId),
+    };
+  }
+
+  /**
+   * Reserves a fund order as demand on its CONSTITUENTS.
+   *
+   * Buying Ð10,000 of a fund is demand for Ð10,000 of the underlying, so the existing linear
+   * transient impact applies to each constituent pro-rata by `wᵢ × notional`; the fund's own
+   * quote is then simply the basket recomputed from the moved constituent prices. There is no
+   * separate impact term on the fund, and no way to route around a per-company interval cap:
+   * the cap is checked on each constituent, against the shares the crew has already traded in
+   * that company this interval, however it traded them.
+   */
+  private reserveFundFlow(teamId: string, f: EngineFund, side: OrderSide, quantity: number): FlowReservation {
+    const sign = side === 'buy' ? 1 : -1;
+    const legs = this.fundLegs(f, quantity);
+    for (const leg of legs) {
+      const cap = intervalShareCap(leg.c.sharesOutstanding);
+      const used = this.flow.teamGross(teamId, leg.c.id);
+      if (used + leg.shares > cap) {
+        throw new EngineError(
+          'interval_limit',
+          engineMessages.intervalLimit({ cap, used, ticker: leg.c.ticker, seconds: this.secondsToNextTick(Date.now()) }),
+        );
+      }
+    }
+
+    const { fillPrice, impactBps } = this.priceFundLegs(legs, f, sign);
+    const lastPrice = this.fundQuoteNow(f);
+    const releases = legs.map((leg) => this.flow.reserve(teamId, leg.c.id, sign * leg.shares));
+    // The fund's own row records the fund shares traded, so its chart shows crew activity in it.
+    // Its `net` is never priced: a fund has no impact term of its own.
+    releases.push(this.flow.reserve(teamId, f.id, sign * quantity));
+
+    const es = this.es;
+    const tickAtReserve = this.state.currentTick;
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      for (const undo of releases) undo();
+      const ticks = this.state.currentTick - tickAtReserve;
+      if (ticks > 0 && this.es === es && es) {
+        for (const leg of legs) {
+          const state = es.companies[leg.c.id];
+          if (state) state.f -= leg.c.lambda * sign * leg.shares * Math.pow(this.d.decay, ticks);
+        }
+      }
+    };
+    return { lastPrice, fillPrice, impactBps, tick: tickAtReserve, release };
+  }
+
   /** Closing mark round(exp(v+m)), impact excluded. Used for final standings and the reveal. */
   closePrice(companyId: string): number {
+    const f = this.fnds.get(companyId);
+    if (f) return this.fundQuoteNow(f, (id) => this.closePrice(id));
     const s = this.es?.companies[companyId];
     return s ? closeMark(s) : this.getPrice(companyId);
   }
@@ -548,6 +764,12 @@ export class GameEngine {
         this.snaps.set(id, startSnapshot(c.startPriceCents, c.sharesOutstanding));
         this.lastRow.set(id, { companyId: id, tick: 0, price: c.startPriceCents, volume: 0 });
       }
+      // A fund opens at its divisor's promise: Σ wᵢ·pᵢ(0)/divisor = FUND_OPEN_PRICE exactly.
+      for (const id of this.fundIds) {
+        const f = this.fnds.get(id)!;
+        this.snaps.set(id, startSnapshot(this.fundQuoteNow(f, (cid) => this.cos.get(cid)!.startPriceCents) || FUND_OPEN_PRICE, 0));
+        this.lastRow.set(id, { companyId: id, tick: 0, price: this.getPrice(id), volume: 0 });
+      }
       this.indexNow = this.computeIndexes();
       this.indexSessionOpen = { composite: this.indexNow.composite, sectors: { ...this.indexNow.sectors } };
 
@@ -556,6 +778,7 @@ export class GameEngine {
       this.store.tx(() => {
         this.store.history.append([...this.lastRow.values()]);
         for (const id of this.ids) this.store.companies.update(id, snapshotFields(this.snaps.get(id)!));
+        for (const id of this.fundIds) this.store.funds.update(id, fundSnapshotFields(this.snaps.get(id)!));
         this.store.market.appendHistory(0, this.indexNow.composite);
         this.store.market.set(summary);
         this.store.newsSchedule.set(schedule);
@@ -753,8 +976,21 @@ export class GameEngine {
         let jump = 0;
         for (const e of events) jump += e.jumps[id] ?? 0;
         const price = companyStep(this.seed, t, c, es.companies[id]!, rM, jump, net, d);
-        advanceSnapshot(this.snaps.get(id)!, t, price, volume, sessionTicks);
-        const row: PriceRow = { companyId: id, tick: t, price, volume };
+        // Fund orders create FRACTIONAL constituent demand; the shares shown are whole.
+        const shares = Math.round(volume);
+        advanceSnapshot(this.snaps.get(id)!, t, price, shares, sessionTicks);
+        const row: PriceRow = { companyId: id, tick: t, price, volume: shares };
+        this.outHistory.push(row);
+        this.lastRow.set(id, row);
+      }
+      // Funds are priced AFTER the companies and only from them: no step, no state, no news.
+      for (const id of this.fundIds) {
+        const f = this.fnds.get(id)!;
+        const { volume } = first ? this.flow.drain(id) : NO_FLOW;
+        const price = this.fundQuoteNow(f);
+        const shares = Math.round(volume);
+        advanceSnapshot(this.snaps.get(id)!, t, price, shares, sessionTicks);
+        const row: PriceRow = { companyId: id, tick: t, price, volume: shares };
         this.outHistory.push(row);
         this.lastRow.set(id, row);
       }
@@ -828,6 +1064,7 @@ export class GameEngine {
       if (history.length > 0) store.history.append(history);
       for (const { tick, value } of marketHistory) store.market.appendHistory(tick, value);
       for (const id of this.ids) store.companies.update(id, snapshotFields(this.snaps.get(id)!));
+      for (const id of this.fundIds) store.funds.update(id, fundSnapshotFields(this.snaps.get(id)!));
       store.market.set(summary);
       if (news.length > 0) store.news.insert(news);
       store.engine.set(serializeState(es));
@@ -900,6 +1137,27 @@ export class GameEngine {
       const last = this.lastRow.get(id);
       closingRows.push({ companyId: id, tick, price: close, volume: last?.tick === tick ? last.volume : 0 });
     }
+    // A fund closes on the CLOSING MARKS of what it holds, so a last-interval push on a
+    // constituent cannot pump a fund's final mark either. Its reveal is the value-weighted
+    // quality of its holdings — it has no hidden state of its own to reveal.
+    const fundReveals = new Map<string, FundReveal>();
+    for (const id of this.fundIds) {
+      const f = this.fnds.get(id)!;
+      const snap = { ...this.snaps.get(id)! };
+      const close = this.fundQuoteNow(f, (cid) => closed.get(cid)?.currentPrice ?? this.getPrice(cid));
+      fundReveals.set(id, { quality: f.quality, q: f.q, qEff: f.qEff });
+      snap.currentPrice = close;
+      snap.sessionHigh = Math.max(snap.sessionHigh, close);
+      snap.sessionLow = Math.min(snap.sessionLow, close);
+      snap.voyageHigh = Math.max(snap.voyageHigh, close);
+      snap.voyageLow = Math.min(snap.voyageLow, close);
+      snap.sessionChange = snap.sessionOpen > 0 ? close / snap.sessionOpen - 1 : 0;
+      snap.voyageChange = snap.startPrice > 0 ? close / snap.startPrice - 1 : 0;
+      closed.set(id, snap);
+      const last = this.lastRow.get(id);
+      closingRows.push({ companyId: id, tick, price: close, volume: last?.tick === tick ? last.volume : 0 });
+    }
+
     const indexNow = this.computeIndexes((id) => closed.get(id)?.currentPrice ?? 0);
     const next: GameState = { ...this.state, phase: 'ended', endedAt: now, pausedAt: null, serverTime: now };
     const summary = this.summary(now, closed, indexNow);
@@ -920,6 +1178,7 @@ export class GameEngine {
       store.history.append(history);
       for (const { tick: t, value } of marketHistory) store.market.appendHistory(t, value);
       for (const id of this.ids) store.companies.update(id, { ...snapshotFields(closed.get(id)!), reveal: reveals.get(id) });
+      for (const id of this.fundIds) store.funds.update(id, { ...fundSnapshotFields(closed.get(id)!), reveal: fundReveals.get(id) });
       store.market.set(summary);
       if (news.length > 0) store.news.insert(news);
       if (es) store.engine.set(serializeState(es));
@@ -1031,6 +1290,8 @@ export class GameEngine {
     this.d = derive(this.clock, EDGE_SPREAD[this.state.researchEdge]);
     this.cos.clear();
     this.ids = [];
+    this.fnds.clear();
+    this.fundIds = [];
     this.sectorIds.clear();
     this.starts = {};
     this.shares = {};
@@ -1102,6 +1363,33 @@ export class GameEngine {
       this.sectorIds.set(c.sector, list);
     }
 
+    // Funds: the public basket plus the server-only weighted quality. A fund whose holdings
+    // are not all present in this market is skipped rather than priced from a partial basket.
+    const fundSecrets = store.fundSecrets.all();
+    for (const row of store.funds.all()) {
+      if (row.holdings.length === 0 || !row.holdings.every((h) => this.cos.has(h.companyId))) {
+        console.warn(`[engine] fund ${row.id} holds a company this market does not have; skipping it`);
+        continue;
+      }
+      const secret = fundSecrets[row.id];
+      this.fnds.set(row.id, {
+        id: row.id,
+        ticker: row.ticker,
+        name: row.name,
+        style: row.style,
+        ...(row.sector ? { sector: row.sector } : {}),
+        holdings: row.holdings.map((h) => ({ ...h })),
+        divisor: finiteOr(row.divisor, 0),
+        adv: finiteOr(row.adv, 0),
+        positionLimitExempt: row.positionLimitExempt === true,
+        q: finiteOr(secret?.q, 0),
+        qEff: finiteOr(secret?.qEff, 0),
+        quality: finiteOr(secret?.quality, 0),
+      });
+      this.fundIds.push(row.id);
+      this.snaps.set(row.id, snapshotFrom(row, finiteOr(row.startPrice, FUND_OPEN_PRICE), 0));
+    }
+
     this.schedule = store.newsSchedule.all().map(toEvent).sort((a, b) => a.tick - b.tick);
     this.byTick = jumpsAtTick(this.schedule);
     // A lobby has no queued host news by definition; never let a stale row resurrect one into a new market.
@@ -1144,7 +1432,8 @@ export class GameEngine {
     // The price row at the current tick: its volume belongs to the closing mark, and a missing row (a market
     // created before the first tick, or history cleared under a running game) is repaired on the next commit.
     const tick = state.currentTick;
-    for (const id of this.ids) {
+    // Funds keep price rows like companies do, so the same repair covers both.
+    for (const id of [...this.ids, ...this.fundIds]) {
       const [row] = store.history.range(id, tick, tick);
       if (row) this.lastRow.set(id, { companyId: id, ...row });
       else this.outHistory.push({ companyId: id, tick, price: this.getPrice(id), volume: 0 });
@@ -1166,8 +1455,16 @@ export class GameEngine {
     // the same millisecond as a drain is still on the right side of it.
     if (state.phase === 'live' || state.phase === 'paused') {
       for (const t of store.trades.sinceTick(state.currentTick)) {
-        if (!t.teamId || !t.companyId || !this.cos.has(t.companyId) || !(Number(t.quantity) > 0)) continue;
-        this.flow.reserve(t.teamId, t.companyId, t.side === 'sell' ? -Number(t.quantity) : Number(t.quantity));
+        if (!t.teamId || !t.companyId || !(Number(t.quantity) > 0)) continue;
+        const signed = t.side === 'sell' ? -Number(t.quantity) : Number(t.quantity);
+        const fund = this.fnds.get(t.companyId);
+        if (fund) {
+          // A fund trade's pending flow lives on its CONSTITUENTS, which is where the impact lands.
+          for (const part of fundConstituentShares(fund, signed)) this.flow.reserve(t.teamId, part.companyId, part.shares);
+          this.flow.reserve(t.teamId, t.companyId, signed); // the fund's own volume row
+        } else if (this.cos.has(t.companyId)) {
+          this.flow.reserve(t.teamId, t.companyId, signed);
+        }
       }
     }
   }

@@ -161,7 +161,8 @@ describe('the live stream', () => {
       const tick = await live.waitFor('tick');
       const data = tick.data as { tick: number; prices: Record<string, number>; market: unknown; game: { phase: string } };
       expect(data.tick).toBe(engine.state.currentTick);
-      expect(Object.keys(data.prices)).toHaveLength(25);
+      // Every tradeable instrument: 15 companies + 3 funds.
+      expect(Object.keys(data.prices)).toHaveLength(18);
       expect(data.game.phase).toBe('live');
       // The public tick never carries a crew's money or a hidden field.
       expect(JSON.stringify(data)).not.toContain('cashBalance');

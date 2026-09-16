@@ -36,6 +36,23 @@ export interface CompanySecret {
   startPriceCents: number;
 }
 
+/**
+ * SERVER-ONLY per-fund data (`fund_secret`). A fund has no hidden state of its own: each
+ * field is the value-weighted average of its constituents'. None of it may reach a crew
+ * before `phase === 'ended'`, when the engine turns it into `Fund.reveal`.
+ */
+export interface FundSecret {
+  fundId: string;
+  ticker: string;
+  name: string;
+  /** Weighted mean of the constituents' q. */
+  q: number;
+  /** Weighted mean of the constituents' qEff. */
+  qEff: number;
+  /** Weighted mean of the constituents' measured quality score s. */
+  quality: number;
+}
+
 /** One stored point of `price_history`. */
 export interface PricePoint {
   tick: number;

@@ -15,6 +15,7 @@ import { replayFairValue, recoverImpact } from '../src/engine/state';
 import { FlowBook } from '../src/engine/flow';
 
 const SO = 8_000_000;
+/** A SYNTHETIC universe of n companies for the Monte-Carlo checks below — unrelated to the 15-name roster. */
 const cos = (n: number, seed = 'edge'): ModelCompany[] =>
   Array.from({ length: n }, (_, i) => {
     const q = -1 + (2 * (i + 0.5)) / n;

@@ -7,9 +7,9 @@ const mk = (id: string, k: number): QualityInput => ({
   history: [0, 1, 2, 3].map((y) => ({ revenue: 800 * (1 + 0.02 * k) ** y, netIncome: 50 * k * (1 + 0.02 * k) ** y, eps: 100 * k * (1 + 0.02 * k) ** y })),
 });
 describe('mathx', () => {
-  it('rankZ is mean 0 sd 1 and spans ±1.664 for N=25', () => {
-    const z = rankZ(Array.from({ length: 25 }, (_, i) => i));
-    expect(Math.max(...z)).toBeCloseTo(1.664, 3); expect(Math.min(...z)).toBeCloseTo(-1.664, 3);
+  it('rankZ is mean 0 sd 1 and spans ±1.620 for N=15', () => {
+    const z = rankZ(Array.from({ length: 15 }, (_, i) => i));
+    expect(Math.max(...z)).toBeCloseTo(1.62, 3); expect(Math.min(...z)).toBeCloseTo(-1.62, 3);
     expect(z.reduce((a, b) => a + b, 0)).toBeCloseTo(0, 9);
   });
   it('rankZ averages ties and ranks undefined worst', () => {
@@ -33,7 +33,7 @@ describe('quality score', () => {
     expect(res[9]!.score).toBeGreaterThan(res[0]!.score);
     expect(res[9]!.grade).toBe('A'); expect(res[0]!.grade).toBe('F');
   });
-  it('grades by quintile', () => { expect(gradeFor(0, 25)).toBe('A'); expect(gradeFor(24, 25)).toBe('F'); expect(gradeFor(12, 25)).toBe('C'); });
+  it('grades by quintile', () => { expect(gradeFor(0, 15)).toBe('A'); expect(gradeFor(14, 15)).toBe('F'); expect(gradeFor(7, 15)).toBe('C'); });
   it('a loss-maker (netIncome −10, peRatio 0) has a VAL pillar below every profitable company', () => {
     // A very cheap P/S must not rescue it: P/S is no longer a VAL item.
     const loss: QualityInput = { ...mk('loss', 1), netIncome: -10, peRatio: 0, psRatio: 0.1 };

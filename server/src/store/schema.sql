@@ -41,6 +41,22 @@ CREATE TABLE IF NOT EXISTS company_secret (
   json       TEXT NOT NULL
 );
 
+-- Tradeable funds: a basket of companies, priced from what it holds. `json` is the public
+-- `Fund` document, holdings and weights included (those are PUBLIC by design).
+CREATE TABLE IF NOT EXISTS funds (
+  id     TEXT PRIMARY KEY,
+  ticker TEXT NOT NULL,
+  name   TEXT NOT NULL,
+  json   TEXT NOT NULL
+);
+
+-- Server-only: a fund's value-weighted q, qEff and quality. Never before phase 'ended'.
+CREATE TABLE IF NOT EXISTS fund_secret (
+  fund_id TEXT PRIMARY KEY,
+  json    TEXT NOT NULL
+);
+
+-- Companies AND funds: a fund's quote is a row here like any other instrument's.
 CREATE TABLE IF NOT EXISTS price_history (
   company_id TEXT    NOT NULL,
   tick       INTEGER NOT NULL,
@@ -75,7 +91,11 @@ CREATE TABLE IF NOT EXISTS crews (
   session_start_rank INTEGER NOT NULL DEFAULT 0,
   holdings_count     INTEGER NOT NULL DEFAULT 0,
   token_version      INTEGER NOT NULL DEFAULT 1,
-  created_at         INTEGER NOT NULL
+  created_at         INTEGER NOT NULL,
+  -- Epoch ms the crew finished the required-once "Meet the market" intro; NULL until then.
+  -- Gates POST /orders only (browsing is always allowed). A crews table created before v3
+  -- gains this column through MIGRATIONS[3] in migrate.ts, not through this DDL.
+  intro_completed_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS holdings (

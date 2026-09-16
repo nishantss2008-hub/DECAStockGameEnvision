@@ -53,12 +53,18 @@ export interface CompanyReveal {
   label: RevealLabel;
 }
 
-/** Public document at `companies/{id}`. */
-export interface Company {
+/**
+ * What every TRADEABLE thing has, company or fund: an identity and a quote.
+ *
+ * `Company` and `Fund` both extend this, and `Instrument` is the union. Company code
+ * paths that only ever see companies keep taking `Company` and never learn that funds
+ * exist; only the places that price, trade or list "whatever the crew picked" take
+ * `Instrument` and narrow with `isFund`.
+ */
+export interface InstrumentQuote {
   id: string;
   name: string;
   ticker: string;
-  sector: Sector;
   description: string;
   currentPrice: number; // integer cents
   startPrice: number;
@@ -70,12 +76,78 @@ export interface Company {
   voyageLow: number;
   sessionChange: number; // signed fraction vs sessionOpen
   voyageChange: number; // signed fraction vs startPrice
+  adv: number; // shares per simulated trading day
+  lastTick: number;
+}
+
+/** Public document at `companies/{id}`. */
+export interface Company extends InstrumentQuote {
+  /** Absent on every stored row; present only so `Instrument` discriminates. */
+  kind?: 'company';
+  sector: Sector;
   sharesOutstanding: number;
   marketCap: number; // integer cents
   beta: number;
-  adv: number; // shares
-  lastTick: number;
   reveal?: CompanyReveal;
+}
+
+/** Broad = the whole market; sector = one sector, equal weight. */
+export type FundStyle = 'broad' | 'sector';
+
+/**
+ * One constituent of a fund. PUBLIC: students must be able to see what a fund holds
+ * and in what proportion. `weight` is the fixed basket coefficient wᵢ of
+ * `price = Σ wᵢ·pᵢ / divisor` (weights sum to 1); the share of the fund's VALUE that
+ * a constituent carries right now is `fundValueWeights` in `funds.ts`.
+ */
+export interface FundHolding {
+  companyId: string;
+  ticker: string;
+  weight: number;
+}
+
+/**
+ * End-of-game reveal written onto `funds/{id}.reveal`. A fund has no hidden state of
+ * its own: every number here is the value-weighted average of its constituents'.
+ */
+export interface FundReveal {
+  quality: number; // weighted mean of the constituents' measured score s
+  q: number; // weighted mean of the constituents' q
+  qEff: number; // weighted mean of the constituents' qEff
+}
+
+/**
+ * Public document at `funds/{id}`: a basket of companies, not an independent security.
+ *
+ * `price(t) = (Σ wᵢ·priceᵢ(t)) / divisor`. Weights and divisor are fixed at seed time, so
+ * a fund has NO idiosyncratic volatility, NO GARCH state, NO hidden q and NO news of its
+ * own — everything it does comes from its holdings.
+ */
+export interface Fund extends InstrumentQuote {
+  kind: 'fund';
+  style: FundStyle;
+  /** The sector a sector fund tracks; absent on the broad fund. */
+  sector?: Sector;
+  holdings: FundHolding[];
+  /** Chosen at seed so the fund opens at FUND_OPEN_PRICE. */
+  divisor: number;
+  /**
+   * True when the host's per-instrument position limit does NOT apply (the broad fund).
+   * See `positionLimitFor` in `shared/src/funds.ts` for why.
+   */
+  positionLimitExempt: boolean;
+  reveal?: FundReveal;
+}
+
+/** Anything a crew can buy or sell. */
+export type Instrument = Company | Fund;
+
+export function isFund(i: Instrument): i is Fund {
+  return i.kind === 'fund';
+}
+
+export function isCompany(i: Instrument): i is Company {
+  return i.kind !== 'fund';
 }
 
 export interface ManagementMember {
@@ -216,6 +288,14 @@ export interface Team {
    * began. 0 or absent: not set yet.
    */
   sessionStartRank?: number;
+  /**
+   * When the crew finished the required-once "Meet the market" intro (epoch ms), or null when it
+   * has not. The intro runs in the lobby; a crew that signs in later must finish it before its
+   * FIRST order (`POST /orders` answers `intro_required` until then). Browsing is never gated.
+   * Server-owned: the crew marks itself complete through `POST /api/intro/complete`, the host can
+   * set or clear it, and it survives a new game that keeps the crews.
+   */
+  introCompletedAt: number | null;
 }
 
 /** Document at `teams/{id}/holdings/{companyId}`. */

@@ -116,7 +116,7 @@ describe('generateMarket edge: accounting identities', () => {
 });
 
 describe('generateMarket edge: sector grounding in research.json', () => {
-  const SEEDS = 200;
+  const SEEDS = 300;
   const bySector = new Map<Sector, GeneratedCompany[]>();
   for (let s = 0; s < SEEDS; s++) {
     for (const g of generateMarket(`edge-sector${s}`).companies) {
@@ -147,7 +147,7 @@ describe('generateMarket edge: sector grounding in research.json', () => {
   });
 
   it('EV/EBITDA is centred on the sector reference, so no sector looks cheap by construction', () => {
-    // Bounds shrink with the sample: sectors with one roster company have 200 samples, Treasure Banking 1,000.
+    // Every sector holds exactly 3 roster companies, so each has 3·SEEDS samples.
     // Before the fix Cartography & Navigation sat at ln(EV/EBITDA ÷ ref) ≈ −0.22 with a mean VAL pillar ≈ +0.3.
     const refs = sectorRefs();
     for (const [sector, cs] of bySector) {
@@ -221,7 +221,7 @@ describe('generateMarket edge: public fields do not leak hidden quality', () => 
   const pooled = (f: (g: GeneratedCompany) => number) => spearman(markets.flat().map((g) => g.quality.q), markets.flat().map(f));
 
   it('management tenure is unrelated to q', () => {
-    // Per market (N = 25) an independent field still reaches |rho| ≥ 0.6 by chance about 0.3% of the time,
+    // Per market (N = 15) an independent field still reaches |rho| ≥ 0.6 by chance about 1.8% of the time,
     // so the per-market check allows a stray seed; the mean and pooled checks catch any real tie
     // (the original generator: mean tenure rho ≈ 0.37 per market and pooled).
     const perSeed = markets.map((cs) => spearman(cs.map((g) => g.quality.q), cs.map(meanTenure)));

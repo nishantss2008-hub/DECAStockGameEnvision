@@ -10,9 +10,9 @@
  * `tx()` — one IMMEDIATE transaction, nested-safe (a nested call uses a
  * SAVEPOINT), so an engine tick is a single commit.
  *
- * HIDDEN DATA: `secrets`, `newsSchedule` and `meta` (the seed, the session
- * secret, the host password hash) are server-only. No route may return them to a
- * crew before `phase === 'ended'`.
+ * HIDDEN DATA: `secrets`, `fundSecrets`, `newsSchedule` and `meta` (the seed, the
+ * session secret, the host password hash) are server-only. No route may return them to
+ * a crew before `phase === 'ended'`.
  */
 
 import { mkdirSync } from 'node:fs';
@@ -20,6 +20,7 @@ import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
 import type {
   Company,
+  Fund,
   Fundamentals,
   GameState,
   Holding,
@@ -37,6 +38,7 @@ import type {
   CompanySecret,
   CrewRow,
   EngineStateRow,
+  FundSecret,
   LogEntry,
   NewCrew,
   PricePoint,
@@ -48,6 +50,7 @@ export type {
   CompanySecret,
   CrewRow,
   EngineStateRow,
+  FundSecret,
   LogEntry,
   NewCrew,
   PricePoint,
@@ -81,6 +84,19 @@ export interface Store {
     all(): Record<string, CompanySecret>;
     get(id: string): CompanySecret | null;
     upsertMany(s: Record<string, CompanySecret>): void;
+  };
+  /** Tradeable funds. Their price history lives in `history`, keyed by fund id. */
+  funds: {
+    all(): Fund[];
+    get(id: string): Fund | null;
+    upsertMany(f: Fund[]): void;
+    update(id: string, patch: Partial<Fund>): void;
+  };
+  /** SERVER-ONLY per-fund quality. No route may return it before phase 'ended'. */
+  fundSecrets: {
+    all(): Record<string, FundSecret>;
+    get(id: string): FundSecret | null;
+    upsertMany(s: Record<string, FundSecret>): void;
   };
   history: {
     append(rows: { companyId: string; tick: number; price: number; volume: number }[]): void;
@@ -168,6 +184,8 @@ interface CrewSqlRow {
   holdings_count: number;
   token_version: number;
   created_at: number;
+  /** Epoch ms the crew finished the "Meet the market" intro; null until then. */
+  intro_completed_at: number | null;
 }
 interface TradeSqlRow {
   id: string;
@@ -218,6 +236,7 @@ function toTeam(r: CrewSqlRow): Team {
     holdingsCount: r.holdings_count,
     createdAt: r.created_at,
     sessionStartRank: r.session_start_rank,
+    introCompletedAt: r.intro_completed_at ?? null,
   };
 }
 
@@ -274,6 +293,7 @@ const CREW_COLUMNS: Partial<Record<keyof CrewRow, string>> = {
   passwordHash: 'password_hash',
   tokenVersion: 'token_version',
   createdAt: 'created_at',
+  introCompletedAt: 'intro_completed_at',
 };
 
 /** Tables emptied by `clearDynamic` (crews are handled separately). */
@@ -281,6 +301,8 @@ const DYNAMIC_TABLES = [
   'companies',
   'fundamentals',
   'company_secret',
+  'funds',
+  'fund_secret',
   'price_history',
   'market_summary',
   'market_history',
@@ -446,6 +468,55 @@ function buildStore(db: Db): Store {
       },
     },
 
+    funds: {
+      all() {
+        const rows = S('SELECT json FROM funds ORDER BY id').all() as JsonRow[];
+        return rows.map((r) => parse<Fund>(r.json));
+      },
+      get(id) {
+        const row = S('SELECT json FROM funds WHERE id = ?').get(id) as JsonRow | undefined;
+        return row ? parse<Fund>(row.json) : null;
+      },
+      upsertMany(list) {
+        const st = S(
+          `INSERT INTO funds (id, ticker, name, json) VALUES (?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET ticker = excluded.ticker, name = excluded.name, json = excluded.json`,
+        );
+        tx(() => {
+          for (const f of list) st.run(f.id, f.ticker, f.name, JSON.stringify(f));
+        });
+      },
+      update(id, patch) {
+        tx(() => {
+          const row = S('SELECT json FROM funds WHERE id = ?').get(id) as JsonRow | undefined;
+          if (!row) return;
+          const next = { ...parse<Fund>(row.json), ...patch };
+          S('UPDATE funds SET ticker = ?, name = ?, json = ? WHERE id = ?').run(next.ticker, next.name, JSON.stringify(next), id);
+        });
+      },
+    },
+
+    fundSecrets: {
+      all() {
+        const rows = S('SELECT fund_id, json FROM fund_secret').all() as ({ fund_id: string } & JsonRow)[];
+        const out: Record<string, FundSecret> = {};
+        for (const r of rows) out[r.fund_id] = parse<FundSecret>(r.json);
+        return out;
+      },
+      get(id) {
+        const row = S('SELECT json FROM fund_secret WHERE fund_id = ?').get(id) as JsonRow | undefined;
+        return row ? parse<FundSecret>(row.json) : null;
+      },
+      upsertMany(map) {
+        const st = S(
+          'INSERT INTO fund_secret (fund_id, json) VALUES (?, ?) ON CONFLICT(fund_id) DO UPDATE SET json = excluded.json',
+        );
+        tx(() => {
+          for (const [id, s] of Object.entries(map)) st.run(id, JSON.stringify(s));
+        });
+      },
+    },
+
     history: {
       append(rows) {
         const st = S(
@@ -503,18 +574,19 @@ function buildStore(db: Db): Store {
         S(
           `INSERT INTO crews (id, name, password_hash, cash, total_value, rank, realized_pnl, fees_paid,
              trade_count, trading_disabled, session_open_value, session_start_rank, holdings_count,
-             token_version, created_at)
-           VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 1, ?)`,
+             token_version, created_at, intro_completed_at)
+           VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, 0, ?, 0, 0, 1, ?, NULL)`,
         ).run(row.id, row.name, row.passwordHash, capital, capital, capital, row.createdAt ?? Date.now());
       },
       update(id, patch) {
         const sets: string[] = [];
-        const values: (string | number)[] = [];
+        // null is a real value here: clearing `introCompletedAt` sends a crew back through the intro.
+        const values: (string | number | null)[] = [];
         for (const [key, value] of Object.entries(patch)) {
           const column = CREW_COLUMNS[key as keyof CrewRow];
           if (!column || value === undefined) continue;
           sets.push(`${column} = ?`);
-          values.push(typeof value === 'boolean' ? (value ? 1 : 0) : (value as string | number));
+          values.push(typeof value === 'boolean' ? (value ? 1 : 0) : (value as string | number | null));
         }
         if (sets.length === 0) return;
         values.push(id);
@@ -794,6 +866,8 @@ function buildStore(db: Db): Store {
         for (const table of DYNAMIC_TABLES) S(`DELETE FROM ${table}`).run();
         for (const key of MARKET_META_KEYS) S('DELETE FROM meta WHERE key = ?').run(key);
         if (opts.keepCrews) {
+          // `intro_completed_at` is deliberately NOT reset: the same crews play the new game, and they
+          // have already met the market (design §6). Without keepCrews the rows go, intro state with them.
           S(
             `UPDATE crews SET cash = ?, total_value = ?, session_open_value = ?, rank = 0, realized_pnl = 0,
                fees_paid = 0, trade_count = 0, holdings_count = 0, session_start_rank = 0`,

@@ -14,7 +14,9 @@
  * session instead of flickering back after one tick.
  *
  * The research grade uses the visible-fundamentals `q`, not `qEff`, so it rewards
- * reading the statements rather than the hidden surprise.
+ * reading the statements rather than the hidden surprise. A fund holding contributes its
+ * value-weighted average `q` (engine.qualityOf), at its own value: the exposure and weight
+ * accumulators need no special case for it.
  *
  * `finalizeLeaderboard` runs once at the end: holdings are valued at the closing
  * price (impact excluded), which stops last-interval pumping of final marks.
@@ -136,7 +138,9 @@ export function recomputeLeaderboard(store: Store, engine: GameEngine, tick: num
   );
   const sessionStarts = new Set<string>();
 
-  const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
+  // A fund's quality is the value-weighted average of its constituents', so a crew that bought
+  // the broad fund is scored as the market average — "did not pick" — not as a good or bad pick.
+  const qOf = (id: string) => engine.qualityOf(id);
   const rows: StandingRow[] = [];
   const updates: { id: string; data: Partial<CrewRow> }[] = [];
   const historyRows: { crewId: string; tick: number; value: number }[] = [];
@@ -213,7 +217,9 @@ export function finalizeLeaderboard(store: Store, engine: GameEngine): Leaderboa
   );
   const closing = new Map<string, Valued>();
 
-  const qOf = (id: string) => engine.getCompany(id)?.q ?? 0;
+  // A fund's quality is the value-weighted average of its constituents', so a crew that bought
+  // the broad fund is scored as the market average — "did not pick" — not as a good or bad pick.
+  const qOf = (id: string) => engine.qualityOf(id);
   const rows: StandingRow[] = [];
   const updates: { id: string; data: Partial<CrewRow> }[] = [];
   const historyRows: { crewId: string; tick: number; value: number }[] = [];

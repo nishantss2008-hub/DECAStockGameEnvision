@@ -20,7 +20,7 @@ async function seed(): Promise<void> {
     adminPassword: config.adminPassword || undefined,
   });
 
-  console.log(`Seeded ${result.companies} companies. The game is in the lobby.`);
+  console.log(`Seeded ${result.companies} companies and ${result.funds} funds. The game is in the lobby.`);
   console.log('   ────────────────────────────────────────────────');
   console.log(`   Database:          ${config.dbFile}`);
   console.log('   Admin/host login:  name "admin"');

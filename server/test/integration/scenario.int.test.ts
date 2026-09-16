@@ -59,15 +59,15 @@ async function buy(token: string, quantity: number, clientOrderId: string): Prom
 }
 
 describe('a whole game, end to end on a real database file', () => {
-  it('seeds 25 companies into the lobby and hands a crew a session token', async () => {
-    expect(store.companies.all()).toHaveLength(25);
+  it('seeds 15 companies into the lobby and hands a crew a session token', async () => {
+    expect(store.companies.all()).toHaveLength(15);
     expect(db.file).toMatch(/game\.db$/);
 
     const res = await app.inject({ method: 'GET', url: '/api/bootstrap', headers: bearer(saltwind) });
     expect(res.statusCode).toBe(200);
     const boot = json<{ game: GameState; companies: Company[]; portfolio: { team: Team } }>(res);
     expect(boot.game.phase).toBe('lobby');
-    expect(boot.companies).toHaveLength(25);
+    expect(boot.companies).toHaveLength(15);
     expect(boot.portfolio.team.cashBalance).toBe(STARTING_CAPITAL);
   });
 
@@ -96,8 +96,12 @@ describe('a whole game, end to end on a real database file', () => {
     }
     expect(trade.quantity).toBe(100);
     expect(trade.teamId).toBe('saltwind');
-    // cash out = shares × fill price + fee, to the cent
-    expect(before.cashBalance - trade.cashAfter).toBe(trade.price * 100 + trade.fee);
+    // Cash out = notional + fee, to the cent, where notional = round(shares × the UNROUNDED fill).
+    // `trade.price` is that fill rounded to the cent, so shares × price can sit up to half a cent
+    // per share away from the notional.
+    const cashOut = before.cashBalance - trade.cashAfter;
+    expect(Number.isInteger(cashOut)).toBe(true);
+    expect(Math.abs(cashOut - trade.fee - trade.price * trade.quantity)).toBeLessThanOrEqual(trade.quantity / 2);
 
     const crew = store.crews.get('saltwind')!;
     expect(crew.cashBalance).toBe(trade.cashAfter);

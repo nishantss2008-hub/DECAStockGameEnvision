@@ -37,6 +37,12 @@ export const tradingToggleSchema = z.object({
 });
 export type TradingToggleInput = z.infer<typeof tradingToggleSchema>;
 
+/** Host override for the "Meet the market" intro: mark a crew done, or send it back through. */
+export const introToggleSchema = z.object({
+  completed: z.boolean(),
+});
+export type IntroToggleInput = z.infer<typeof introToggleSchema>;
+
 export const settingsSchema = z.object({
   gameLengthMs: z
     .number()
@@ -61,7 +67,7 @@ export const newGameSchema = z.object({
 export type NewGameInput = z.infer<typeof newGameSchema>;
 
 export const fireNewsSchema = z.object({
-  companyIds: z.array(z.string().min(1)).min(1).max(25),
+  companyIds: z.array(z.string().min(1)).min(1).max(15),
   type: z.enum(NEWS_TYPES),
   magnitude: z
     .number()

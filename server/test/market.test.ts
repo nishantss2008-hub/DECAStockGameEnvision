@@ -1,6 +1,6 @@
 /**
  * services/market.ts on the SQLite store: a fresh market lands in the lobby with
- * 25 companies, the hidden data goes to `company_secret` / `meta.seed` only, and a
+ * 15 companies, the hidden data goes to `company_secret` / `meta.seed` only, and a
  * re-run is idempotent (same seed → identical market, nothing left from the last one).
  */
 
@@ -28,10 +28,10 @@ describe('createMarket', () => {
   it('writes every roster company with fundamentals and a tick-0 price', async () => {
     const result = await createMarket({ seed: SEED, keepCrews: false });
 
-    expect(result.companies).toBe(25);
-    expect(ROSTER).toHaveLength(25);
-    expect(store.companies.all()).toHaveLength(25);
-    expect(Object.keys(store.fundamentals.all())).toHaveLength(25);
+    expect(result.companies).toBe(15);
+    expect(ROSTER).toHaveLength(15);
+    expect(store.companies.all()).toHaveLength(15);
+    expect(Object.keys(store.fundamentals.all())).toHaveLength(15);
     expect(store.companies.all().map((c) => c.id).sort()).toEqual(ROSTER.map((r) => r.id).sort());
 
     for (const c of store.companies.all()) {
@@ -63,7 +63,7 @@ describe('createMarket', () => {
     const market = store.market.get();
     expect(market).toMatchObject({ lastTick: 0, composite: { value: 1000, open: 1000, sessionOpen: 1000 } });
     expect(Object.keys(market!.sectors).length).toBeGreaterThan(0);
-    expect(market!.breadth.unchanged).toBe(25);
+    expect(market!.breadth.unchanged).toBe(15);
     expect(store.market.historyRange(0, 0)).toEqual([{ tick: 0, value: 1000 }]);
   });
 
@@ -71,7 +71,7 @@ describe('createMarket', () => {
     await createMarket({ seed: SEED, keepCrews: false });
 
     const secrets = store.secrets.all();
-    expect(Object.keys(secrets)).toHaveLength(25);
+    expect(Object.keys(secrets)).toHaveLength(15);
     const first = Object.values(secrets)[0]!;
     expect(first.q).toBeGreaterThanOrEqual(-1);
     expect(first.q).toBeLessThanOrEqual(1);
@@ -128,10 +128,10 @@ describe('createMarket', () => {
     store.engine.set({ lastTick: 5, hM: 1.3, companies: {} });
 
     const again = await createMarket({ seed: SEED, keepCrews: false });
-    expect(again.companies).toBe(25);
+    expect(again.companies).toBe(15);
     expect(store.companies.all()).toEqual(before);
     expect(store.secrets.all()).toEqual(secretsBefore);
-    expect(store.companies.all()).toHaveLength(25);
+    expect(store.companies.all()).toHaveLength(15);
     expect(store.history.range(before[0]!.id, 0, 100)).toHaveLength(1);
     expect(store.news.recent(10)).toEqual([]);
     expect(store.engine.get()).toBeNull();

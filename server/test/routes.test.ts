@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import { openStore, useStore, type Store } from '../src/store';
 import { currentTokenVersion, issueToken, resetSessionSecretCache } from '../src/auth/sessions';
-import { CREW_A, CREW_B, GALE, KRKN, PASSWORD_A, gameState, seedWorld } from './helpers/apiFixtures';
+import { CREW_A, CREW_B, GALE, INTRO_AT, KRKN, PASSWORD_A, gameState, seedWorld } from './helpers/apiFixtures';
 import { hashPassword } from '../src/lib/password';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,10 @@ vi.mock('../src/engine/loop', () => {
     }),
     getCompany: (id: string) =>
       id === KRKN_ID ? { id: KRKN_ID, ticker: 'KRKN', sharesOutstanding: 1_000_000, adv: 10_000 } : undefined,
+    getInstrument: (id: string) =>
+      id === KRKN_ID
+        ? { id: KRKN_ID, kind: 'company', name: 'Kraken', ticker: 'KRKN', sharesOutstanding: 1_000_000, positionLimitExempt: false }
+        : undefined,
     getPrice: () => 1000,
     reserveFlow: () => ({
       fillPrice: 1000,
@@ -132,6 +136,8 @@ const CREW_OR_HOST = [
   '/api/stream',
 ];
 const CREW_ONLY = ['/api/portfolio', '/api/portfolio/history?from=0&to=12', '/api/trades', '/api/orders'];
+/** Crew-token POSTs: the host has no business calling them, and the crew id comes from the token. */
+const CREW_ONLY_POSTS = ['/api/intro/complete'];
 const ADMIN_GETS = [
   '/api/admin/teams',
   '/api/admin/market',
@@ -197,6 +203,15 @@ describe('role separation', () => {
     expect((await app.inject({ method: 'GET', url, headers: auth(crewA) })).statusCode).toBe(200);
   });
 
+  it.each(CREW_ONLY_POSTS)('POST %s needs a crew token and takes the crew from it', async (url) => {
+    expect((await app.inject({ method: 'POST', url, payload: {} })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url, payload: {}, headers: auth(host) })).statusCode).toBe(401);
+    // A body naming another crew changes nothing: the id comes from the token.
+    const res = await app.inject({ method: 'POST', url, payload: { teamId: CREW_B }, headers: auth(crewA) });
+    expect(res.statusCode).toBe(200);
+    expect(store.crews.get(CREW_B)!.introCompletedAt).toBe(INTRO_AT);
+  });
+
   it.each(ADMIN_GETS)('%s is host-only', async (url) => {
     expect((await app.inject({ method: 'GET', url, headers: auth(crewA) })).statusCode).toBe(403);
     expect((await app.inject({ method: 'GET', url })).statusCode).toBe(403);
@@ -210,6 +225,7 @@ describe('role separation', () => {
     ['POST', '/api/admin/teams'],
     ['POST', `/api/admin/teams/${CREW_A}/password`],
     ['POST', `/api/admin/teams/${CREW_A}/trading`],
+    ['POST', `/api/admin/teams/${CREW_A}/intro`],
     ['DELETE', `/api/admin/teams/${CREW_A}`],
     ['POST', '/api/admin/news'],
   ])('%s %s refuses a crew token', async (method, url) => {
@@ -384,6 +400,125 @@ describe('POST /orders', () => {
       headers: auth(crewA),
     });
     expect(body<{ error: string }>(closed).error).toBe('market_closed');
+  });
+
+  it('refuses a crew that has not met the market, then fills once it has', async () => {
+    store.crews.update(CREW_A, { introCompletedAt: null });
+    const blocked = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, clientOrderId: 'client-order-6' },
+      headers: auth(crewA),
+    });
+    expect(blocked.statusCode).toBe(400);
+    expect(body<{ error: string; message: string }>(blocked).error).toBe('intro_required');
+    expect(body<{ message: string }>(blocked).message).toContain('Meet the market');
+    expect(store.orders.byClientId(CREW_A, 'client-order-6')).toMatchObject({
+      status: 'rejected',
+      code: 'intro_required',
+    });
+    // Browsing is never gated.
+    expect((await app.inject({ method: 'GET', url: '/api/companies', headers: auth(crewA) })).statusCode).toBe(200);
+
+    await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
+    const filled = await app.inject({
+      method: 'POST',
+      url: '/orders',
+      payload: { ...order, clientOrderId: 'client-order-6' },
+      headers: auth(crewA),
+    });
+    expect(filled.statusCode).toBe(200);
+    expect(store.orders.byClientId(CREW_A, 'client-order-6')!.status).toBe('filled');
+  });
+});
+
+describe('POST /api/intro/complete', () => {
+  beforeEach(() => {
+    store.crews.update(CREW_A, { introCompletedAt: null });
+  });
+
+  it('marks the crew complete and answers the same time on a repeat call', async () => {
+    const first = await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
+    expect(first.statusCode).toBe(200);
+    const at = body<{ introCompletedAt: number }>(first).introCompletedAt;
+    expect(at).toBeGreaterThan(0);
+    expect(store.crews.get(CREW_A)!.introCompletedAt).toBe(at);
+
+    const again = await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
+    expect(again.statusCode).toBe(200);
+    expect(body<{ introCompletedAt: number }>(again).introCompletedAt).toBe(at);
+  });
+
+  it('answers with the completion time and nothing else', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
+    expect(Object.keys(body<Record<string, unknown>>(res)).sort()).toEqual(['introCompletedAt', 'ok']);
+    // No hidden market data, no crew credentials and no other crew rides along on the gate's answer.
+    for (const secret of ['reveal', 'fairValue', 'qEff', 'surprise', 'quality', 'grade', 'passwordHash', 'tokenVersion', CREW_B]) {
+      expect(res.body).not.toContain(secret);
+    }
+  });
+
+  it('shows the crew its own state on bootstrap, with no hidden columns', async () => {
+    await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
+    const res = await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) });
+    const { team } = body<{ team: Record<string, unknown> }>(res);
+    expect(team.introCompletedAt).toBe(store.crews.get(CREW_A)!.introCompletedAt);
+    expect(team).not.toHaveProperty('passwordHash');
+    expect(team).not.toHaveProperty('tokenVersion');
+  });
+});
+
+describe('the host sees and can override the intro', () => {
+  it('lists every crew with its intro state', async () => {
+    store.crews.update(CREW_A, { introCompletedAt: null });
+    const { teams } = body<{ teams: { id: string; introCompletedAt: number | null }[] }>(
+      await app.inject({ method: 'GET', url: '/api/admin/teams', headers: auth(host) }),
+    );
+    expect(teams.find((t) => t.id === CREW_A)!.introCompletedAt).toBeNull();
+    expect(teams.find((t) => t.id === CREW_B)!.introCompletedAt).toBe(INTRO_AT);
+  });
+
+  it('marks a crew complete, so a dead phone mid-flow is not a lockout', async () => {
+    store.crews.update(CREW_A, { introCompletedAt: null });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/admin/teams/${CREW_A}/intro`,
+      payload: { completed: true },
+      headers: auth(host),
+    });
+    expect(res.statusCode).toBe(200);
+    const at = body<{ introCompletedAt: number }>(res).introCompletedAt;
+    expect(store.crews.get(CREW_A)!.introCompletedAt).toBe(at);
+
+    const order = { companyId: KRKN_ID, side: 'buy', quantity: 10, clientOrderId: 'host-override-1' };
+    expect((await app.inject({ method: 'POST', url: '/orders', payload: order, headers: auth(crewA) })).statusCode).toBe(200);
+  });
+
+  it('can clear it again, refuses a bad body, and 404s an unknown crew', async () => {
+    const cleared = await app.inject({
+      method: 'POST',
+      url: `/api/admin/teams/${CREW_A}/intro`,
+      payload: { completed: false },
+      headers: auth(host),
+    });
+    expect(body<{ introCompletedAt: number | null }>(cleared).introCompletedAt).toBeNull();
+    expect(store.crews.get(CREW_A)!.introCompletedAt).toBeNull();
+
+    const bad = await app.inject({
+      method: 'POST',
+      url: `/api/admin/teams/${CREW_A}/intro`,
+      payload: { completed: 'yes' },
+      headers: auth(host),
+    });
+    expect(bad.statusCode).toBe(400);
+
+    const ghost = await app.inject({
+      method: 'POST',
+      url: '/api/admin/teams/ghost-crew/intro',
+      payload: { completed: true },
+      headers: auth(host),
+    });
+    expect(ghost.statusCode).toBe(404);
   });
 });
 

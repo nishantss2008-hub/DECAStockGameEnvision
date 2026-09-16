@@ -335,6 +335,7 @@ describe('crews', () => {
       holdingsCount: 0,
       createdAt: 10,
       sessionStartRank: 0,
+      introCompletedAt: null,
     });
     expect(store.crews.passwordHash('sea-dogs')).toBe('salt:hash');
     expect(store.crews.tokenVersion('sea-dogs')).toBe(1);
@@ -624,6 +625,7 @@ describe('clearDynamic', () => {
       sessionStartRank: 6,
       holdingsCount: 1,
       tradingDisabled: true,
+      introCompletedAt: 42,
     });
     store.holdings.upsert('sea-dogs', { companyId: 'kraken', shares: 10, avgCost: 9_900 });
     store.crewHistory.append([{ crewId: 'sea-dogs', tick: 1, value: 99 }]);
@@ -679,6 +681,8 @@ describe('clearDynamic', () => {
       tradeCount: 0,
       holdingsCount: 0,
       sessionStartRank: 0,
+      // A new game with keepCrews reuses the same crews: they have already met the market.
+      introCompletedAt: 42,
     });
     // the login and any revocation survive a new game
     expect(store.crews.passwordHash('sea-dogs')).toBe('salt:hash');
