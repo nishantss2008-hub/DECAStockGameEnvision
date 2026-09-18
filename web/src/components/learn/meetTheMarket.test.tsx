@@ -274,10 +274,10 @@ describe('The lobby entry point', () => {
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toBe('/learn/meet-the-market'));
   });
 
-  it('offers the walkthrough instead once the crew has finished the intro', async () => {
+  it('offers Markets instead once the crew has finished the intro', async () => {
     wrap(<WelcomeSheet open onClose={() => {}} onClosed={() => {}} />, '/portfolio?sheet=welcome');
     push(1_700_000_000_000);
-    expect(await screen.findByRole('button', { name: MOBILE.welcome.start })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: MOBILE.welcome.explore })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: INTRO.title })).toBeNull();
   });
 });

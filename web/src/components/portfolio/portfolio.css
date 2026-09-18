@@ -5,9 +5,6 @@
   flex-direction: column;
   padding-block-end: 24px;
 }
-.pf-page > .bx-walkthrough {
-  margin-block-end: 24px;
-}
 .pf-page > * + :is(.pf-chart, .pf-tiles, .pf-positions, .pf-recent, .pf-strip, .pf-alloc, .pf-positions-list, .pf-order-header) {
   margin-block-start: 16px;
 }

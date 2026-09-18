@@ -47,9 +47,14 @@ export function MetricExplainRow({
 }
 
 /**
- * Key stats (MOBILE §7.7 row 4): a two-column grid of six cells — five metrics and the session
- * range — then the session-range bar full width beneath it. The everyday sentences live in the
- * sheet a cell opens, so the block is a screenful of numbers instead of twenty lines of prose.
+ * Key stats (MOBILE §7.7 row 4): a two-column grid of the five metrics, then the session-range bar
+ * full width beneath it. The everyday sentences live in the sheet a cell opens, so the block is a
+ * screenful of numbers instead of twenty lines of prose.
+ *
+ * The range has no cell of its own since 2026-09-17: the bar below says the same two prices and
+ * also shows where the price sits between them, so the cell only repeated it (and the chart
+ * sentence above said it a third time). The bar keeps the range's "?", so its explanation is still
+ * one tap, one Enter or one VoiceOver stop away.
  */
 export function KeyStatsSection({
   company,
@@ -80,8 +85,9 @@ export function KeyStatsSection({
         </div>
       </div>
       <StatGrid cells={cells} onOpen={onOpenStat} highlight={highlight} />
-      {/* The bar labels its own ends with the two prices, and the cell above names the stat. */}
-      <div className="rs-range rs-card">
+      {/* The bar labels its own ends with the two prices and names the stat to VoiceOver; the "?"
+          beside it is the tap path to the glossary entry the deleted cell used to own (§5.9). */}
+      <div className="rs-range rs-card" id="metric-sessionRange">
         <RangeBar
           low={low}
           high={high}
@@ -91,6 +97,7 @@ export function KeyStatsSection({
           label={RESEARCH.sessionRange}
           valueLabel={RESEARCH.priceNow}
         />
+        <TermTip id="sessionRange" />
       </div>
       <p id="rs-key-stats-note" className="ios-list__footer">
         {RESEARCH.helper}

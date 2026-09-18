@@ -89,9 +89,12 @@ html[data-large-text] .rs-grid { grid-template-columns: minmax(0, 1fr); }
   .rs-stat { border: 1px solid CanvasText; }
 }
 
-/* Session range bar, full width under the Key stats grid. */
+/* Session range bar under the Key stats grid, with its "?" at the trailing edge. The tip's own
+   −22px block margins (InfoTipButton.css) give it a 0-tall margin box, so the 44pt target sits
+   inside the 56px card and the row costs exactly what it did before the "?" was added. */
 .rs-stats .rs-grid + .rs-range { margin-block-start: 9px; }
-.rs-range { padding: 14px 16px; }
+.rs-range { display: flex; align-items: center; gap: 4px; padding: 14px 16px; }
+.rs-range > .range-bar { flex: 1 1 auto; min-inline-size: 0; }
 
 /* Analyst view (a sheet behind the "Analyst view" row). */
 .rs-analyst__body { display: grid; gap: 8px; padding-block: 4px 8px; }

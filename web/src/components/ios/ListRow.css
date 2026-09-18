@@ -153,6 +153,15 @@
 .ios-row__kv-value {
   white-space: nowrap;
 }
+/* Beside its label the value is a short tabular number and must not break mid-figure. On its own line
+   (stacked, or large text) it can be a whole stamp — the status sheet's "Tick 1,284 of 5,760 · 22.3% ·
+   as of 14:02:30", ~285px against the 224px a 320px phone leaves inside the row — and nowrap ran it
+   under the card's `overflow: clip`, cutting the time off at the right edge. Wrapping breaks at the
+   spaces, so no number is split; `anywhere` is the safety valve for one token wider than the column. */
+:is(html[data-large-text] .ios-row, .ios-row--stacked) .ios-row__kv-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .ios-row__kv-value[data-tone='secondary'] {
   color: var(--label-2);
 }

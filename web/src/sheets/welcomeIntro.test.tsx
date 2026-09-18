@@ -1,6 +1,8 @@
 /**
- * The Welcome sheet's primary action for a crew that has not finished "Meet the market"
- * (design 2026-09-16 §6).
+ * The Welcome sheet's every branch (MOBILE §7.2, design 2026-09-16 §6). It is the first screen a student
+ * ever sees, so neither of its two buttons may be a no-op: a crew that still has to finish "Meet the
+ * market" is sent into it, and a crew that has already finished it is offered Markets. Until 2026-09-18
+ * the second branch said "Start the walkthrough" and armed a Portfolio card that had been deleted.
  *
  * REGRESSION: this used to be `onClose()` then `navigate(INTRO_PATH)`. AppShell opens the sheet by
  * PUSHING `?sheet=welcome`, so `onClose()` is `navigate(-1)`, and a real browser's `history.back()`
@@ -85,7 +87,7 @@ describe('WelcomeSheet primary action', () => {
     expect(screen.getByTestId('loc').textContent).toBe(INTRO_PATH);
   });
 
-  it('still just closes for a crew that has already finished the intro', async () => {
+  it('offers Markets to a crew that has already finished the intro, never the deleted walkthrough', async () => {
     const onClose = vi.fn();
     render(
       <MemoryRouter initialEntries={['/portfolio?sheet=welcome']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -97,8 +99,52 @@ describe('WelcomeSheet primary action', () => {
     );
     pushTeam(1_700_000_000_000);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Start the walkthrough' }));
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('loc').textContent).toBe('/portfolio?sheet=welcome');
+    expect(screen.queryByRole('button', { name: /walkthrough/i })).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open Markets' }));
+    // Same race-free shape as the intro branch: the sheet's own entry becomes the destination.
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId('loc').textContent).toBe('/markets');
+  });
+
+  it("closes onto Portfolio from the second action, whatever the crew's state", async () => {
+    for (const introCompletedAt of [null, 1_700_000_000_000]) {
+      const onClose = vi.fn();
+      const view = render(
+        <MemoryRouter initialEntries={['/portfolio?sheet=welcome']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <ShellDataProvider>
+            <Where />
+            <WelcomeSheet open onClose={onClose} onClosed={() => {}} />
+          </ShellDataProvider>
+        </MemoryRouter>,
+      );
+      pushTeam(introCompletedAt);
+
+      await userEvent.click(await screen.findByRole('button', { name: introCompletedAt ? 'Done' : 'Skip for now' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('loc').textContent).toBe('/portfolio?sheet=welcome');
+      view.unmount();
+    }
+  });
+
+  it('gives both branches two actionable buttons and nothing that only closes by accident', async () => {
+    for (const introCompletedAt of [null, 1_700_000_000_000]) {
+      const view = render(
+        <MemoryRouter initialEntries={['/portfolio?sheet=welcome']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <ShellDataProvider>
+            <Where />
+            <WelcomeSheet open onClose={() => {}} onClosed={() => {}} />
+          </ShellDataProvider>
+        </MemoryRouter>,
+      );
+      pushTeam(introCompletedAt);
+
+      const footer = await screen.findByRole('button', { name: introCompletedAt ? 'Open Markets' : 'Meet the market' });
+      expect(footer).toBeEnabled();
+      // Reachable by keyboard, and a real 44pt target (Button size="large").
+      expect(footer.tagName).toBe('BUTTON');
+      expect(footer).not.toHaveAttribute('aria-disabled', 'true');
+      expect(screen.getByRole('button', { name: introCompletedAt ? 'Done' : 'Skip for now' })).toBeEnabled();
+      view.unmount();
+    }
   });
 });

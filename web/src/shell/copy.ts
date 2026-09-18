@@ -1,5 +1,5 @@
 /**
- * Shell words, verbatim from COPY.md (§5 walkthrough, §7 guide, §9 banners, §11 host settings, §12 states) and
+ * Shell words, verbatim from COPY.md (§7 guide, §9 banners, §11 host settings, §12 states) and
  * the phone strings of MOBILE §7.0 (`COPY-TBD mobile.*`). Placeholders are filled with `fill()`.
  */
 
@@ -58,41 +58,6 @@ export const SIGN_IN = {
   footer: 'A market simulation. No real money.',
 } as const;
 
-/** COPY §5 walkthrough with the phone variants from MOBILE §7.0 `walkthroughMobile`. */
-export const WALKTHROUGH = {
-  eyebrow: 'Getting started',
-  title: 'Your first trade in 3 steps',
-  stepCounter: 'Step {n} of 3',
-  steps: [
-    {
-      id: 'research',
-      title: 'Research a company',
-      body: 'Open Markets, pick a company, and compare its profit, sales growth and debt with its sector average.',
-      action: 'Open Markets',
-      route: '/markets',
-    },
-    {
-      id: 'order',
-      title: 'Place a small first order',
-      body: 'On a company page, tap Buy, enter a few shares, preview the cost and fee, then place the order.',
-      action: 'Pick a company',
-      route: '/markets',
-    },
-    {
-      id: 'track',
-      title: 'Track it on Portfolio',
-      body: 'Portfolio shows your account value, your cash and how each holding has changed since you bought it.',
-      action: 'Open Portfolio',
-      route: '/portfolio',
-    },
-  ],
-  learnLink: 'Open the Learn guide',
-  next: 'Next',
-  back: 'Back',
-  dismiss: 'Got it, hide this',
-  reopen: 'How to play',
-} as const;
-
 /** COPY §7 guide paragraphs used by Account › Game rules. */
 export const GUIDE = {
   title: 'How the game works',
@@ -122,7 +87,7 @@ export const MOBILE = {
   signInFields: { crew: 'Crew name', password: 'Password', show: 'Show password', hide: 'Hide password' },
   signInButton: { idle: 'Sign in', loading: 'Signing in…' },
   helpHost: 'Trouble? Ask your host.',
-  toasts: { updateReady: 'Update ready', reload: 'Reload', backOnline: 'Back online', walkthroughHidden: 'Walkthrough hidden', undo: 'Undo' },
+  toasts: { updateReady: 'Update ready', reload: 'Reload', backOnline: 'Back online' },
   staleBody: 'The last price update was {ago} ago. Wait a moment, or tap Reload.',
   offlineReason: "You're offline",
   done: 'Done',
@@ -134,7 +99,7 @@ export const MOBILE = {
       'Prices update every {tickSeconds} seconds for the whole game.',
       'Healthier companies tend to do better over time, but news and luck matter.',
     ],
-    start: 'Start the walkthrough',
+    explore: 'Open Markets',
     skip: 'Skip for now',
   },
   homeScreen: {

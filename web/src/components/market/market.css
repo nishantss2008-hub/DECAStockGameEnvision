@@ -1,4 +1,4 @@
-/* Markets (MOBILE §7.6), Sector list, News and Dispatch (§7.11). Tokens only; sticky headers are opaque (§7.6 row 8). */
+/* Markets (MOBILE §7.6), Compare (§7.6b), News and Dispatch (§7.11). Tokens only; sticky headers are opaque (§7.6 row 8). */
 
 .bx-markets,
 .bx-news {
@@ -82,9 +82,8 @@
 
 .bx-sector-groups .bx-stack > .ios-list + .ios-list { margin-block-start: 0; }
 
-/* Trailing header links (a sector group, "Compare"): tinted, with a 44pt target that does not
-   move the header baseline (MOBILE §4.4). */
-.bx-group-link,
+/* Trailing header link ("Compare"): tinted, with a 44pt target that does not move the header
+   baseline (MOBILE §4.4). */
 .bx-section__action {
   position: relative;
   margin-inline-start: auto;
@@ -93,8 +92,17 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.bx-group-link::before,
 .bx-section__action::before { content: ''; position: absolute; inset: -12px -8px; }
+
+/* The sector's session change, on the group heading the chip row used to duplicate (2026-09-17).
+   Footnote-sized like the heading beside it, so the header row stays 22px and nothing moves down. */
+.bx-group-change {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--t-footnote);
+  line-height: 1.385;
+  white-space: nowrap;
+}
 
 /* Compare: the dense table screen the five-way metric control moved to. */
 .bx-compare__intro {
@@ -134,39 +142,6 @@
   padding: 8px 16px 0;
   color: var(--label-2);
 }
-
-/* Industry groups: horizontal snap scroller that bleeds to the screen edges with a 16px leading inset. */
-.bx-chips {
-  display: flex;
-  gap: 8px;
-  margin: 0 calc(-1 * var(--gutter-right, 16px)) 0 calc(-1 * var(--gutter-left, 16px));
-  padding: 4px var(--gutter-right, 16px) 4px var(--gutter-left, 16px);
-  list-style: none;
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: var(--gutter-left, 16px);
-  scrollbar-width: none;
-}
-.bx-chips::-webkit-scrollbar { display: none; }
-.bx-chips > li { flex: none; scroll-snap-align: start; }
-.bx-chip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 18px;
-  background: var(--cell);
-  box-shadow: inset 0 0 0 0.5px var(--separator);
-  color: var(--label);
-  font-size: var(--t-subhead);
-  line-height: 1.333;
-  font-weight: 600;
-  white-space: nowrap;
-  text-decoration: none;
-}
-.bx-chip::before { content: ''; position: absolute; inset: -4px 0; }
 
 /* All companies: sticky view row (48) + sticky 2-line column header (36), both opaque. */
 .bx-companies__views {

@@ -34,23 +34,37 @@ async function closeDialog(page: Page) {
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
-test('Markets: composite, sectors, All companies views, help and search', async ({ page }) => {
+test('Markets: composite, funds, sector groups with their percentages, Compare and search', async ({ page }) => {
   await signIn(page);
   await page.goto('/markets');
   await expect(page.getByRole('heading', { level: 1, name: 'Markets' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Pirate Composite' })).toBeVisible();
   await expect(page.getByText(/\d+ rising · \d+ falling · \d+ unchanged/)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Industry groups' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Biggest moves this session' })).toBeVisible();
+  // 2026-09-17: no chip row, no "Biggest moves" and no empty watchlist between the index and the list.
+  await expect(page.getByRole('heading', { name: 'Industry groups' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Biggest moves this session' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Watchlist' })).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/markets.png` });
 
   await page.getByRole('button', { name: 'What is Market tracker (market index)?' }).first().click();
   await expect(page.getByRole('dialog', { name: 'Market tracker' })).toBeVisible();
   await closeDialog(page);
 
+  // Funds first, then one group per sector, each heading carrying that sector's session change.
+  await expect(page.getByRole('region', { name: 'Funds' }).getByRole('link')).toHaveCount(3);
+  const shipping = page.getByRole('region', { name: 'Shipping & Salvage' });
+  await expect(shipping.getByRole('link')).toHaveCount(3);
+  await expect(shipping.locator('.bx-group-change')).toContainText(/%$/);
+  // The first row a crew can buy is on the first screen, not a screen and a half down.
+  const firstFund = page.getByRole('region', { name: 'Funds' }).getByRole('link').first();
+  expect((await firstFund.boundingBox())!.y).toBeLessThan(852);
+
+  // The metric table is its own screen now (§7.6b), reached from the Companies header.
+  await page.locator('#companies').getByRole('link', { name: 'Compare' }).click();
+  await expect(page).toHaveURL(/\/markets\/compare/);
   const companies = page.locator('#companies');
   await expect(companies.getByRole('link', { name: /KRKN.*Company size/ })).toBeVisible();
-  await pickSegment(page, 'Markets view', 'Health');
+  await pickSegment(page, 'Compare view', 'Health');
   await expect(page).toHaveURL(/view=health/);
   await expect(companies.getByText('Bill coverage')).toBeVisible();
   await companies.getByRole('button', { name: 'What these columns mean' }).click();
@@ -58,6 +72,7 @@ test('Markets: composite, sectors, All companies views, help and search', async 
   await expect(help.getByRole('heading', { name: 'Short-term bill coverage (current ratio)' })).toBeVisible();
   await closeDialog(page);
 
+  await page.goto('/markets');
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole('searchbox').first().fill('kra');
   await expect(page.getByRole('link', { name: /Kraken Shipping Lines, KRKN/ })).toBeVisible();

@@ -869,7 +869,7 @@ function LinkedQuote() {
       <ChartCard
         label="KRKN price"
         points={KRKN_SESSION}
-        summary={stats ? chartSummary('session', stats, MONEY) : ''}
+        summary={stats ? chartSummary('session', stats) : ''}
         formatters={{ ...MONEY, formatX: tickTime }}
         reference={{ y: 8222, label: 'Session open' }}
         ranges={RANGE_TABS}
@@ -956,7 +956,7 @@ function PortfolioChart() {
       label="Account value"
       points={ACCOUNT_VALUE}
       plotHeight={180}
-      summary={stats ? chartSummary('total', stats, MONEY) : ''}
+      summary={stats ? chartSummary('total', stats) : ''}
       formatters={{ ...MONEY, formatX: tickTime }}
       formatAxis={(cents) => formatMoney(cents, { compact: true })}
       reference={{ y: ACCOUNT.startingCash, label: 'Starting cash' }}
@@ -983,7 +983,7 @@ export function ChartsSection() {
               <ChartCard
                 label="KRKN price"
                 points={KRKN_SESSION.slice(-12)}
-                summary={chartSummary('session', seriesStats(KRKN_SESSION.slice(-12), KRKN_SESSION.at(-12)?.y)!, MONEY)}
+                summary={chartSummary('session', seriesStats(KRKN_SESSION.slice(-12), KRKN_SESSION.at(-12)?.y)!)}
                 formatters={{ ...MONEY, formatX: tickTime }}
                 plotHeight={160}
                 paused

@@ -58,9 +58,8 @@
 .bx-pinned__main .bx-standing__sub { color: var(--label-2); }
 
 /* ─── Crew sheet ─── */
+/* The name and rank are the sheet's own header (2026-09-17), which is what carries the Close button. */
 .bx-crew__header { display: grid; justify-items: center; gap: 4px; padding: 8px 0 12px; text-align: center; }
-.bx-crew__name { margin-top: 8px; }
-.bx-crew__rank { color: var(--label-2); }
 .bx-crew__spark { display: flex; justify-content: center; margin-bottom: 16px; overflow: hidden; }
 .bx-crew__spark svg { max-width: 100%; }
 

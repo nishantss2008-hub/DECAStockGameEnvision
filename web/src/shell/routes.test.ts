@@ -20,12 +20,15 @@ describe('legacy redirects (MOBILE §6.5, spec §10 routes)', () => {
     ['/research/KRKN', '', '/markets/company/KRKN/financials'],
     ['/results', '', '/standings/results'],
     ['/leaderboard', '', '/standings'],
+    // The retired sector screen (2026-09-17): its group is on Markets, under its own heading.
+    ['/markets/sector/shipping-salvage', '', '/markets#companies'],
+    ['/markets/sector/naval-arms', '?sort=price', '/markets#companies'],
   ])('%s%s → %s', (pathname, search, expected) => {
     expect(legacyRedirect(pathname, search)).toBe(expected);
   });
 
   it('leaves current routes alone', () => {
-    for (const p of ['/portfolio', '/news', '/markets/company/KRKN', '/login', '/admin', '/nowhere']) {
+    for (const p of ['/portfolio', '/news', '/markets', '/markets/compare', '/markets/company/KRKN', '/login', '/admin', '/nowhere']) {
       expect(legacyRedirect(p, '')).toBeNull();
     }
   });
@@ -40,7 +43,7 @@ describe('route table', () => {
     ['/portfolio/balances', 'balances'],
     ['/portfolio/company/KRKN', 'company'],
     ['/markets', 'markets'],
-    ['/markets/sector/shipping', 'sector'],
+    ['/markets/compare', 'compare'],
     ['/markets/company/KRKN', 'company'],
     ['/markets/company/KRKN/financials', 'financials'],
     ['/news/company/KRKN/stats', 'stats'],

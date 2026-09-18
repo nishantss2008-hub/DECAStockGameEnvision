@@ -15,7 +15,7 @@ import { matchScreen } from './routes';
 import { withSheet } from './sheetParams';
 import { SHEET_STATE_KEY, useSheet } from './useSheet';
 import { ShellDataProvider, useShellGame } from './ShellData';
-import { WalkthroughProvider, useWalkthrough } from './useWalkthrough';
+import { WelcomeProvider, useWelcome } from './useWelcome';
 import { SheetHost } from './SheetHost';
 import { useIntroGate } from './useIntroGate';
 import { SailsUp } from './SailsUp';
@@ -56,7 +56,7 @@ function CrewFrame() {
   const layout = useShellLayout();
   const { sheet, open } = useSheet();
   const { team, online } = useShellGame();
-  const walkthrough = useWalkthrough();
+  const welcome = useWelcome();
   const gate = useIntroGate();
   const toast = useToast();
   const onTab = useTabPress();
@@ -72,10 +72,10 @@ function CrewFrame() {
   // First sign-in: the Welcome sheet over Portfolio (MOBILE §7.2), once.
   const welcomed = useRef(false);
   useEffect(() => {
-    if (welcomed.current || !walkthrough.welcomePending || !team || sheet || location.pathname !== '/portfolio') return;
+    if (welcomed.current || !welcome.pending || !team || sheet || location.pathname !== '/portfolio') return;
     welcomed.current = true;
     navigate({ pathname: '/portfolio', search: withSheet(location.search, { kind: 'welcome' }) }, { state: { [SHEET_STATE_KEY]: true } });
-  }, [walkthrough.welcomePending, team, sheet, location.pathname, location.search, navigate]);
+  }, [welcome.pending, team, sheet, location.pathname, location.search, navigate]);
 
   // "Back online" (a polite announcement comes with the toast).
   const wasOnline = useRef(online);
@@ -86,14 +86,14 @@ function CrewFrame() {
 
   // One-time Add to Home Screen tip in a browser tab, after the first sign-in (MOBILE §7.1).
   useEffect(() => {
-    if (!team || sheet || walkthrough.welcomePending || isStandalone()) return;
+    if (!team || sheet || welcome.pending || isStandalone()) return;
     const store = localStore();
     if (store.getItem(HOME_TIP_KEY)) return;
     store.setItem(HOME_TIP_KEY, '1');
     const platform = homeScreenPlatform(navigator.userAgent, navigator.maxTouchPoints ?? 0);
     const tip = platform === 'ios' ? MOBILE.homeScreen.tipIos : platform === 'android' ? MOBILE.homeScreen.tipAndroid : MOBILE.homeScreen.tipChromebook;
     toast.show({ title: tip, icon: Smartphone });
-  }, [team, sheet, walkthrough.welcomePending, toast]);
+  }, [team, sheet, welcome.pending, toast]);
 
   const activeTab = tabIdForPath(location.pathname);
 
@@ -128,9 +128,9 @@ export function AppShell() {
   const { teamId } = useAuth();
   return (
     <ShellDataProvider>
-      <WalkthroughProvider key={teamId ?? 'none'} teamId={teamId}>
+      <WelcomeProvider key={teamId ?? 'none'} teamId={teamId}>
         <CrewFrame />
-      </WalkthroughProvider>
+      </WelcomeProvider>
     </ShellDataProvider>
   );
 }

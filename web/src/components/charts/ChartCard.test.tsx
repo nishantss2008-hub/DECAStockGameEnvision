@@ -12,7 +12,7 @@ const formatters = { ...money, formatX: (tick: number) => `tick ${tick}` };
 // KRKN session: opens Ð82.22, dips to Ð81.90, peaks at Ð84.60, last Ð84.12.
 const prices = [8222, 8190, 8300, 8460, 8412];
 const points = prices.map((y, i) => ({ x: 1280 + i, y }));
-const summary = chartSummary('session', seriesStats(points, 8222)!, money);
+const summary = chartSummary('session', seriesStats(points, 8222)!);
 const ranges = rangeTabs(deriveClock(48 * 3_600_000)); // 1H 6H 24H All, 120 ticks per hour
 
 function renderCard(props: Partial<Parameters<typeof ChartCard>[0]> = {}) {
@@ -31,11 +31,22 @@ function renderCard(props: Partial<Parameters<typeof ChartCard>[0]> = {}) {
 describe('ChartCard', () => {
   it('shows the summary sentence and describes the slider with the spoken version', () => {
     renderCard();
-    expect(screen.getByText('Up 2.31% this session. Range Ð81.90 to Ð84.60.')).toBeInTheDocument();
+    expect(screen.getByText('Up 2.31% this session')).toBeInTheDocument();
+    // The session range is not in the sentence: the range bar under the plot labels both ends (2026-09-17).
+    expect(screen.queryByText(/Range/)).toBeNull();
     const slider = screen.getByRole('slider', { name: 'KRKN price' });
-    expect(slider).toHaveAccessibleDescription('Up 2.31 percent this session. Range 81.90 doubloons to 84.60 doubloons.');
+    expect(slider).toHaveAccessibleDescription('Up 2.31 percent this session');
     expect(slider).toHaveAttribute('aria-valuetext', 'tick 1284, 84.12 doubloons');
     expect(screen.getByText('Session open')).toBeInTheDocument();
+  });
+
+  it('keeps the summary for screen readers only when the page already prints it (summaryVisible)', () => {
+    const { container } = renderCard({ summaryVisible: false });
+    expect(container.querySelector('.chart-card__summary')).toBeNull();
+    // Still spoken, and still what describes the slider — nothing became unreachable.
+    const sr = container.querySelector('.ios-sr-only');
+    expect(sr).toHaveTextContent('Up 2.31 percent this session');
+    expect(screen.getByRole('slider')).toHaveAccessibleDescription('Up 2.31 percent this session');
   });
 
   it('draws the line in the gain colour when the last value is at or above the reference', () => {

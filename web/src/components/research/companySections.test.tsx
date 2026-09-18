@@ -40,7 +40,7 @@ beforeEach(() => {
 afterEach(() => appRoot.remove());
 
 describe('KeyStatsSection (MOBILE §7.7 rows 4–5)', () => {
-  it('is a labelled section: grid, then the session-range bar, then the helper footnote', () => {
+  const renderSection = () =>
     render(
       <MemoryRouter future={FUTURE}>
         <KeyStatsSection
@@ -53,11 +53,41 @@ describe('KeyStatsSection (MOBILE §7.7 rows 4–5)', () => {
         />
       </MemoryRouter>,
     );
+
+  it('is a labelled section: grid, then the session-range bar, then the helper footnote', () => {
+    renderSection();
     const section = screen.getByRole('region', { name: 'Key stats' });
     expect(within(section).getByRole('link', { name: 'See all stats' })).toHaveAttribute('href', '/markets/company/KRKN/stats');
-    expect(within(section).getAllByRole('button')).toHaveLength(6);
     expect(within(section).getByRole('img', { name: /Session range: 81\.90 doubloons to 84\.60 doubloons\. Price: 84\.12 doubloons\./ })).toBeInTheDocument();
     expect(section).toHaveAccessibleDescription(/New to this\?/);
+  });
+
+  it('prints the session range once — on the bar, not in a cell as well (2026-09-17)', () => {
+    renderSection();
+    const section = screen.getByRole('region', { name: 'Key stats' });
+    // Five metric cells; the sixth, "Session range", is gone: the bar below says the same two prices.
+    const cellButtons = within(section).getAllByRole('button').filter((b) => b.classList.contains('rs-stat'));
+    expect(cellButtons.map((b) => b.querySelector('.rs-stat__label')?.textContent)).toEqual([
+      'Company size',
+      'Sales growth',
+      'Profit margin',
+      'Price vs. profit',
+      'Debt vs. equity',
+    ]);
+    expect(within(section).queryByRole('button', { name: /^Session range/ })).toBeNull();
+    expect(within(section).queryByText('Ð81.90 – Ð84.60')).toBeNull();
+    // The two prices are printed exactly once each, by the bar's own end labels.
+    expect(within(section).getAllByText('Ð81.90')).toHaveLength(1);
+    expect(within(section).getAllByText('Ð84.60')).toHaveLength(1);
+  });
+
+  it('keeps the range explainable: the bar carries its own "?" (MOBILE §5.9)', () => {
+    renderSection();
+    const section = screen.getByRole('region', { name: 'Key stats' });
+    const tip = within(section).getByRole('button', { name: /What is Session high and low \(session range\)\?/ });
+    expect(tip).toHaveAttribute('aria-haspopup', 'dialog');
+    tip.focus();
+    expect(tip).toHaveFocus();
   });
 });
 

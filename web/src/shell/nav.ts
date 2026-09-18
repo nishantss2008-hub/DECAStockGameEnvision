@@ -72,7 +72,7 @@ export interface PathParts {
 /**
  * Stores the current path for its tab (sheet params dropped: a restored stack never reopens a
  * sheet, and for the same reason a full-screen flow — "Meet the market" — is never remembered:
- * pressing the tab must open the tab, not resume a walkthrough).
+ * pressing the tab must open the tab, not resume a flow).
  */
 export function rememberTabPath(storage: StorageLike, loc: PathParts): void {
   const id = tabIdForPath(loc.pathname);

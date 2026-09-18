@@ -15,7 +15,6 @@ export type CrewScreenId =
   | 'stats'
   | 'markets'
   | 'compare'
-  | 'sector'
   | 'news'
   | 'dispatch'
   | 'standings'
@@ -52,7 +51,6 @@ export const CREW_SCREENS: readonly ScreenRoute<CrewScreenId>[] = [
   { id: 'balances', path: '/portfolio/balances', title: 'Balances' },
   { id: 'markets', path: '/markets', title: 'Markets' },
   { id: 'compare', path: '/markets/compare', title: 'Compare companies' },
-  { id: 'sector', path: '/markets/sector/:sectorId', title: 'Sector' },
   { id: 'news', path: '/news', title: 'News' },
   { id: 'dispatch', path: '/news/:newsId', title: 'Dispatch' },
   { id: 'standings', path: '/standings', title: 'Standings' },
@@ -96,8 +94,8 @@ export function matchScreen(pathname: string): ScreenRoute | null {
  * today only the required-once "Meet the market" flow (design 2026-09-16 §6). They still live in a
  * tab's path space — the flow is replayable from Learn — but a step inside a flow is not a place in
  * that tab's stack, so tab memory neither stores nor restores one (nav.ts). Without that, pressing
- * Learn after the flow drops the crew straight back into the walkthrough it has already finished,
- * with no tab bar to leave by.
+ * Learn after the flow drops the crew straight back into the intro it has already finished, with no
+ * tab bar to leave by.
  */
 export const CHROMELESS_SCREENS: ReadonlySet<ScreenId> = new Set<ScreenId>(['meetTheMarket']);
 
@@ -107,8 +105,26 @@ export function isChromeless(pathname: string): boolean {
   return screen ? CHROMELESS_SCREENS.has(screen.id) : false;
 }
 
-/** Patterns router.tsx mounts <LegacyRedirect/> on. */
-export const LEGACY_PATHS = ['/', '/positions', '/activity', '/trade', '/trade/:ticker', '/research', '/research/:ticker', '/results', '/leaderboard'] as const;
+/**
+ * Patterns router.tsx mounts <LegacyRedirect/> on.
+ *
+ * `/markets/sector/:sectorId` is here rather than in CREW_SCREENS since 2026-09-17: the sector
+ * screen is gone (its index percentage is on the Markets group heading, and the three companies it
+ * listed are under that heading), but a bookmark, a shared link or a stale service-worker page can
+ * still ask for it, and landing on Portfolio would be a lie about where those companies went.
+ */
+export const LEGACY_PATHS = [
+  '/',
+  '/positions',
+  '/activity',
+  '/trade',
+  '/trade/:ticker',
+  '/research',
+  '/research/:ticker',
+  '/results',
+  '/leaderboard',
+  '/markets/sector/:sectorId',
+] as const;
 
 const TRADE_SECTIONS = new Set(['analysts', 'dispatches', 'crew']);
 
@@ -129,6 +145,9 @@ export function legacyRedirect(pathname: string, search: string, hash = ''): str
       return segs.length === 1 ? `/standings/results${keep}` : null;
     case 'leaderboard':
       return segs.length === 1 ? `/standings${keep}` : null;
+    case 'markets':
+      // The retired sector screen: the group it named is on Markets, under its own heading.
+      return segs[1] === 'sector' && segs.length === 3 ? '/markets#companies' : null;
     case 'research':
       if (segs.length === 1) return '/markets?view=basics#companies';
       return segs.length === 2 ? `${company(segs[1]!)}/financials` : null;

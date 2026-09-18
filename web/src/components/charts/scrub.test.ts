@@ -119,24 +119,26 @@ describe('chartSummary', () => {
 
   it('writes the portfolio total sentence', () => {
     const stats = seriesStats([{ x: 0, y: 100_000_000 }, { x: 1, y: 108_421_955 }], 100_000_000)!;
-    expect(chartSummary('total', stats, money)).toEqual({
+    expect(chartSummary('total', stats)).toEqual({
       text: 'Up 8.42% since the game began',
       spoken: 'Up 8.42 percent since the game began',
     });
   });
 
-  it('writes the company session sentence with the range', () => {
+  it('writes the company session sentence without repeating the range (2026-09-17)', () => {
     const stats = seriesStats([8222, 8190, 8460, 8412].map((y, x) => ({ x, y })), 8222)!;
-    expect(chartSummary('session', stats, money)).toEqual({
-      text: 'Up 2.31% this session. Range Ð81.90 to Ð84.60.',
-      spoken: 'Up 2.31 percent this session. Range 81.90 doubloons to 84.60 doubloons.',
+    expect(chartSummary('session', stats)).toEqual({
+      text: 'Up 2.31% this session',
+      spoken: 'Up 2.31 percent this session',
     });
+    // The range bar below the plot labels Ð81.90 and Ð84.60 and shows where the price sits between them.
+    expect(chartSummary('session', stats).text).not.toMatch(/Range/);
   });
 
   it('says Down for losses and Unchanged for flat series', () => {
     const down = seriesStats([{ x: 0, y: 3218 }, { x: 1, y: 3107 }])!;
-    expect(chartSummary('total', down, money).text).toBe('Down 3.45% since the game began');
+    expect(chartSummary('total', down).text).toBe('Down 3.45% since the game began');
     const flat = seriesStats([{ x: 0, y: 500 }, { x: 1, y: 500 }])!;
-    expect(chartSummary('session', flat, money).text).toBe('Unchanged this session. Range Ð5.00 to Ð5.00.');
+    expect(chartSummary('session', flat).text).toBe('Unchanged this session');
   });
 });

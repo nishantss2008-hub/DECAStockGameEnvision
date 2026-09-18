@@ -8,6 +8,13 @@
 /** Default number of rows for Activity and order feeds. */
 export const DEFAULT_FEED_LIMIT = 100;
 
+/**
+ * Dispatches rendered on News before "See older" (MOBILE §7.11). A dispatch card is ~240px, so the 100 the feed
+ * can hold is a 24,000px scroll; ten is about one and a half screens. Nothing is dropped — the rest is one tap
+ * away, ten at a time, back to the first dispatch of the game.
+ */
+export const NEWS_PAGE_SIZE = 10;
+
 export function feedLimit(n: number | undefined): number {
   return n !== undefined && Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_FEED_LIMIT;
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Company, Fund, Fundamentals, MarketSummary } from '@deca/shared';
 import {
-  biggestMoves,
   breadthText,
   columnCells,
   compositeParts,
@@ -12,8 +11,8 @@ import {
   removeRecent,
   fundHoldingRows,
   searchInstruments,
-  sectorChips,
   sectorGroups,
+  sectorSessionChanges,
   sectorShortName,
   sortCompanies,
   splitInstruments,
@@ -61,6 +60,15 @@ const CNBR = co({ id: 'cannonbright', ticker: 'CNBR', name: 'Cannonbright Foundr
 const ABON = co({ id: 'anne-bonny', ticker: 'ABON', name: 'Anne Bonny Cartography', sector: 'Cartography & Navigation', currentPrice: 3_107, sessionChange: -0.0346, marketCap: 9, voyageChange: 0.2 });
 const KIDD = co({ id: 'kidd', ticker: 'KIDD', name: 'Kidd Treasure Trust', sector: 'Treasure Banking', currentPrice: 18_890, sessionChange: 0, marketCap: 7 });
 const ALL = [KRKN, CNBR, ABON, KIDD];
+
+/** A summary with three of the four sectors quoted, so the "missing sector" case stays covered. */
+const MARKET = {
+  sectors: {
+    'Naval Arms': { value: 1, open: 1, sessionOpen: 1, change: 0.1, sessionChange: 0.0205 },
+    'Cartography & Navigation': { value: 1, open: 1, sessionOpen: 1, change: 0, sessionChange: -0.0346 },
+    'Provisions & Spice': { value: 1, open: 1, sessionOpen: 1, change: 0, sessionChange: 0.0305 },
+  },
+} as unknown as MarketSummary;
 
 /** The three tradeable baskets, as the wire sends them (broad fund first). */
 function fund(p: Partial<Fund> & { id: string; ticker: string; name: string }): Fund {
@@ -241,29 +249,20 @@ describe('recent searches', () => {
 });
 
 describe('market sections', () => {
-  it('splits biggest moves into rising and falling companies only', () => {
-    const { up, down } = biggestMoves(ALL, 3);
-    expect(up.map((c) => c.ticker)).toEqual(['CNBR', 'KRKN']);
-    expect(down.map((c) => c.ticker)).toEqual(['ABON']);
-  });
   it('writes the breadth line', () => {
     expect(breadthText({ advancers: 14, decliners: 11, unchanged: 0 })).toBe('14 rising · 11 falling · 0 unchanged');
   });
-  it('orders sector chips by session change, from the market summary when present', () => {
-    const market = {
-      sectors: {
-        'Naval Arms': { value: 1, open: 1, sessionOpen: 1, change: 0.1, sessionChange: 0.0205 },
-        'Cartography & Navigation': { value: 1, open: 1, sessionOpen: 1, change: 0, sessionChange: -0.0346 },
-        'Provisions & Spice': { value: 1, open: 1, sessionOpen: 1, change: 0, sessionChange: 0.0305 },
-      },
-    } as unknown as MarketSummary;
-    const chips = sectorChips(market, ALL);
-    expect(chips.map((c) => c.name)).toEqual(['Provisions', 'Naval Arms', 'Cartography & Navigation']);
-    expect(chips[0]).toMatchObject({ slug: 'provisions-spice', sessionChange: 0.0305 });
+  it('reads each sector session change from the market summary when the server sent one', () => {
+    const changes = sectorSessionChanges(MARKET, ALL);
+    expect(changes.get('Naval Arms')).toBe(0.0205);
+    expect(changes.get('Cartography & Navigation')).toBe(-0.0346);
+    // A sector the summary does not carry has no number rather than a made-up one.
+    expect(changes.has('Shipping & Salvage')).toBe(false);
   });
   it('falls back to cap-weighted sector summaries without a market summary', () => {
-    const chips = sectorChips(null, ALL);
-    expect(chips.map((c) => c.sector)).toEqual(['Naval Arms', 'Shipping & Salvage', 'Treasure Banking', 'Cartography & Navigation']);
+    const changes = sectorSessionChanges(null, ALL);
+    expect([...changes.keys()].sort()).toEqual(['Cartography & Navigation', 'Naval Arms', 'Shipping & Salvage', 'Treasure Banking']);
+    expect(changes.get('Shipping & Salvage')).toBeCloseTo(KRKN.sessionChange, 10);
   });
   it('derives composite points and percentages', () => {
     const parts = compositeParts({ value: 1048.62, open: 1000, sessionOpen: 1039.91, change: 0.0486, sessionChange: 0.0084 });
@@ -280,7 +279,16 @@ describe('Markets list shape (spec 2026-09-16 §4)', () => {
     const groups = sectorGroups([...ALL, second], 'size');
     expect(groups.map((g) => g.sector)).toEqual(['Shipping & Salvage', 'Naval Arms', 'Cartography & Navigation', 'Treasure Banking']);
     expect(groups[0]!.companies.map((c) => c.ticker)).toEqual(['KRKN', 'FDUT']);
-    expect(groups[0]!.slug).toBe('shipping-salvage');
+    expect(groups[0]!.name).toBe('Shipping & Salvage');
+  });
+  it('carries each sector session change on its group, so the heading can print it (2026-09-17)', () => {
+    const groups = sectorGroups(ALL, 'size', MARKET);
+    expect(groups.find((g) => g.sector === 'Naval Arms')!.sessionChange).toBe(0.0205);
+    expect(groups.find((g) => g.sector === 'Cartography & Navigation')!.sessionChange).toBe(-0.0346);
+    // Quoted nowhere: the heading prints no number rather than inventing one.
+    expect(groups.find((g) => g.sector === 'Shipping & Salvage')!.sessionChange).toBeNull();
+    // Without a summary the members supply it, exactly as the chips did.
+    expect(sectorGroups(ALL, 'size')!.find((g) => g.sector === 'Naval Arms')!.sessionChange).toBeCloseTo(CNBR.sessionChange, 10);
   });
   it('leaves out a sector with no companies rather than drawing an empty header', () => {
     expect(sectorGroups([KRKN]).map((g) => g.sector)).toEqual(['Shipping & Salvage']);

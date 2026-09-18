@@ -151,27 +151,21 @@ export interface ChartSummaryText {
 /**
  * Chart card summary sentences (COPY-TBD `mobile.chartSummaryTotal` / `chartSummarySession`):
  * - total: "Up 8.42% since the game began"
- * - session: "Up 2.31% this session. Range Ð81.90 to Ð84.60."
+ * - session: "Up 2.31% this session"
  * "Down" when negative; "Unchanged" when the change rounds to 0.00%.
+ *
+ * The session sentence used to end "· Range Ð81.90 to Ð84.60.", which printed the session range a
+ * third time on the company screen — the range bar below labels both of its ends, and a stat cell
+ * said it again (2026-09-17). The bar is the one that keeps it, because it also shows where the
+ * price sits between the two.
  */
-export function chartSummary(
-  kind: 'total' | 'session',
-  stats: SeriesStats,
-  fmt: Pick<ChartFormatters, 'formatY' | 'spokenY'>,
-): ChartSummaryText {
+export function chartSummary(kind: 'total' | 'session', stats: SeriesStats): ChartSummaryText {
   const parts = changeParts(stats.changeFraction);
   const pct = parts.text.replace(/^[+−]/, '');
   const spokenPct = `${pct.slice(0, -1)} percent`;
   const lead = parts.direction === 'up' ? 'Up' : parts.direction === 'down' ? 'Down' : 'Unchanged';
   const leadText = lead === 'Unchanged' ? lead : `${lead} ${pct}`;
   const leadSpoken = lead === 'Unchanged' ? lead : `${lead} ${spokenPct}`;
-
-  if (kind === 'total') {
-    return { text: `${leadText} since the game began`, spoken: `${leadSpoken} since the game began` };
-  }
-  const spokenY = fmt.spokenY ?? fmt.formatY;
-  return {
-    text: `${leadText} this session. Range ${fmt.formatY(stats.min)} to ${fmt.formatY(stats.max)}.`,
-    spoken: `${leadSpoken} this session. Range ${spokenY(stats.min)} to ${spokenY(stats.max)}.`,
-  };
+  const suffix = kind === 'total' ? 'since the game began' : 'this session';
+  return { text: `${leadText} ${suffix}`, spoken: `${leadSpoken} ${suffix}` };
 }

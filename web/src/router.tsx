@@ -25,7 +25,6 @@ const CREW_PAGES: Record<CrewScreenId, PageModule> = {
   stats: () => import('./pages/company/AllStatsPage'),
   markets: () => import('./pages/markets/MarketsPage'),
   compare: () => import('./pages/markets/ComparePage'),
-  sector: () => import('./pages/markets/SectorPage'),
   news: () => import('./pages/news/NewsPage'),
   dispatch: () => import('./pages/news/DispatchPage'),
   standings: () => import('./pages/standings/StandingsPage'),

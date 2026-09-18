@@ -142,7 +142,7 @@ export default function CompanyPage() {
   const allRange = range === 'all';
   const reference = allRange ? instrument.startPrice : instrument.sessionOpen;
   const stats = seriesStats(points, reference);
-  const summary = stats ? chartSummary(allRange ? 'total' : 'session', stats, money) : '';
+  const summary = stats ? chartSummary(allRange ? 'total' : 'session', stats) : '';
   const financialsPath = `${basePath}/financials`;
   const statsPath = `${basePath}/stats`;
   const openTrade = (side: 'buy' | 'sell') => gate.openTrade({ ticker: instrument.ticker, side });

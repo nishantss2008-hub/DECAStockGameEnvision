@@ -5,7 +5,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { Company, Fund } from '@deca/shared';
+import type { Company, Fund, Instrument, MarketSummary } from '@deca/shared';
+import { WatchlistSection } from './MarketSections';
 import { FundsSection, SectorGroupsSection } from './InstrumentSections';
 import { sectorGroups } from './marketsView';
 
@@ -60,11 +61,25 @@ const FUNDS = [
   fund('powder-and-shot', 'ARMS', 'Powder and Shot Fund', { style: 'sector', sector: 'Naval Arms' }),
 ];
 
+/** The two sector indices the group headings print, as `market/summary` sends them. */
+const MARKET = {
+  sectors: {
+    'Shipping & Salvage': { value: 1, open: 1, sessionOpen: 1, change: 0.04, sessionChange: 0.0231 },
+    'Naval Arms': { value: 1, open: 1, sessionOpen: 1, change: -0.02, sessionChange: -0.0158 },
+  },
+} as unknown as MarketSummary;
+
+/** The header row of one sector group: heading plus the sector's session change beside it. */
+function groupHeader(sector: string): HTMLElement {
+  const region = screen.getByRole('region', { name: sector });
+  return within(region).getByRole('heading', { name: sector }).closest('.ios-list__header') as HTMLElement;
+}
+
 function renderList() {
   return render(
     <MemoryRouter>
       <FundsSection funds={FUNDS} sessionStartTick={0} currentTick={10} />
-      <SectorGroupsSection groups={sectorGroups(COMPANIES, 'size')} sessionStartTick={0} currentTick={10} />
+      <SectorGroupsSection groups={sectorGroups(COMPANIES, 'size', MARKET)} sessionStartTick={0} currentTick={10} />
     </MemoryRouter>,
   );
 }
@@ -98,16 +113,43 @@ describe('Markets list (spec §4)', () => {
   it('groups the companies into sectors of three, each group under its own header', () => {
     renderList();
     const shipping = screen.getByRole('region', { name: 'Shipping & Salvage' });
-    // Three company rows plus the group header's link to the sector screen.
-    expect(within(shipping).getAllByRole('link')).toHaveLength(4);
-    expect(within(shipping).getByRole('link', { name: 'See Shipping & Salvage' })).toHaveAttribute('href', '/markets/sector/shipping-salvage');
+    // Three company rows and nothing else: the sector screen the header used to link to is gone.
+    expect(within(shipping).getAllByRole('link')).toHaveLength(3);
+    expect(within(shipping).queryByRole('link', { name: /^See / })).toBeNull();
     expect(within(shipping).getByRole('link', { name: /Kraken Shipping Lines/ })).toBeInTheDocument();
     expect(within(shipping).getByRole('link', { name: /Flying Dutchman Salvage/ })).toBeInTheDocument();
     expect(within(shipping).getByRole('link', { name: /Leviathan Logistics/ })).toBeInTheDocument();
 
     const arms = screen.getByRole('region', { name: 'Naval Arms' });
-    expect(within(arms).getAllByRole('link')).toHaveLength(4); // 3 companies + the "See Naval Arms" link
+    expect(within(arms).getAllByRole('link')).toHaveLength(3);
     expect(within(arms).queryByRole('link', { name: /Kraken/ })).toBeNull();
+  });
+
+  it('prints each sector percentage on its group heading, seen and spoken (2026-09-17)', () => {
+    renderList();
+    const shipping = groupHeader('Shipping & Salvage');
+    expect(within(shipping).getByText('+2.31%')).toBeInTheDocument();
+    expect(within(shipping).getByText('up 2.31 percent')).toBeInTheDocument();
+    expect(within(shipping).getByText('this session')).toBeInTheDocument();
+    const arms = groupHeader('Naval Arms');
+    expect(within(arms).getByText('−1.58%')).toBeInTheDocument();
+    expect(within(arms).getByText('down 1.58 percent')).toBeInTheDocument();
+    // The heading still names the sector alone, so the region keeps its name.
+    expect(within(shipping).getByRole('heading', { name: 'Shipping & Salvage' })).toBeInTheDocument();
+  });
+
+  it('falls back to the members own change when the summary carries no sectors yet', () => {
+    render(
+      <MemoryRouter>
+        <SectorGroupsSection groups={sectorGroups(COMPANIES, 'size', { sectors: {} } as unknown as MarketSummary)} sessionStartTick={0} currentTick={1} />
+      </MemoryRouter>,
+    );
+    expect(within(groupHeader('Shipping & Salvage')).getByText('+2.31%')).toBeInTheDocument();
+  });
+
+  it('shows no fundamentals helper: this list has no fundamentals on it', () => {
+    renderList();
+    expect(screen.queryByText(/New to this\?/)).toBeNull();
   });
 
   it('offers Compare from the Companies header instead of a metric control on this screen', () => {
@@ -125,5 +167,29 @@ describe('Markets list (spec §4)', () => {
       </MemoryRouter>,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('Watchlist (MOBILE §7.6 row 7)', () => {
+  it('draws nothing at all until the crew has starred something', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <WatchlistSection instruments={[]} />
+      </MemoryRouter>,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('lists starred instruments, funds and companies alike, once there are any', () => {
+    const watched: Instrument[] = [FUNDS[1]!, COMPANIES[0]!];
+    render(
+      <MemoryRouter>
+        <WatchlistSection instruments={watched} />
+      </MemoryRouter>,
+    );
+    const list = screen.getByRole('region', { name: 'Watchlist' });
+    expect(within(list).getAllByRole('link')).toHaveLength(2);
+    expect(within(list).getByRole('link', { name: /Shipping Lanes Fund, SHIPS, Fund/ })).toBeInTheDocument();
+    expect(within(list).getByRole('link', { name: /Kraken Shipping Lines/ })).toBeInTheDocument();
   });
 });

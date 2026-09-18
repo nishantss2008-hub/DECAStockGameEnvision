@@ -1,5 +1,5 @@
 /**
- * One whole game on phones (final web gate): host setup → crew walkthrough, research and first trade → news →
+ * One whole game on phones (final web gate): host setup → crew intro, research and first trade → news →
  * pause/resume → end and the reveal → new game with the crews kept. Needs the authority server running with the built
  * web app (DB_FILE=… WEB_DIR=../web/dist PORT=… ADMIN_PASSWORD=… npx tsx src/index.ts) and its game in the lobby;
  * run with playwright.app.config.ts (no webServer, see there). Crew names are unique per run.
@@ -168,16 +168,18 @@ test('a whole game on a phone', async ({ page, browser }) => {
   const welcome = page.getByRole('dialog', { name: new RegExp(`Welcome aboard, ${crews[0]}`) });
   await expect(welcome).toBeVisible();
   const startingValue = (await page.getByTestId('account-value').textContent())?.trim();
-  // A crew that has not finished the intro is sent into it from Welcome (design §6); the walkthrough
-  // starts underneath and is waiting on Markets when the flow ends.
+  // A crew that has not finished the intro is sent into it from Welcome (design §6).
   await welcome.getByRole('button', { name: 'Meet the market', exact: true }).click();
   if (runAxe) a11y.push(...(await axeBoth(page, 'meet-the-market')));
   await completeIntro(page);
-  // The walkthrough the Welcome sheet started is waiting on Portfolio; it still opens Markets.
+  // Portfolio opens on the account value: the 3-step walkthrough card above it was deleted on 2026-09-17
+  // (MOBILE §7.2), and its state and COPY §5 words on 2026-09-18, because "Meet the market", just
+  // finished, teaches the same three things. The title is asserted absent so a revival is loud.
   await tab(page, 'Portfolio');
-  await expect(page.getByText('Your first trade in 3 steps')).toBeVisible();
-  await shot(page, '02-walkthrough');
-  await page.getByRole('button', { name: 'Open Markets' }).or(page.getByRole('link', { name: 'Open Markets' })).first().click();
+  await expect(page.getByText('Your first trade in 3 steps')).toHaveCount(0);
+  await expect(page.getByTestId('account-value')).toBeVisible();
+  await shot(page, '02-portfolio');
+  await tab(page, 'Markets');
   await expect(page.getByRole('heading', { level: 1, name: 'Markets' })).toBeVisible();
   // Funds first, then the five sector groups (spec §4).
   await expect(page.getByRole('heading', { name: 'Funds', exact: true })).toBeVisible();
@@ -206,7 +208,7 @@ test('a whole game on a phone', async ({ page, browser }) => {
   // ── Trade: Buy 10 via Preview → Place → Filled ───────────────────────────
   await page.getByRole('button', { name: 'Buy KRKN' }).first().click();
   const ticket = page.locator('.ios-sheet[role="dialog"]:not([data-closed])');
-  await expect(ticket.getByText('Step 1 · enter your order')).toBeVisible();
+  await expect(ticket.getByRole('radiogroup', { name: 'Action' })).toBeVisible();
   if (runAxe) {
     await page.waitForTimeout(500);
     a11y.push(...(await axeBoth(page, 'trade-sheet')));

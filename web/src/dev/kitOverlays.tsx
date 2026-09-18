@@ -295,9 +295,17 @@ export function OverlaysSection({ initial }: OverlayDemosProps) {
               <Trigger label="Back online" onClick={() => toast.show({ id: 'online', title: 'Back online', icon: Wifi })}>
                 Stays at least 6 seconds; pauses on hover or focus.
               </Trigger>
+              {/* The app's other toast with an action, now the walkthrough's is gone: Crews › Meet the market. */}
               <Trigger
-                label="Walkthrough hidden · Undo"
-                onClick={() => toast.show({ id: 'walkthrough', title: 'Walkthrough hidden', icon: CircleCheck, action: { label: 'Undo', onAction: noop } })}
+                label="Marked finished · Undo"
+                onClick={() =>
+                  toast.show({
+                    id: 'intro',
+                    title: 'Saltwind Traders: Meet the market marked finished.',
+                    icon: CircleCheck,
+                    action: { label: 'Undo', onAction: noop },
+                  })
+                }
               />
             </div>
           </KitDemo>
@@ -396,7 +404,7 @@ export function OverlaysSection({ initial }: OverlayDemosProps) {
                 <li className="t-body">Healthier companies tend to do better over time, but news and luck matter.</li>
               </ul>
               <Button fullWidth onClick={close}>
-                Start the walkthrough
+                Meet the market
               </Button>
               <Button fullWidth variant="plain" onClick={close}>
                 Skip for now

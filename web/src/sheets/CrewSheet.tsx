@@ -49,12 +49,11 @@ export default function CrewSheet({ open, onClose, onClosed, crewId }: CrewSheet
   } else {
     body = (
       <>
+        {/* The name and rank are the sheet's own header (below), beside the Close button. */}
         <div className="bx-crew__header">
           <span aria-hidden="true">
             <Crest initials={crewInitials(entry.name)} size={64} />
           </span>
-          <p className="t-title-2 t-emph bx-crew__name" aria-hidden="true">{entry.name}</p>
-          <p className="t-subhead bx-crew__rank num">{fill(STANDINGS.rankOf, { rank: entry.rank, n: entries.length })}</p>
         </div>
         {entry.spark.length > 1 && (
           <div className="bx-crew__spark" aria-hidden="true">
@@ -83,7 +82,9 @@ export default function CrewSheet({ open, onClose, onClosed, crewId }: CrewSheet
       onOpenChange={(next) => !next && onClose()}
       onClosed={onClosed}
       title={entry?.name ?? STANDINGS.title}
-      headerLayout="hidden"
+      subtitle={entry ? fill(STANDINGS.rankOf, { rank: entry.rank, n: entries.length }) : undefined}
+      // "title / X" (MOBILE §5.8 catalogue): a hidden header left this sheet with no visible way out.
+      headerLayout="leading"
       detents="fit"
       className="bx-crew-sheet"
     >

@@ -63,6 +63,13 @@ export interface ChartCardProps {
   points: readonly Point[];
   /** Summary sentence above the plot; build it with `chartSummary()` so VoiceOver hears spelled-out money. */
   summary: ChartSummaryText | string;
+  /**
+   * False keeps the summary for assistive tech only (`ios-sr-only`), for a card whose sentence the
+   * page already prints in full right above it — Portfolio's, which repeated the account summary's
+   * "since the game began" line 16px higher. It stays the slider's `aria-describedby` either way:
+   * a sighted reader has the line above, and a screen-reader user still hears what the plot shows.
+   */
+  summaryVisible?: boolean;
   formatters: ChartFormatters;
   /** Y-axis tick labels; defaults to `formatters.formatY`. */
   formatAxis?: (y: number) => string;
@@ -104,6 +111,7 @@ export function ChartCard({
   label,
   points,
   summary,
+  summaryVisible = true,
   formatters,
   formatAxis,
   plotHeight = 220,
@@ -319,7 +327,11 @@ export function ChartCard({
   return (
     <section className={cx('chart-card', className)} style={style}>
       {summaryText.text &&
-        (summaryText.text === summaryText.spoken ? (
+        (!summaryVisible ? (
+          <p id={summaryId} className="ios-sr-only">
+            {summaryText.spoken}
+          </p>
+        ) : summaryText.text === summaryText.spoken ? (
           <p id={summaryId} className="chart-card__summary">
             {summaryText.text}
           </p>

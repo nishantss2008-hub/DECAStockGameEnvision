@@ -1,12 +1,16 @@
 /**
  * Markets tab root (MOBILE §7.6, spec 2026-09-16 §4): title + status → search → Pirate Composite →
- * breadth → Industry groups → Biggest moves → Watchlist → **Funds** → **Companies by sector** →
- * prices footer. Search pins into the collapsed bar.
+ * breadth → Watchlist (only when the crew has starred something) → **Funds** → **Companies by
+ * sector** → prices footer. Search pins into the collapsed bar.
  *
  * Apple Stocks semantics: the list is one row per instrument, nothing more. The five-way metric
  * table (Basics | Price | Value | Health | Analysts) is no longer here — it moved to `/markets/compare`,
  * reached from the sort menu and from the Companies header, because a dense table earns its density
  * only on a screen whose whole job is comparing.
+ *
+ * 2026-09-17 density pass: the Industry groups chips and "Biggest moves" are gone (their numbers
+ * are on the sector group headings and on every row's change pill), and an empty watchlist draws
+ * nothing. The first row a student can buy was 1,106px down the screen; it is now 356px.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_TICK_INTERVAL_MS } from '@deca/shared';
@@ -17,15 +21,13 @@ import { Menu } from '../../components/ios/Menu';
 import { SearchField } from '../../components/ios/SearchField';
 import { Skeleton, SkeletonGroup, SkeletonList } from '../../components/ios/Skeleton';
 import { FundsSection, SectorGroupsSection } from '../../components/market/InstrumentSections';
-import { BiggestMoves, BreadthLine, CompositeCard, SectorChips, WatchlistSection } from '../../components/market/MarketSections';
+import { BreadthLine, CompositeCard, WatchlistSection } from '../../components/market/MarketSections';
 import { SearchPanel, searchAnnouncement, useRecents } from '../../components/market/MarketSearch';
 import { ERRORS, LOADING, MARKETS } from '../../components/market/marketCopy';
 import {
   SORT_KEYS,
-  biggestMoves,
   parseMarketsQuery,
   searchInstruments,
-  sectorChips,
   sectorGroups,
   withMarketsQuery,
   type MarketsQuery,
@@ -66,9 +68,8 @@ export default function MarketsPage() {
   const { points: compositePoints } = useCompositeHistory(sessionStart, tick);
   const trend = useMemo(() => compositePoints.map((p) => p.value), [compositePoints]);
 
-  const chips = useMemo(() => sectorChips(market, companies), [market, companies]);
-  const moves = useMemo(() => biggestMoves(companies, 3), [companies]);
-  const groups = useMemo(() => sectorGroups(companies, query.sort), [companies, query.sort]);
+  // Each group heading carries its sector's session change — the number the chip row used to hold.
+  const groups = useMemo(() => sectorGroups(companies, query.sort, market), [companies, query.sort, market]);
   // A starred fund belongs on the watchlist exactly like a starred company.
   const watched = watchlist.symbols.map((id) => byId[id]).filter((c): c is NonNullable<typeof c> => Boolean(c));
 
@@ -148,8 +149,7 @@ export default function MarketsPage() {
       <>
         {market?.composite && <CompositeCard quote={market.composite} trend={trend} />}
         {market?.breadth && <BreadthLine breadth={market.breadth} />}
-        <SectorChips chips={chips} />
-        <BiggestMoves up={moves.up} down={moves.down} />
+        {/* Draws nothing until the crew stars something (MOBILE §7.6 row 7). */}
         <WatchlistSection instruments={watched} />
         <div className="bx-markets__list-tools">{sortMenu}</div>
         <FundsSection funds={funds} sessionStartTick={sessionStart} currentTick={tick} />

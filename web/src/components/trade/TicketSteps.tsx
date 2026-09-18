@@ -97,7 +97,6 @@ export function EntryStep({ state, dispatch, ctx, sessionChange, sector, quantit
 
   return (
     <div className="tk-entry" data-compact={compact || undefined}>
-      <p className="t-footnote tk-step">{TICKET.stages.entry}</p>
       <div className="tk-quote">
         <Crest ticker={ctx.ticker} sector={sector} size={32} />
         <div className="tk-quote__price">
@@ -262,7 +261,6 @@ function PreviewRowItem({ label, value, termId, note, emphasized }: { label: str
 export function PreviewStep({ state, ctx, quantity, estimate, updatedTick }: { state: TicketState; ctx: TicketContext; quantity: number; estimate: OrderEstimate; updatedTick: number | null }) {
   return (
     <div className="tk-preview">
-      <p className="t-footnote tk-step">{TICKET.stages.preview}</p>
       <p className="t-body tk-recap">{recapLine(state, ctx, quantity)}</p>
       <ul className="tk-card" aria-label={TICKET.labels.previewTitle}>
         {previewRows(state, ctx, estimate).map((row) => (
@@ -285,9 +283,6 @@ export function PreviewStep({ state, ctx, quantity, estimate, updatedTick }: { s
 export function FilledStep({ summary, headingRef, onActivity, onTradeAgain }: { summary: FilledSummary; headingRef: RefObject<HTMLHeadingElement>; onActivity: () => void; onTradeAgain: () => void }) {
   return (
     <div className="tk-filled">
-      <p className="t-footnote tk-step" aria-hidden="true">
-        {TICKET.stages.filled}
-      </p>
       <WaxSeal tone="brass" size={64} className="tk-seal" />
       <h2 ref={headingRef} tabIndex={-1} className="t-title-1 t-emph tk-filled__title">
         {TICKET.labels.orderFilled}

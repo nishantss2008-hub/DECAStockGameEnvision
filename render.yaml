@@ -41,11 +41,15 @@ services:
     region: virginia
     branch: main
 
-    # Deploys restart the service, which on the free tier means a wiped database.
-    # So deploys are manual: press "Manual Deploy" in the dashboard when you
-    # actually want to ship, never during class. Quoted because bare `off` is
-    # read as the boolean false by YAML.
-    autoDeployTrigger: "off"
+    # Every push to `main` deploys itself. Convenient between sessions — but know
+    # what a deploy costs on the free tier: it RESTARTS the service, and a restart
+    # wipes the filesystem, so a push during class ends the game in progress and
+    # loses the seeded market and the crew logins.
+    #
+    # So: do not push on game day. If you need to ship mid-event, set this to
+    # "off" (quoted — bare `off` is the boolean false in YAML) or use Settings →
+    # Build & Deploy in the dashboard, and deploy between rounds.
+    autoDeployTrigger: commit
 
     # Render polls this until it answers 200 before sending traffic to a new
     # instance, and keeps watching afterwards.

@@ -1,5 +1,5 @@
 /**
- * Words for Markets (MOBILE §7.6), Sector list and News (§7.11). Phone strings are MOBILE §7.0 `COPY-TBD mobile.*`;
+ * Words for Markets (MOBILE §7.6), Compare (§7.6b) and News (§7.11). Phone strings are MOBILE §7.0 `COPY-TBD mobile.*`;
  * the rest come from COPY.md (§1.1, §1.5, §3.2 research, §4 news-extra, §12 empty/loading/errors).
  * Placeholders are filled with `fill()` from shell/copy.
  */
@@ -36,14 +36,10 @@ export const MARKETS = {
   compositeName: 'Pirate Composite',
   thisSession: 'this session',
   sinceStart: 'since the game began',
-  industryGroups: 'Industry groups',
-  sectorIndex: 'Sector index',
-  biggestMoves: 'Biggest moves this session',
-  up: 'Up',
-  down: 'Down',
-  noMoves: 'No company has moved yet this session.',
+  /* Deleted 2026-09-17 with the sections that used them: the Industry groups chips and their sector
+     screen (the percentage is on each Markets group heading now), "Biggest moves" (every row
+     carries its own change pill) and the empty-watchlist row (the section is simply not drawn). */
   watchlist: 'Watchlist',
-  watchlistEmpty: { title: 'Your watchlist is empty', body: 'Tap the star on a company page to follow it here.' },
   allCompanies: 'All companies',
   funds: FUNDS_EXTRA.fund.sectionTitle,
   fundsNote: FUNDS_EXTRA.fund.whatItIs,
@@ -52,7 +48,6 @@ export const MARKETS = {
   compareTitle: MARKETS_EXTRA.compare.title,
   compareIntro: MARKETS_EXTRA.compare.intro,
   compareOpen: MARKETS_EXTRA.compare.menuItem,
-  seeGroup: MARKETS_EXTRA.list.seeGroup,
   viewLabel: 'Compare view',
   viewMenuLabel: 'View',
   views: { basics: 'Basics', price: 'Price', value: 'Value', health: 'Health', analysts: 'Analysts' },
@@ -74,9 +69,7 @@ export const MARKETS = {
   showAll: 'Show all',
   noCompanies: 'No companies in this group yet.',
   pricesFooter: 'Prices update every {tickSeconds} seconds · as of {time}',
-  seeAllCompanies: 'See in All companies',
   companies: MARKETS_EXTRA.list.companies,
-  sectorNotFound: { title: 'No industry group by that name', action: 'Open Markets' },
   usuallyGood: 'Usually a good sign when ',
 } as const;
 

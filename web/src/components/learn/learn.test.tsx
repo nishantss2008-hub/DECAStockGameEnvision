@@ -24,15 +24,59 @@ const wrap = (ui: React.ReactNode, at = '/learn') =>
   );
 
 describe('GlossaryBrowser', () => {
-  it('lists every term in letter sections, each linking to its term page', () => {
+  it('opens closed: seven topic groups, no term rows, so Learn is one screen not 4,528px of letters', () => {
     wrap(<GlossaryBrowser query="" />);
     expect(screen.getByRole('heading', { level: 2, name: 'Glossary' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: 'A' })).toBeInTheDocument();
+    const toggles = screen.getAllByRole('button', { expanded: false });
+    // Each topic is a heading (still navigable by heading, as the letters were) wrapped around its toggle.
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
+      'The basics19 terms',
+      'Profit14 terms',
+      'Growth4 terms',
+      'Financial health7 terms',
+      'Value7 terms',
+      'Trading16 terms',
+      'This game6 terms',
+    ]);
+    expect(toggles).toHaveLength(7);
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(within(toggles[4]!).getByText('7 terms')).toBeInTheDocument();
+  });
+
+  it('opens a group in place and shows its terms, each linking to its term page', async () => {
+    wrap(<GlossaryBrowser query="" />);
+    const value = screen.getByRole('button', { name: /^Value/ });
+    await userEvent.click(value);
+    expect(value).toHaveAttribute('aria-expanded', 'true');
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(GLOSSARY_LIST.length);
+    expect(links).toHaveLength(7);
     const pe = links.find((a) => a.getAttribute('href') === '/learn/glossary/peRatio')!;
     expect(within(pe).getByText('Price vs. profit')).toBeInTheDocument();
     expect(within(pe).getByText('P/E ratio')).toBeInTheDocument();
+    // The panel the toggle controls is the list of terms.
+    expect(document.getElementById(value.getAttribute('aria-controls')!)).toContainElement(pe);
+    await userEvent.click(value);
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+  });
+
+  it('keeps every term one search away, including terms in groups that are closed', () => {
+    const { rerender } = wrap(<GlossaryBrowser query="" />);
+    for (const entry of GLOSSARY_LIST) {
+      rerender(
+        <MemoryRouter>
+          <GlossaryBrowser query={entry.label} />
+        </MemoryRouter>,
+      );
+      const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'));
+      expect(hrefs, entry.id).toContain(`/learn/glossary/${entry.id}`);
+    }
+    // Ranking is untouched: a term from a closed group still comes first.
+    rerender(
+      <MemoryRouter>
+        <GlossaryBrowser query="P/E ratio" />
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByRole('link')[0]).toHaveAttribute('href', '/learn/glossary/peRatio');
   });
 
   it('shows ranked results for a query, and the COPY empty state when nothing matches', () => {
@@ -71,8 +115,19 @@ describe('Learn chapters', () => {
     const row = screen.getByRole('link', { name: new RegExp(INTRO.learnRow) });
     expect(row).toHaveAttribute('href', INTRO_PATH);
     expect(within(row).getByText(INTRO.learnSubtitle)).toBeInTheDocument();
-    // It leads the chapter list, ahead of How to play.
+    // It leads the chapter list.
     const chapters = within(screen.getByRole('region', { name: 'Guide' })).getAllByRole('link');
     expect(chapters[0]).toBe(row);
+  });
+
+  it('sends a student looking for help to the intro, never to the Portfolio walkthrough that no longer renders', async () => {
+    wrap(<LearnPage />);
+    const chapters = within(screen.getByRole('region', { name: 'Guide' }));
+    // The "How to play" row armed the Portfolio walkthrough card; card, row and COPY §5 are all gone.
+    expect(chapters.queryByText('How to play')).toBeNull();
+    expect(chapters.queryAllByRole('button')).toHaveLength(0);
+    for (const link of chapters.getAllByRole('link')) expect(link.getAttribute('href')).not.toBe('/portfolio');
+    await userEvent.click(chapters.getByRole('link', { name: new RegExp(INTRO.learnRow) }));
+    expect(screen.getByTestId('loc').textContent).toBe(INTRO_PATH);
   });
 });

@@ -11,6 +11,41 @@
 .bx-learn-glossary__header + .ios-list { margin-block-start: 8px; }
 .bx-learn-term-row .ios-row__subtitle { white-space: normal; }
 
+/* ─── Glossary topics (MOBILE §7.14): seven 44px rows that open in place ─── */
+.bx-learn-group__heading {
+  display: block;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+/* The heading sits between the list item and its row, so the card's corner radii need saying again. */
+.ios-row-item:first-child > .bx-learn-group__heading > .ios-row {
+  border-start-start-radius: var(--list-card-radius, 24px);
+  border-start-end-radius: var(--list-card-radius, 24px);
+}
+.ios-row-item:last-child > .bx-learn-group__heading > .ios-row {
+  border-end-start-radius: var(--list-card-radius, 24px);
+  border-end-end-radius: var(--list-card-radius, 24px);
+}
+.bx-learn-group__toggle .ios-row__detail { color: var(--label-2); }
+.bx-learn-group[data-open] .bx-learn-group__chevron { transform: rotate(90deg); }
+.bx-learn-group__panel { background: var(--fill-2); }
+.bx-learn-group__terms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The terms sit one step in from their topic row, separators included (the inset is an inline custom property).
+   The step is 8px: `termFitsBeside` is calibrated against a 293px text room, and a deeper indent would start
+   wrapping rows the fit rule says fit. */
+.bx-learn-group__terms > .ios-row-item > .ios-row { padding-inline-start: 24px; }
+.bx-learn-group__terms > .ios-row-item:not(:last-child)::after { inset-inline-start: 24px; }
+.bx-learn-group__terms > .ios-row-item:last-child::after { content: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bx-learn-group__chevron { transition: transform var(--dur-press, 150ms) ease-out; }
+}
+
 /* ─── Chapters ─── */
 .bx-learn-intro {
   margin: 0;

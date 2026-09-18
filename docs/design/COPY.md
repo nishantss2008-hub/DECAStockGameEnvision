@@ -29,7 +29,6 @@ Companion documents: `docs/design/BRIEF.md` §5 Voice and §9 Beginner-first com
 | `explain-extra` | file (1) | average line, stat grid captions and groups, analyst card, statement summaries, research helper |
 | `news` | news type | `NEWS_EXPLAIN` in `web/src/lib/glossary.ts` |
 | `news-extra` | file (1) | sentiment labels, badges, since-report label |
-| `walkthrough` | file (1) | `Walkthrough.tsx` copy |
 | `five-questions` | question | `FIVE_QUESTIONS` in `web/src/components/learn/fiveQuestions.ts` |
 | `guide` | file (1) | `GameGuide.tsx` copy |
 | `trading-basics` | topic | `TradingBasics.tsx` copy |
@@ -332,6 +331,12 @@ Write "pts" out as "points" on first use in a table caption ("+0.3 points means 
 
 Groups: `basics` · `profit` · `growth` · `debt` · `value` · `trading` · `game`.
 The 56 required ids come first, in the required order, then 17 supporting ids used by section 1.
+
+The Learn glossary is a list of these groups, not an A–Z (MOBILE §7.14, 2026-09-17), so each one has a plain
+name on the phone (`GLOSSARY_GROUP_LABELS`, phone-only like the other `mobile.*` strings): `basics` → "The
+basics" · `profit` → "Profit" · `growth` → "Growth" · `debt` → "Financial health" · `value` → "Value" ·
+`trading` → "Trading" · `game` → "This game". A term's own words are unchanged, and search still reaches every
+term whatever group it sits in.
 
 ### 2.1 Required terms
 
@@ -1784,35 +1789,21 @@ flavor: "Word from the harbor."
 
 ---
 
-## 5. WALKTHROUGH
+## 5. WALKTHROUGH — removed 2026-09-18
 
-```yaml walkthrough
-eyebrow: "Getting started"
-title: "Your first trade in 3 steps"
-flavor: "New to the Exchange? Here's how to find your sea legs."
-stepCounter: "Step {n} of 3"
-steps:
-  - id: research
-    title: "Research a company"
-    body: "Open Research, pick a company, and compare its profit, sales growth and debt with its sector average."
-    action: "Open Research"
-    route: "/research"
-  - id: order
-    title: "Place a small first order"
-    body: "On Trade, enter a few shares, preview the cost and fee, then place the order."
-    action: "Go to Trade"
-    route: "/trade"
-  - id: track
-    title: "Track it on Summary"
-    body: "Summary shows your account value, your cash and how each holding has changed since you bought it."
-    action: "Open Summary"
-    route: "/"
-learnLink: "Open the Learn guide"
-next: "Next"
-back: "Back"
-dismiss: "Got it, hide this"
-reopen: "How to play"
-```
+The 3-step "Your first trade in 3 steps" card is gone, and with it this section's `walkthrough` block
+(eyebrow, title, step counter, the three steps, `learnLink`, `next`, `back`, `dismiss`, `reopen` "How to
+play") and MOBILE's `mobile.walkthroughMobile` phone variants.
+
+**Why.** §14 "Meet the market" is required before a crew's first order and teaches the same three things —
+research a company, place a small order, track it on Portfolio — with the market's real companies in it. The
+card taught them a second time from the top of Portfolio, where it pinned ~200px above the account value for
+every session a crew never dismissed it. The card went on 2026-09-17 (MOBILE §7.2); its last callers — Learn
+and Account "How to play", and the Welcome sheet's second branch — were repointed at §14 on 2026-09-17/18, so
+nothing renders these words.
+
+The section number stays so the numbering elsewhere in this file still means what it says. Replacement copy
+lives in **§14 INTRO** (the flow) and MOBILE §7.0 `mobile.welcome` (the sheet that opens it).
 
 ---
 
@@ -2009,6 +2000,10 @@ caution: "Spreading out lowers the damage from one company, but it cannot stop l
 ---
 
 ## 9. ORDER TICKET COPY
+
+`stages.entry` and `stages.preview` are **not rendered on the phone** (MOBILE §7.10, 2026-09-17): a
+"Step 1 · enter your order" line sits in no blueprint and the ticket has no height to spare. `stages.filled` and
+`stages.rejected` are still the sheet's titles on those two steps.
 
 ```yaml ticket
 explain:
@@ -2594,6 +2589,11 @@ strings those two screens added.
 `searchPlaceholder` counts BOTH kinds and `{n}` is filled from the live roster — never a literal,
 so a roster change moves the wording with it. `seeGroup` takes the chip short name of a sector
 ("Provisions"), not its full name.
+
+**`seeGroup` is not rendered anywhere as of 2026-09-17.** The sector group heading carries that
+sector's session change instead of a link to a sector screen, and the sector screen is gone (MOBILE
+§7.6 row 10). The string stays here, unused, because the roster and the wording are still true and
+a later screen may want it; nothing reads it today.
 
 ```yaml markets-extra
 list:

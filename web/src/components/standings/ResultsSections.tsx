@@ -335,7 +335,7 @@ export function LuckPage({ rows, heldIds, onViewList, headingId }: { rows: Revea
   return (
     <>
       <PageHeading id={headingId}>{RESULTS.pages[3]}</PageHeading>
-      <p className="t-body bx-results__intro">{REVEAL.intro}</p>
+      {/* COPY §10 `intro` is printed on page 3, the page before this one; saying it again here cost 118px. */}
       {rows.length === 0 ? (
         <EmptyState title={RESULTS.empty.title} body={RESULTS.empty.body} headingLevel={2} />
       ) : (

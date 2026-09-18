@@ -19,13 +19,14 @@ test.skip(!APP_URL, 'Set APP_URL to a running local stack');
 
 async function signIn(page: Page) {
   const teamId = CREW.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ status: 'dismissed', step: 0 })), `bx.walkthrough.${teamId}`);
+  // The Welcome sheet, already answered (`bx.walkthrough.*` and its statuses went on 2026-09-18).
+  await page.addInitScript((key) => localStorage.setItem(key, '1'), `bx.welcome.${teamId}`);
   await page.goto(`${APP_URL}/login`);
   await page.getByLabel('Crew name').fill(CREW);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/portfolio/);
-  const skip = page.getByRole('button', { name: 'Skip for now' });
+  const skip = page.getByRole('button', { name: /^(Skip for now|Done)$/ });
   await skip.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
   if (await skip.isVisible()) await skip.click();
 }
@@ -85,7 +86,7 @@ test('Company page, Financials, All stats and the Trade sheet flow', async ({ pa
   await page.getByRole('button', { name: `Buy ${TICKER}` }).click();
   await expect(page).toHaveURL(/sheet=trade/);
   const sheet = page.getByRole('dialog');
-  await expect(sheet.getByText('Step 1 · enter your order')).toBeVisible();
+  await expect(sheet.getByRole('radiogroup', { name: 'Action' })).toBeVisible();
   const preview = page.getByRole('button', { name: 'Preview order' });
   await expect(preview).toBeDisabled();
   await typeOnKeypad(page, '10');

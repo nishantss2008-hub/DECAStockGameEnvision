@@ -1,9 +1,9 @@
 /* Trade sheet (MOBILE §5.16, §7.10). Large sheet on --elevated; boxes on --elevated-cell with --r-inner. */
-.tk-body { display: grid; gap: 0; padding: 0 16px 16px; }
-.tk-body[data-stage='entry'] { padding-bottom: 8px; }
+/* The sheet body already insets --sheet-pad (Sheet.css .ios-sheet__body); a second inset here left the ticket
+   a 329px column and wrapped the summary box from 94px to 112px. One inset only. */
+.tk-body { display: grid; gap: 0; padding: 0; }
 .tk-secondary { color: var(--label-2); }
 .tk-accent { margin: 8px 4px 0; color: var(--accent, var(--tint)); }
-.tk-step { margin: -4px 0 8px; text-align: center; color: var(--label-2); }
 .tk-label-tip { display: inline-flex; align-items: center; gap: 2px; }
 .tk-banner { margin-bottom: 12px; }
 .tk-footer-stack { display: grid; gap: 4px; }

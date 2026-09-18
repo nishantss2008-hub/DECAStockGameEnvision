@@ -15,6 +15,7 @@ import {
   metricShortLabel,
   historyBars,
   keyStatCells,
+  sessionBounds,
 } from './researchModel';
 import type { PeerComparison } from '../../lib/compare';
 
@@ -129,19 +130,20 @@ describe('research model', () => {
     for (const t of [income, balance, cash]) for (const r of t.rows) expect(r.termId).toBeTruthy();
   });
 
-  it('key stat cells: the five metrics with a peer caption, then the session range (spec §3)', () => {
+  it('key stat cells: the five metrics with a peer caption, and no session range (2026-09-17)', () => {
     const avg: PeerComparison = { scope: 'sector', sector: 'Shipping & Salvage', value: 22.1, count: 2 };
     const quoted = { ...company, startPrice: 8412, sessionLow: 8190, sessionHigh: 8460 } as Company;
     const cells = keyStatCells(quoted, { ...fundamentals, peRatio: 17.8 } as Fundamentals, () => avg, 'Ð');
-    expect(cells.map((c) => c.id)).toEqual([...KEY_STATS, 'sessionRange']);
+    expect(cells.map((c) => c.id)).toEqual([...KEY_STATS]);
     const pe = cells.find((c) => c.id === 'peRatio')!;
     expect(pe).toMatchObject({ label: 'Price vs. profit', value: '17.8', termId: 'peRatio', caption: 'Rest of sector 22.1' });
     // The sheet keeps the four-line row's words: sentence and the long comparison line, which has room to name the sector.
     expect(pe.explained).toMatchObject({ sentence: 'You pay Ð17.80 for every Ð1 of yearly profit.', averageText: 'Rest of Shipping & Salvage: 22.1' });
-    const range = cells.at(-1)!;
-    expect(range).toMatchObject({ label: 'Session range', value: 'Ð81.90 – Ð84.60', termId: 'sessionRange' });
-    expect(range.caption).toBeUndefined();
-    expect(range.explained).toBeUndefined();
+    // The range bar under the grid prints the two prices and shows where the price sits between them;
+    // a cell saying "Ð81.90 – Ð84.60" was the second of three printings on one screen.
+    expect(cells.some((c) => c.id === 'sessionRange')).toBe(false);
+    // Nothing was removed from the data: the bounds are still derived for the bar.
+    expect(sessionBounds(quoted)).toEqual({ low: 8190, high: 8460 });
   });
 
   it('key stat captions use the rest of the market when the sector has too few companies', () => {

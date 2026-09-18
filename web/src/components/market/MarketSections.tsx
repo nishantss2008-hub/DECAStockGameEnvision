@@ -1,18 +1,20 @@
 /**
- * Markets tab sections (MOBILE §7.6 rows 3–7): Pirate Composite card, breadth line, Industry groups chips,
- * Biggest moves, Watchlist.
+ * Markets tab sections (MOBILE §7.6 rows 3–7): Pirate Composite card, breadth line, Watchlist.
+ *
+ * The Industry groups chip row and "Biggest moves" were deleted on 2026-09-17: the chips' numbers
+ * moved onto the sector group headings the companies already sit under, and every row carries its
+ * own change pill, so "Biggest moves" printed six rows the list printed again 500px lower.
  */
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { isFund, type Company, type IndexQuote, type Instrument, type MarketBreadth } from '@deca/shared';
 import { Sparkline } from '../charts/Sparkline';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
-import { ListRow, StockRow } from '../ios/ListRow';
+import { StockRow } from '../ios/ListRow';
 import { SignedChange } from '../ios/SignedChange';
 import { changeParts } from '../ios/changeText';
 import { ChangeTriangle } from '../ios/Pill';
 import { formatMoney, formatMoneySpoken } from '../../lib/format';
-import { breadthText, compositeParts, type SectorChip } from './marketsView';
+import { breadthText, compositeParts } from './marketsView';
 import { MARKETS } from './marketCopy';
 import { TermTip } from './TermTip';
 
@@ -119,73 +121,20 @@ export function ChangeText({ value, className }: { value: number; className?: st
   );
 }
 
-export function SectorChips({ chips }: { chips: readonly SectorChip[] }) {
-  if (chips.length === 0) return null;
-  return (
-    <section className="bx-section" aria-labelledby="bx-sectors-title">
-      <div className="bx-section__header">
-        <h2 id="bx-sectors-title" className="bx-section__title">
-          {MARKETS.industryGroups}
-        </h2>
-        <TermTip id="index" />
-      </div>
-      <ul className="bx-chips" role="list">
-        {chips.map((chip) => (
-          <li key={chip.sector}>
-            <Link className="bx-chip" to={`/markets/sector/${chip.slug}`}>
-              <span>{chip.name}</span>
-              <ChangeText value={chip.sessionChange} />
-              <span className="ios-sr-only">{MARKETS.thisSession}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-export function BiggestMoves({ up, down }: { up: readonly Company[]; down: readonly Company[] }) {
-  return (
-    <section className="bx-section" aria-labelledby="bx-moves-title">
-      <div className="bx-section__header">
-        <h2 id="bx-moves-title" className="bx-section__title">
-          {MARKETS.biggestMoves}
-        </h2>
-        <TermTip id="sessionChange" />
-      </div>
-      {up.length === 0 && down.length === 0 ? (
-        <p className="bx-muted t-subhead">{MARKETS.noMoves}</p>
-      ) : (
-        <div className="bx-stack">
-          {up.length > 0 && (
-            <InsetGroupedList header={MARKETS.up} headerVariant="plain" headingLevel={3}>
-              {up.map((c) => (
-                <CompanyStockRow key={c.id} company={c} />
-              ))}
-            </InsetGroupedList>
-          )}
-          {down.length > 0 && (
-            <InsetGroupedList header={MARKETS.down} headerVariant="plain" headingLevel={3}>
-              {down.map((c) => (
-                <CompanyStockRow key={c.id} company={c} />
-              ))}
-            </InsetGroupedList>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** Starred instruments — funds are starrable exactly like companies (spec §3). */
+/**
+ * Starred instruments — funds are starrable exactly like companies (spec §3).
+ *
+ * Nothing is drawn while the list is empty (MOBILE §7.6 row 7, "only if non-empty"): an empty
+ * watchlist told a student to star something they had not met yet, 122px above the first row they
+ * could buy.
+ */
 export function WatchlistSection({ instruments }: { instruments: readonly Instrument[] }) {
+  if (instruments.length === 0) return null;
   return (
     <InsetGroupedList header={MARKETS.watchlist} className="bx-section">
-      {instruments.length === 0 ? (
-        <ListRow title={MARKETS.watchlistEmpty.title} subtitle={MARKETS.watchlistEmpty.body} />
-      ) : (
-        instruments.map((c) => <InstrumentStockRow key={c.id} instrument={c} />)
-      )}
+      {instruments.map((c) => (
+        <InstrumentStockRow key={c.id} instrument={c} />
+      ))}
     </InsetGroupedList>
   );
 }

@@ -111,17 +111,17 @@ export function sessionBounds(c: Pick<InstrumentQuote, 'sessionLow' | 'sessionHi
   return { low: Math.min(c.sessionLow, c.currentPrice), high: Math.max(c.sessionHigh, c.currentPrice) };
 }
 
-/** The session-range cell. It has a glossary term but no explain template, so no caption. */
-export function sessionRangeCell(c: Company, symbol: string): StatCell {
-  const { low, high } = sessionBounds(c);
-  const money = (cents: number) => formatMoney(cents, { symbol });
-  const meta = SHORT_LABELS.sessionRange!;
-  return { id: 'sessionRange', label: meta.label, value: `${money(low)} – ${money(high)}`, termId: meta.termId };
-}
-
-/** Key stats as six grid cells: the five KEY_STATS metrics, then the session range. */
+/**
+ * Key stats as five grid cells: the KEY_STATS metrics.
+ *
+ * The session range is NOT one of them (2026-09-17). The screen printed it three times — in the
+ * chart's summary sentence, in a stat cell, and in the range bar right below the grid — and the bar
+ * is the one that keeps it, because it labels both ends AND shows where the price sits between
+ * them. The bar carries the range's "?" so the explanation is still one tap away, and the grid is
+ * still three rows tall, so the cell cost nothing but a repetition.
+ */
 export function keyStatCells(c: Company, f: Fundamentals, averageFor: (id: MetricId) => PeerComparison | null, symbol: string): StatCell[] {
-  return [...KEY_STATS.map((id) => metricStatCell(id, c, f, averageFor(id), symbol)), sessionRangeCell(c, symbol)];
+  return KEY_STATS.map((id) => metricStatCell(id, c, f, averageFor(id), symbol));
 }
 
 export interface FinancialQuestion {

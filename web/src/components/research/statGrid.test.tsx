@@ -121,26 +121,25 @@ function renderGrid(cells: readonly StatCell[]) {
 const keyCells = (f: Fundamentals = FUNDAMENTALS, companies = 3) => keyStatCells(KRKN, f, averagesOver(companies), 'Ð');
 
 describe('StatGrid (MOBILE §7.7 key stats)', () => {
-  it('renders all six stats as buttons: label, value and the peer comparison as a caption, no sentence', () => {
+  it('renders the five stats as buttons: label, value and the peer comparison as a caption, no sentence', () => {
     renderGrid(keyCells());
     const grid = screen.getByRole('list', { name: 'Key stats' });
     const cells = within(grid).getAllByRole('button');
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(5);
     // Every caption is the other two companies, so it never simply repeats the value above it.
+    // No "Session range" cell since 2026-09-17: the range bar below the grid is the one that says it.
     expect(cells.map((c) => c.textContent)).toEqual([
       'Company sizeÐ20.36BRest of sector Ð21.03B',
       'Sales growth7.2%Rest of sector 6.0%',
       'Profit margin14.0%Rest of sector 15.0%',
       'Price vs. profit17.8Rest of sector 22.0',
       'Debt vs. equity0.62Rest of sector 0.70',
-      'Session rangeÐ81.90 – Ð84.60',
     ]);
     // The everyday sentence lives in the sheet now, never in the grid.
     expect(within(grid).queryByText(/You pay Ð17\.80/)).toBeNull();
     // Every cell opens a dialog and keeps the anchor Learn's "See it on a company" links to.
     for (const cell of cells) expect(cell).toHaveAttribute('aria-haspopup', 'dialog');
     expect(document.getElementById('metric-peRatio')).not.toBeNull();
-    expect(document.getElementById('metric-sessionRange')).not.toBeNull();
   });
 
   it('marks the deep-linked metric without colouring any value', () => {
@@ -164,11 +163,9 @@ describe('StatGrid (MOBILE §7.7 key stats)', () => {
   it('degrades gracefully when the company has no fundamentals and no averages yet', async () => {
     // What the page renders before `useAllFundamentals` resolves: no values, no medians, no crash.
     const user = renderGrid(keyStatCells(KRKN, {} as Fundamentals, () => null, 'Ð'));
-    expect(screen.getAllByRole('button')).toHaveLength(6);
+    expect(screen.getAllByRole('button')).toHaveLength(5);
     expect(screen.getAllByText('—')).toHaveLength(4);
     expect(screen.getAllByText('Rest of market —')).toHaveLength(5);
-    // The session range still reads from the live quote.
-    expect(screen.getByText('Ð81.90 – Ð84.60')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Profit margin/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Profit margin' });
     expect(within(dialog).getByText('Not available for this company.')).toBeInTheDocument();
@@ -195,12 +192,14 @@ describe('StatSheet (?sheet=stat&id=…)', () => {
   });
 
   it('explains a stat with no compare template from the glossary instead', async () => {
-    const user = renderGrid(keyCells());
-    await user.click(screen.getByRole('button', { name: /Session range/ }));
-    const dialog = await screen.findByRole('dialog', { name: 'Session range' });
+    // All stats keeps such stats (float, past-year range, payout ratio); Key stats no longer has one.
+    const cells = allStatsGroups(KRKN, FUNDAMENTALS, averagesOver(3), 'Ð').flatMap((g) => g.cells);
+    const user = renderGrid(cells);
+    await user.click(screen.getByRole('button', { name: /Past-year range/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Past-year range' });
     expect(within(dialog).getByRole('heading', { name: 'What it is' })).toBeInTheDocument();
     expect(within(dialog).getByRole('heading', { name: 'Why it matters' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'Open in Learn' })).toHaveAttribute('href', '/learn/glossary/sessionRange');
+    expect(within(dialog).getByRole('link', { name: 'Open in Learn' })).toHaveAttribute('href', '/learn/glossary/week52Range');
   });
 
   it('closes on Escape and on the Close button, and opens by keyboard too', async () => {

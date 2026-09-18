@@ -17,9 +17,11 @@ test.use({ viewport: { width: 393, height: 852 }, colorScheme: 'light' });
 test.skip(!APP_URL, 'Set APP_URL to a running local stack');
 
 async function signIn(page: Page) {
-  // Welcome already answered with "Start the walkthrough", so Portfolio shows the walkthrough card (§7.2).
+  // Welcome already answered, so Portfolio opens on the account value. The walkthrough card that used to
+  // sit above it was deleted on 2026-09-17 (MOBILE §7.2) and its state on 2026-09-18; all that is left to
+  // seed is the answer itself, so this test still fails loudly if anything starts rendering a card again.
   const teamId = CREW.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ status: 'active', step: 0 })), `bx.walkthrough.${teamId}`);
+  await page.addInitScript((key) => localStorage.setItem(key, '1'), `bx.welcome.${teamId}`);
   await page.goto(`${APP_URL}/login`);
   await page.getByLabel('Crew name').fill(CREW);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
@@ -27,7 +29,7 @@ async function signIn(page: Page) {
   await page.waitForURL(/\/portfolio/);
   await expect(page.getByTestId('account-value')).toBeVisible();
   // First sign-in opens the Welcome sheet (MOBILE §7.2), which makes the page behind it inert.
-  const skip = page.getByRole('button', { name: 'Skip for now' });
+  const skip = page.getByRole('button', { name: /^(Skip for now|Done)$/ });
   await skip.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined);
   if (await skip.isVisible()) {
     await skip.click();
@@ -68,7 +70,10 @@ test('Portfolio, Positions, Activity, Order detail and Balances show live data w
   await expect(page.locator('.pf-tile__link')).toHaveAttribute('href', '/standings');
   const seeAll = page.getByRole('link', { name: /^See all \d+$/ });
   await expect(seeAll).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible();
+  // One Activity row, not three of the list it opens (2026-09-17).
+  await expect(page.getByRole('heading', { name: 'Recent activity' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^Activity/ })).toHaveAttribute('href', '/portfolio/activity');
+  await expect(page.locator('.bx-walkthrough')).toHaveCount(0);
   await expect(page.getByText(/^Prices update every \d+ seconds · as of \d\d:\d\d:\d\d$/)).toBeVisible();
   if (SHOTS_DIR) await page.screenshot({ path: `${SHOTS_DIR}/portfolio.png`, fullPage: true });
 

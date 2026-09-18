@@ -263,7 +263,8 @@ The switch is three edits in `render.yaml`, and all three are already written th
 3. Uncomment the `DB_FILE` variable, value `/var/data/game.db`. It has to point *inside* the mount,
    or the disk holds nothing and you have paid for the same wipe.
 
-Commit, push, then open the service and click **Manual Deploy → Deploy latest commit**.
+Commit and push — auto-deploy picks it up within a few minutes. (If you turned auto-deploy off,
+open the service and click **Manual Deploy → Deploy latest commit**.)
 
 You can also do it from the dashboard without touching the repo: change the instance type on the
 service's **Settings** page and add the disk there, then set `DB_FILE` to `/var/data/game.db`
@@ -272,13 +273,16 @@ game with it, so upgrade before you set anything up — never during class.
 
 ### Two things to know about Render
 
-- **Deploys restart the service, and on free that wipes it.** A deploy replaces the running
-  instance, and a free service's files do not survive that
-  ([ephemeral filesystem](https://render.com/docs/deploys#ephemeral-filesystem)). `render.yaml`
-  therefore turns auto-deploy **off** — pushing to GitHub will *not* touch your running game. When
-  you actually want to ship a change, open the service and click **Manual Deploy → Deploy latest
-  commit**. Never do that during class. (On the paid path the database lives on the disk and
-  survives, but the deploy still swaps instances, so the rule does not change.)
+- **Auto-deploy is ON, and a deploy during class ends the game.** `render.yaml` sets
+  `autoDeployTrigger: commit`, so every push to `main` ships itself within a few minutes — handy
+  while you are building. But a deploy replaces the running instance, and a free service's files do
+  not survive that ([ephemeral filesystem](https://render.com/docs/deploys#ephemeral-filesystem)):
+  the game in progress, the seeded market and the crew logins all go. **So do not push on game
+  day.** If you need to ship mid-event, deploy between rounds, or turn auto-deploy off first —
+  either set `autoDeployTrigger: "off"` in `render.yaml`, or flip it on the service's **Settings →
+  Build & Deploy** page and use **Manual Deploy → Deploy latest commit** instead. (On the paid path
+  the database lives on the disk and survives, but the deploy still swaps instances, so the rule
+  about class time does not change.)
 - **One instance, which is what you want.** Free services do not support
   [scaling beyond a single instance](https://render.com/docs/free), and a service with a disk
   [cannot scale to several either](https://render.com/docs/scaling). SQLite wants exactly one

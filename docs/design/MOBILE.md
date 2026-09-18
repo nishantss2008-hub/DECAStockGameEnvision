@@ -527,7 +527,7 @@ Content bottom padding on tab screens: `calc(62px + max(8px, env(safe-area-inset
   small buttons) get invisible hit padding via `::before { inset: -N }` up to 44px, and the layout reserves
   that space (no overlapping hit areas).
 - Spacing between adjacent targets ≥8px; leave ~24px around unbezeled controls near screen edges.
-- Indicators that look tappable but are not (walkthrough step dots, Final results page dots, allocation legend
+- Indicators that look tappable but are not ("Meet the market" progress bar, Final results page dots, allocation legend
   swatches) are `aria-hidden` decoration; the adjacent Back/Next buttons do the work.
 - Never nest interactive elements: a "?" button, a chip link or a swipe action is never inside a row or card
   link. Cards that open as a whole use a stretched `::after` on their title link, and inner controls sit above
@@ -694,12 +694,12 @@ CompanyMetricsRow line 2 becomes "label value" pairs, two per line; ExplainRow v
 
 | Style | Background / label | Use |
 |---|---|---|
-| **Prominent** | `--prominent` / `--on-prominent` | The one primary action per view: Sign in, Preview order, Done, Start the walkthrough |
+| **Prominent** | `--prominent` / `--on-prominent` | The one primary action per view: Sign in, Preview order, Done, Meet the market |
 | **Buy** | `--gain` / `--on-side` | Buy on company page; Place order (buy) |
 | **Sell** | `--loss` / `--on-side` | Place order (sell) |
 | **Tinted** | `--tint-soft` / `--tint-strong` | Fix buttons ("Use max (670 shares)"), "Open in Learn", EmptyState actions (`--tint` label would be 4.41:1 on paper) |
 | **Tinted Sell** | `--loss-fill` / `--loss` | Sell on company page (secondary beside Buy) |
-| **Gray** | `--fill` / `--label` | Secondary actions ("Trade again", "View activity"), chips inside cards and sheets. Chips placed directly on `--bg-grouped` (Markets sector chips) use `--cell` with a 0.5px `--separator` edge instead, so coloured change text inside them stays ≥4.5:1 |
+| **Gray** | `--fill` / `--label` | Secondary actions ("Trade again", "View activity"), chips inside cards and sheets. A chip placed directly on `--bg-grouped` (Portfolio's "Show: Total gain") uses `--cell` with a 0.5px `--separator` edge instead — never `--fill`, on which `--gain` drops to 3.98:1 (§2.5 Forbidden) |
 | **Plain** | none / `--tint` | "Edit order", "See all", "Skip for now" |
 | **Destructive plain** | none / `--destructive` | Sign out row, Discard order |
 | **Destructive tinted** | `--loss-fill` / `--loss` | Host "End game…" only (the student app has no destructive buttons outside action sheets) |
@@ -812,7 +812,9 @@ CompanyMetricsRow line 2 becomes "label value" pairs, two per line; ExplainRow v
   glass); width up to 361, min 52px, padding 10 16; 22px icon + Callout text `--label` (≤2 lines) + optional
   plain action in `--tint-strong`. `role="status"`. Info toasts stay ≥6s and pause while touched or focused;
   toasts with an action stay until dismissed and their action is reachable by Tab/F6 and VoiceOver; swipe up
-  or a 44px Close `X` dismisses (no swipe-only dismissal). Uses: "Update ready · Reload" (PWA), "Back online", "Walkthrough hidden · Undo".
+  or a 44px Close `X` dismisses (no swipe-only dismissal). Uses: "Update ready · Reload" (PWA), "Back online",
+  "{crew}: Meet the market marked finished. · Undo" (host Crews, §7.18). The walkthrough's "Walkthrough hidden · Undo"
+  went with the feature on 2026-09-18.
   Order results never rely on a toast (they live in the ticket and Activity).
 - **Banner (inline, in content):** card under the large title/status line, `--r-card`, padding 16:
   22px icon · title Headline · body Subhead · optional small button. Phase banners use COPY §9 `banners` /
@@ -931,7 +933,7 @@ CompanyMetricsRow line 2 becomes "label value" pairs, two per line; ExplainRow v
 | **YouPill** | 22px, radius 11, padding 0 8 | Caption 1 semibold `--on-prominent` on `--prominent` (9.30/10.31:1). "You" in Standings and the crew sheet |
 | **CountBadge** | min 18×18, radius 9 | Caption 2 semibold `--on-prominent` on `--prominent` (not red: red means loss/destructive) |
 | **StatusDot** | 8×8 | `--accent-dot` (open), `--tint` (paused), `--label-3` (lobby/ended); always next to status text |
-| **Chip** (tappable) | 36px (44px hit), capsule | Gray button style inside cards/sheets; on `--bg-grouped` use `--cell` + 0.5px `--separator` edge (§5.7). Sector chips "Provisions & Spice ▼ −0.40%" (change text `--loss` on `--cell`, 5.96:1) |
+| **Chip** (tappable) | 36px (44px hit), capsule | Gray button style inside cards/sheets; on `--bg-grouped` use `--cell` + 0.5px `--separator` edge (§5.7). Portfolio's "Show: Total gain ▾". The Markets sector chips it was drawn for are gone (§7.6 row 5); that change text now sits bare on the sector group heading, which is fine — `--gain`/`--loss` on `--bg-grouped` are 4.64/5.01 light and 11.00/8.93 dark (§2.5), well past 4.5:1; it was `--fill` behind a chip that was never safe |
 
 ### 5.21 Crest monogram
 
@@ -983,11 +985,11 @@ CompanyMetricsRow line 2 becomes "label value" pairs, two per line; ExplainRow v
 
 | # | Label | Icon | Root screen (large title) | Why |
 |---|---|---|---|---|
-| 1 | Portfolio | `Briefcase` | Portfolio: account value, chart, cash, rank, top positions, recent activity | Balance first (Wallet pattern); home for "Track it" |
-| 2 | Markets | `ChartLine` | Markets: search, composite, sectors, movers, watchlist, All companies research list | Research and discovery in one place; 15 companies and 3 funds don't need two tabs |
+| 1 | Portfolio | `Briefcase` | Portfolio: account value, chart, cash, rank, top positions, Activity | Balance first (Wallet pattern); home for "Track it" |
+| 2 | Markets | `ChartLine` | Markets: search, composite, breadth, watchlist when non-empty, funds, companies by sector | Research and discovery in one place; 15 companies and 3 funds don't need two tabs |
 | 3 | News | `Newspaper` | News: dispatches with "What this means" | Plain label (BRIEF §5); "Dispatches" becomes flavor |
 | 4 | Standings | `Trophy` | Standings: your gap, leaderboard | One tap to rank (trading-game research) |
-| 5 | Learn | `GraduationCap` | Learn: How to play, guide, 5 questions, trading basics, glossary | BRIEF §9.4 requires a visible Learn |
+| 5 | Learn | `GraduationCap` | Learn: Meet the market, guide, 5 questions, trading basics, glossary | BRIEF §9.4 requires a visible Learn |
 
 Trade is not a tab (HIG: tab bars navigate, toolbars act [A]). No "More" tab.
 
@@ -996,7 +998,7 @@ Trade is not a tab (HIG: tab bars navigate, toolbars act [A]). No "More" tab.
 | Tab | Pushed screens |
 |---|---|
 | Portfolio | Positions · Activity › Order detail · Balances · Company › Financials / All stats |
-| Markets | Sector list · Company › Financials / All stats · Search results (inline, not pushed) |
+| Markets | Compare · Company › Financials / All stats · Search results (inline, not pushed) |
 | News | Dispatch detail · Company |
 | Standings | Final results (full-screen, after the game ends) |
 | Learn | Guide chapter (How the game works, 5 questions, Trading basics) · Glossary term · Company (from "See it on a company") |
@@ -1024,7 +1026,7 @@ loses a student's place.
 | Learn guide + glossary | Learn tab |
 | "?" explanations | InfoTip sheet everywhere; inline inside sheets; "What these numbers mean" sheet for dense lists (§5.9); "Open in Learn" jumps to the term |
 | Cash available to trade | Portfolio tile · company page "Your position" footer · Trade sheet quote row · Balances (replaces BRIEF §6's header cash chip) |
-| Walkthrough | Welcome sheet on first sign-in → 3-step card at the top of Portfolio. Reopen: Learn › How to play, and Account › How to play. Once skipped, never shown automatically again [A Onboarding] |
+| Walkthrough | **Gone.** The 3-step card was removed on 2026-09-17 and the rest — `useWalkthrough`, `shell/walkthrough.ts`, COPY §5 and `mobile.walkthroughMobile` — on 2026-09-18, once Learn and Account had been repointed at `/learn/meet-the-market` and the Welcome sheet's last caller was fixed (§7.2). "Meet the market" is required before the first order and teaches the same three things. All the shell keeps is "has this crew answered the Welcome sheet?" (`shell/welcomeSeen.ts`) |
 | "Meet the market" | Welcome sheet's primary action while the crew has not finished it → §7.2b. Required before the first order; replayable from Learn › Meet the market. Host override: Crews (§7.18) |
 | Account | Crew avatar (top right of all five tab roots) → Account sheet |
 | Sign out | Last group of the Account sheet → confirmation action sheet |
@@ -1032,7 +1034,7 @@ loses a student's place.
 | Market status details | Tap the status line under any large title → Market status sheet |
 | Watchlist | Star button on the company page; "Watchlist" section on Markets; News filter |
 | Final results | Standings banner after end; `/standings/results` |
-| Spec §10 Treemap, VolumeBars, DataTable | Desktop/split view only. Phone: sector chips + Sector list (Treemap), All stats "Volume" row (VolumeBars), CompanyMetricsRows (DataTable) |
+| Spec §10 Treemap, VolumeBars, DataTable | Desktop/split view only. Phone: the sector groups and their heading percentages on Markets (Treemap), All stats "Volume" row (VolumeBars), CompanyMetricsRows on Compare (DataTable) |
 | Host crew management (create, reset password, trading on/off, "Meet the market" override, remove) | Host Crews tab (§7.18) |
 
 ### 6.5 Routes and deep links (react-router-dom 6.30 data router)
@@ -1048,7 +1050,7 @@ loses a student's place.
 | `/portfolio/company/:ticker` | Company (Portfolio stack) | |
 | `/markets` | Markets | `?sort=`; `#companies` scrolls to the Companies section |
 | `/markets/compare` | Compare companies | `?view=basics\|price\|value\|health\|analysts&sort=&sector=` — the metric table (§7.6b) |
-| `/markets/sector/:sectorId` | Sector list | |
+| `/markets/sector/:sectorId` | **Gone 2026-09-17** | Redirects to `/markets#companies`: the sector's percentage is on its group heading and its three companies are under it. Kept as a redirect, not a 404, for bookmarks and cached pages |
 | `/markets/company/:ticker` | Company **or fund** (Markets stack) | A fund ticker (FLEET, SHIPS, ARMS) renders §7.7b |
 | `/:tab/company/:ticker/financials` | Financials | tab ∈ portfolio, markets, news, learn |
 | `/:tab/company/:ticker/stats` | All stats | |
@@ -1102,6 +1104,15 @@ precisely so none of them can quietly grow a tab bar.
 - Coordinates are for the 393×852 artboard; "full scroll" frames continue below 852 (§11.1). Heights are
   min-heights at the default text size (§3.5): if the render check shows a section overflowing, push later
   sections down and extend the frame rather than clipping or shrinking text.
+- **How a frame height is measured** (added 2026-09-17, after the density audit found these numbers
+  systematically optimistic — Markets claimed 2,040 and measured 2,864). Add up the CSS box model at 393px
+  wide, default text size: 182px of chrome and large title above the content (status bar 59 + top bar 44 +
+  large title and status line), then `.bx-page`'s 12px top padding, then every section INCLUDING its
+  `margin-block-start`, its 22px header + 8px gap, its rows at their min-block-size (StockRow 64, ListRow
+  44, two-line row 60, HoldingRow 64, PositionRow 88), its 8px + 18px-per-line footer, and any
+  padding-block-end. Text wraps at 361px of content width (393 − two 16px gutters), less 32px inside a
+  card. A number written here without that arithmetic behind it is a guess, and the last three passes were
+  planned against guesses.
 - Every blueprint obeys the §5.9 coverage rule: each metric has a tap path to its explanation. The "?" marks
   listed below are the required ones, not the only ones.
 - Copy pointers: `COPY §x key` = existing COPY.md text; `COPY-TBD mobile.key` = proposed phone copy below,
@@ -1123,20 +1134,19 @@ allCompanies: "All companies"
 searchCompanies: "Search {n} companies"
 searchTerms: "Search {n} terms"
 recent: "Recent"
+activity: { row: "Activity", note: "Every order you have placed, with its price and fee" }   # §7.3 row 6, replaces the "Recent activity" block
 seeAll: "See all"
 seeAllCount: "See all {n}"
 show: { label: "Show", totalGain: "Total gain", session: "Session", pctOfAccount: "% of account" }
 vsComposite: "vs Pirate Composite {pts} points"   # COPY §1.2 note: write "pts" out as "points"
 sinceStart: "since the game began"                 # COPY §0.5 rule 8 wording
 thisSession: "this session"
-biggestMoves: "Biggest moves this session"
-up: "Up"
-down: "Down"
+# biggestMoves / up / down: deleted 2026-09-17 with the section (every row carries its own change pill)
 columnsHelp: "What these columns mean"
 numbersHelp: "What these numbers mean"
 views: { price: "Price" }                  # phone-only Markets view; others are COPY §3.2 research.views short forms
 chartSummaryTotal: "Up {pct} since the game began"      # "Down {pct} …" when negative
-chartSummarySession: "Up {pct} this session. Range {low} to {high}."
+chartSummarySession: "Up {pct} this session"            # the range clause was dropped 2026-09-17: the §5.13 range bar under the plot labels both ends
 pricesFooter: "Prices update every {tickSeconds} seconds · as of {time}"
 swipeHint: "Swipe a row for Buy and Sell, or open the company."
 standingsFooter: "Ranked by account value."
@@ -1145,11 +1155,15 @@ signInFields: { crew: "Crew name", password: "Password", show: "Show password", 
 signInButton: { idle: "Sign in", loading: "Signing in…" }
 helpHost: "Trouble? Ask your host."
 removeRecent: "Remove {ticker}"
-toasts: { updateReady: "Update ready", reload: "Reload", backOnline: "Back online", walkthroughHidden: "Walkthrough hidden", undo: "Undo" }
+toasts: { updateReady: "Update ready", reload: "Reload", backOnline: "Back online" }   # walkthroughHidden/undo deleted 2026-09-18 with the feature
 staleBody: "The last price update was {ago} ago. Wait a moment, or tap Reload."   # replaces "refresh the page" on phone
 marketClosedFix: "Open Markets"           # COPY §9 ticket-errors.market_closed.fix on phone
 offlineReason: "You're offline"           # disabled Preview/Place reason (same words as COPY §12 errors.offline.title)
 newsFlavor: "Dispatches from the Spanish Main"
+news:                                     # §7.11 "See older": ten cards on screen, the rest one tap away
+  seeOlder: "See older dispatches"
+  showing: "Showing {shown} of {n}"
+  allShown: "That's every dispatch, back to the start of the game."
 viewTicker: "View {ticker}"             # replaces COPY §4 news-extra.tradeLink on phone
 standingsPlace: "You're {ordinal} of {n}"
 standingsBehind: "{gap} behind {crew}"
@@ -1163,8 +1177,8 @@ welcome:
     - "You start with {startingCash} in cash."
     - "Prices update every {tickSeconds} seconds for the whole game."
     - "Healthier companies tend to do better over time, but news and luck matter."
-  start: "Start the walkthrough"
-  skip: "Skip for now"
+  explore: "Open Markets"                 # primary action for a crew that has already finished §7.2b
+  skip: "Skip for now"                    # second action for a crew that has not; "Done" (mobile.done) once it has
 homeScreen:
   row: "Add to Home Screen"
   tipIos: "Tap Share, then Add to Home Screen. You'll sign in once more there."   # iOS Home Screen apps don't share Safari's storage
@@ -1175,12 +1189,9 @@ textSize:
   row: "Text size"
   footerIos: "The app follows your iPhone's Text Size in Settings › Display & Brightness."
   footerOther: "Use your browser's zoom to make text bigger. On a Chromebook, press Ctrl and +.
-walkthroughMobile:                        # phone variants of COPY §5 steps
-  research: { body: "Open Markets, pick a company, and compare its profit, sales growth and debt with its sector average.", action: "Open Markets", route: "/markets" }
-  order: { body: "On a company page, tap Buy, enter a few shares, preview the cost and fee, then place the order.", action: "Pick a company", route: "/markets" }
-  track: { title: "Track it on Portfolio", body: "Portfolio shows your account value, your cash and how each holding has changed since you bought it.", action: "Open Portfolio", route: "/portfolio" }
+# walkthroughMobile: deleted 2026-09-18 with COPY §5 — the 3-step card it dressed is gone (§7.2)
 emptyPositionsAction: "Open Markets"      # COPY §12 empty.positions.action on phone
-watchlistEmptyBody: "Tap the star on a company page to follow it here."
+# watchlistEmptyBody: deleted 2026-09-17 — an empty watchlist section is not drawn at all (§7.6 row 7)
 ```
 Also update COPY §6 `where` strings for phone paths ("Markets › All companies › Basics", "Company page › Financials").
 
@@ -1203,18 +1214,35 @@ After first sign-in in a browser tab (not standalone): one-time Add to Home Scre
 wording (`COPY-TBD mobile.homeScreen.tipIos` / `tipAndroid` / `tipChromebook`; only iOS warns about signing in again).
 The hull screen sets `html { background:#111412 }` while mounted so Safari 26's bar tint matches (§9.2).
 
-### 7.2 Welcome sheet + walkthrough card (first sign-in) — `/portfolio?sheet=welcome`
+### 7.2 Welcome sheet (first sign-in) — `/portfolio?sheet=welcome`
 
 - **Welcome sheet (large):** crest 64 "SW" · Title 1 bold "Welcome aboard, Saltwind Traders" · three rows
   (28px `--tint` icons `Briefcase`, `Clock`, `Compass` + Body): "You start with Ð250,000.00 in cash." /
   "Prices update every 5 seconds for the whole game." / "Healthier companies tend to do better over time,
-  but news and luck matter." → Large Prominent "Start the walkthrough" → Plain "Skip for now" (COPY-TBD `mobile.welcome`).
-- **Walkthrough card** (top of Portfolio content, y 182–358, `--cell`, `--r-card`): TagPill "Getting started" ·
-  Title 3 "Your first trade in 3 steps" · "Step 1 of 3" (Footnote) · step title Headline + body Subhead ·
-  3 step dots (8px, `--tint` current, `aria-hidden`; "Step 1 of 3" carries the meaning) · buttons: Tinted "Open Markets", Plain "Back"/"Next" · Plain
-  "Got it, hide this" · link "Open the Learn guide" (COPY §5 + `mobile.walkthroughMobile`).
-- Each step's action opens the real screen and shows one inline tip card beside the control it describes
-  (Markets Basics header; company Buy button; Portfolio positions). One tip per session at most.
+  but news and luck matter." → Large Prominent primary → Plain second action (COPY-TBD `mobile.welcome`).
+  **Both actions go somewhere (2026-09-18).** A crew that still has to finish "Meet the market" gets it as the
+  primary ("Meet the market" → §7.2b) over "Skip for now"; a crew that has already finished it — a second
+  device, or a host who sent it through again — gets "Open Markets" (`mobile.welcome.explore`, where §7.2b's
+  own last card sends a crew) over "Done". Until then the second branch read "Start the walkthrough" and armed
+  a card that had been deleted, so the first screen a student ever sees had a button that only closed the
+  sheet. Both primaries navigate with `replace`, never `onClose()` then `navigate()` — see §7.2b's race note.
+- ~~**Walkthrough card** (top of Portfolio content, y 182–358)~~ — **deleted 2026-09-17.** It pinned 176px of
+  card plus a 24px gap above the account value, on a screen whose whole job is the account value, and it
+  taught what the now-required "Meet the market" flow (§7.2b) teaches before a crew's first order. `WalkthroughCard.tsx`
+  and its `.bx-walkthrough` styles went with it; the state (`shell/walkthrough.ts`, `useWalkthrough.tsx`), COPY §5
+  and `mobile.walkthroughMobile` followed on **2026-09-18**, once Learn and Account had been repointed at
+  §7.2b (§7.14, §7.15) and the Welcome sheet's branch above was fixed. Nothing called `show()`, `start()`,
+  `next()`, `back()` or `restore()` any more.
+- **What the shell kept, and why:** whether this crew has answered the Welcome sheet, so AppShell opens it
+  exactly once and the Add to Home Screen tip (§7.1) waits its turn. That is one boolean per crew per device
+  (`shell/welcomeSeen.ts`, `bx.welcome.{teamId}`), and it is a convenience, never a gate — what a crew is
+  *required* to finish is §7.2b, which is server truth on `Team.introCompletedAt`. Phones still holding the
+  walkthrough's `bx.walkthrough.{teamId}` are read once for their answer (anything but `status: "new"` means
+  answered, including the oldest build's bare `"dismissed"`), migrated, and the old key removed, so a
+  returning student is neither welcomed twice nor left with a stale key.
+- **The §7.2 dots rule survives the card** and still governs every step indicator in the app (§7.2b, §7.13):
+  step dots are 8px, `--tint` for the current one, and `aria-hidden` — a "Step n of m" counter in text carries
+  the meaning, because a row of dots is not a control and must never be the only way to know where you are.
 
 ### 7.2b "Meet the market" (full screen, 10 cards) — `/learn/meet-the-market?step=n`
 
@@ -1249,23 +1277,33 @@ Company prices, tickers, fund names and holdings lines all come from the live ma
 
 ### 7.3 Portfolio (tab root) — `/portfolio`
 
-Frame 393×1540 (full scroll; was 1480 before the review fixed the chart card height). Trailing bar buttons: Trade
-(`ArrowLeftRight` glass circle, `aria-label="Trade"`, x 281–325) and avatar (x 333–377).
+**Frame 393×1354** (full scroll, measured 2026-09-17 by §7.0's method: last section ends at y 1223, plus the
+131 of padding and floating-tab-bar clearance this file's frames have always carried).
+
+The old 1,540 was honest about the rows in the table below but never counted the walkthrough card that
+shipped pinned above them: **with the card the screen measured 1,744.** This pass took 390px out — the card
+(176 + its 24 gap), "Recent activity" as three rows rather than one (162 net), and the chart card's repeated
+summary sentence (28: a 20px line and its 8px flex gap).
+
+Trailing bar buttons: Trade (`ArrowLeftRight` glass circle, `aria-label="Trade"`, x 281–325) and avatar
+(x 333–377).
 
 | # | y | Section | Content and data | Copy |
 |---|---|---|---|---|
 | 1 | 107–170 | Large title + status line | "Portfolio" · "● Market open · 22:50 left · Session 2 of 8" | `mobile.tabs.portfolio`, `mobile.statusLine` |
 | 2 | 182–311 | Summary (on page, no card) | "Account value" + ? · **Ð271,049.55** (Large Title bold) · "▲ +Ð1,919.80 (+0.71%) this session" + ? (`sessionChange`) · "▲ +Ð21,049.55 (+8.42%) since the game began" + ? (`totalGain`) (Subhead semibold gain) · "vs Pirate Composite +3.56 points" + ? (`index`) (Footnote `--label-3`) | COPY §1.3 `portfolio.accountValue.short`, `mobile.thisSession`, `mobile.sinceStart`, `mobile.vsComposite` |
-| 3 | 327–627 | Chart card (300px: 16 pad + 20 summary + 8 + 180 plot + 4 + 16 x labels + 8 + 32 segmented + 16 pad) | Summary "Up 8.42% since the game began" (one line; the long form is already in section 2) · 180px plot, dashed Ð250,000.00 baseline labelled "Starting cash", dashed Composite line labelled "Pirate Composite" (labels, not colour, tell the lines apart) · x labels · `1M 5M 15M All` (All selected) | `mobile.chartSummaryTotal` |
-| 4 | 643–731 | Two tiles (176.5×88 each, `--r-card`, padding 12 16) | "Cash available" ? · Ð56,446.55 · "20.8% of account" │ "Rank" · "3 of 14" · "Standings" + chevron (tile is a link; the cash tile is not, so its "?" is not nested) | COPY §1.4 `ticket.cashAvailable.short` ("Cash available to trade" wraps to 2 lines in a 144px tile), §1.3 `portfolio.rank` |
-| 5 | 747–1137 | Positions (prominent header + "See all 7") | "Show: Total gain ▾" menu chip + ? for the metric currently shown, right of header; 5 HoldingRows: KRKN Ð63,090.00 ▲ +Ð7,965.00 (+14.45%) · PRYL Ð42,480.00 ▲ +Ð5,680.00 (+15.43%) · CMPS Ð33,615.00 ▲ +Ð2,190.00 (+6.97%) · MRED Ð32,150.00 ▲ +Ð3,150.00 (+10.86%) · BBRD Ð19,104.00 ▲ +Ð460.20 (+2.47%) | `mobile.seeAllCount`, `mobile.show` |
-| 6 | 1153–1375 | Recent activity (header + "See all") | 3 ActivityRows (*illustrative, consistent with BRIEF avg costs*): "Bought 80 FDUT" −Ð9,417.41 Filled · "Bought 300 CMPS" −Ð31,456.43 Filled · "Buy 100 CNBR" "Not placed · Price moved" | COPY §1.3 `activity.*`, §9 `ticket-errors.price_moved.title` |
-| 7 | 1391–1409 | Footer | "Prices update every 5 seconds · as of 14:02:30" (Footnote centred) | `mobile.pricesFooter` |
+| 3 | 327–599 | Chart card (272px: 16 pad + 180 plot + 4 + 16 x labels + 8 + 32 segmented + 16 pad) | **The summary sentence is `ios-sr-only` since 2026-09-17** — "Up 8.42% since the game began" said the same thing section 2 prints 16px above it with its "?". It is still the plot slider's `aria-describedby`, so a VoiceOver user hears what the chart shows before scrubbing it; `ios-sr-only` is `position:absolute`, so it costs neither the 20px line nor the card's 8px flex gap · 180px plot, dashed Ð250,000.00 baseline labelled "Starting cash", dashed Composite line labelled "Pirate Composite" (labels, not colour, tell the lines apart) · x labels · `1M 5M 15M All` (All selected) | `mobile.chartSummaryTotal` |
+| 4 | 615–703 | Two tiles (176.5×88 each, `--r-card`, padding 12 16) | "Cash available" ? · Ð56,446.55 · "20.8% of account" │ "Rank" · "3 of 14" · "Standings" + chevron (tile is a link; the cash tile is not, so its "?" is not nested) | COPY §1.4 `ticket.cashAvailable.short` ("Cash available to trade" wraps to 2 lines in a 144px tile), §1.3 `portfolio.rank` |
+| 5 | 719–1113 | Positions (prominent header + "See all 7") | "Show: Total gain ▾" menu chip + ? for the metric currently shown, right of header; 5 HoldingRows: KRKN Ð63,090.00 ▲ +Ð7,965.00 (+14.45%) · PRYL Ð42,480.00 ▲ +Ð5,680.00 (+15.43%) · CMPS Ð33,615.00 ▲ +Ð2,190.00 (+6.97%) · MRED Ð32,150.00 ▲ +Ð3,150.00 (+10.86%) · BBRD Ð19,104.00 ▲ +Ð460.20 (+2.47%) | `mobile.seeAllCount`, `mobile.show` |
+| 6 | 1129–1189 | Activity (one DisclosureRow, 60px, no header) | **Replaced "Recent activity" on 2026-09-17**: three ActivityRows under a header were 222px of the list this row opens, and every one of them was an order the crew had just placed. Now "Activity" / "Every order you have placed, with its price and fee" + chevron → `/portfolio/activity`. The row is labelled, so the tap stays obvious; the section is `aria-label="Activity"` | `mobile.activity.row` / `.note` |
+| 7 | 1205–1223 | Footer | "Prices update every 5 seconds · as of 14:02:30" (Footnote centred) | `mobile.pricesFooter` |
 | — | 768–830 | Tab bar | Portfolio selected | |
 
 States: loading = skeletons of rows 2–6 · empty holdings = EmptyState in section 5 (COPY §12 `empty.positions`,
-action "Open Markets") · paused = Paused banner at y 182 pushes content down · walkthrough card first sessions (§7.2).
-At 852 the fold shows the value, the chart, both tiles and the top of the Positions header above the tab bar.
+action "Open Markets") · paused = Paused banner at y 182 pushes content down. No walkthrough card in any
+session (§7.2). At 852 the fold now shows the value, the chart, both tiles and the Positions header with its
+Show chip (y 719–793); the first holding starts at 793, just under the floating tab bar, where before the card
+pushed the header itself off the screen.
 
 ### 7.4 Positions — `/portfolio/positions`
 
@@ -1301,13 +1339,21 @@ footer "Account value Ð271,049.55 = cash + invested."
 
 ### 7.6 Markets (tab root) — `/markets`
 
-**Rewritten 2026-09-16** for spec §4. Apple Stocks list semantics: one row per instrument, and two
-sections — **Funds** (3) then **Companies grouped by sector** (5 groups of 3). The five-way metric
-segmented control (Basics | Price | Value | Health | Analysts) is no longer on this screen; it moved
-to §7.6b Compare, reached from the sort menu and from the Companies header.
+**Rewritten 2026-09-16** for spec §4, **cut again 2026-09-17.** Apple Stocks list semantics: one row per
+instrument, and two sections — **Funds** (3) then **Companies grouped by sector** (5 groups of 3). The
+five-way metric segmented control (Basics | Price | Value | Health | Analysts) is no longer on this screen;
+it moved to §7.6b Compare, reached from the sort menu and from the Companies header.
 
-Frame 393×2040 (full scroll: 3 fund rows + 5 sector groups × 3 rows, each group with its own 28px
-header), plus a scrolled 393×852 state.
+**Frame 393×2171** (full scroll, measured by §7.0's method: the prices footer ends at y 2040, plus the 131 of
+clearance every full-scroll frame here carries), plus a scrolled 393×852 state. **Before this pass the same
+screen measured 2,983.**
+
+The 812px this pass removed were all above the list: the Industry groups chips (106), "Biggest moves" (522),
+the empty-watchlist row (122) and the research helper footnote under the companies (62). **The first row a
+student can buy — the first fund — moved from 1,106px below the top of content to 356px** (y 496 on the
+artboard, on screen without scrolling at 852). The first COMPANY row is at 854, one short flick down.
+
+Seven sections used to come before anything tradeable. Four do now, and three of them are one line each.
 
 | # | Section | Content and data | Copy |
 |---|---|---|---|
@@ -1315,12 +1361,12 @@ header), plus a scrolled 393×852 state.
 | 2 | Search (inline, pins into the bar when collapsed) | "Search 18 companies and funds" — **the count is companies + funds from the live roster, never a literal** | `mobile.searchCompanies` |
 | 3 | Composite card (`--r-card`, 148px) | "Whole-market index" Footnote + ? · "Pirate Composite" Headline · **1,048.62** Title 1 bold tabular · "▲ +8.71 (+0.84%) this session" · "▲ +4.86% since the game began" · 96×32 sparkline trailing | COPY §1.5 `market.composite`, `mobile.sinceStart` |
 | 4 | Breadth line | "9 rising · 6 falling · 0 unchanged" (Footnote, with ?) | COPY §1.5 `market.breadth` |
-| 5 | Sectors (header "Industry groups" + ?; horizontal scroll, 36px `--cell` chips, snap) | Five chips, biggest session gain first → Sector list | COPY §1.5 `market.sectorIndex` |
-| 6 | Biggest moves (prominent header) | Two stacked cards, "Up" and "Down", 3 StockRows each | `mobile.biggestMoves`, `mobile.up/down` |
-| 7 | Watchlist (only if non-empty) | StockRows; **a starred fund appears here exactly like a company**; empty = one row | COPY §12 `empty.watchlist.title` |
+| 5 | ~~Sectors chips~~ | **Deleted 2026-09-17** (106px). Each sector's session change now sits on the group heading its three companies are already under (row 10); the chips linked to a sector screen that listed those same three companies a second time, and that screen is gone too | — |
+| 6 | ~~Biggest moves~~ | **Deleted 2026-09-17** (522px). Six StockRows the list below printed again — every row on this screen carries its own ChangePill, so no number was lost, and the section was the single biggest thing between a student and a trade | — |
+| 7 | Watchlist (**only if non-empty** — now honoured) | StockRows; **a starred fund appears here exactly like a company**. Empty draws NOTHING: no header, no card, no row (122px). The old empty row told a crew to star a company it had not met yet | COPY §12 `empty.watchlist.title` (unused by this screen) |
 | 8 | Sort menu | One trailing 44pt round button above the two sections (neither section owns it): "Sort by" (Company size, Session change, Total change, Price, Symbol) and one item, "Compare all companies" → §7.6b | `mobile.sortFilter`, `mobile.compareOpen` |
 | 9 | **Funds** (`InsetGroupedList`, prominent header) | 3 StockRows: FLEET Grand Fleet Fund · SHIPS Shipping Lanes Fund · ARMS Powder and Shot Fund, each crest · ticker over name · 48×20 session sparkline · price over ChangePill. A sector fund's crest takes the sector it tracks; FLEET has the hull fill, because it tracks no one sector. Section footer: "A fund is a basket of companies you buy in one trade." | COPY §13 `funds-extra.fund` |
-| 10 | **Companies** (`#companies`, prominent header + trailing "Compare" link) | Five `InsetGroupedList` groups, one per sector in SECTORS order, each with a plain Footnote header (the chip short name) and a trailing "See {sector}" link → §6.5 sector list, and its three StockRows sorted by the chosen sort. A sector with no rows is omitted, never drawn empty. Section footer: COPY §3.2 `research.helper` | COPY §1.1, §3.2 |
+| 10 | **Companies** (`#companies`, prominent header + trailing "Compare" link) | Five `InsetGroupedList` groups, one per sector in SECTORS order, each with a plain Footnote header (the short name) and **that sector's session change at the trailing end of the same header row** — Footnote, triangle + sign + colour, with "up 2.31 percent this session" spoken and the change kept OUT of the `<h3>`, so the group's accessible name stays "Shipping & Salvage". The number is the sector index from `market/summary`, falling back to the cap-weighted members; a sector the summary has not quoted yet prints nothing rather than a zero. Then its three StockRows sorted by the chosen sort. A sector with no rows is omitted, never drawn empty. **No "See {sector}" link and no section footer**: the sector screen is gone, and COPY §3.2 `research.helper` talked about fundamentals this list does not show (it still closes §7.6b Compare and §7.7 Key stats, which do) | COPY §1.1 |
 | 11 | Footer | "Prices update every 5 seconds · as of 14:02:30" | `mobile.pricesFooter` |
 
 Search focused state (`iPhoneSearch`): Cancel visible, "Recent" rows; typing matches ticker then name
@@ -1351,18 +1397,26 @@ Markets list is where a fund and a company stand side by side.
 
 ### 7.7 Company page (shared) — `/markets/company/KRKN`
 
-Frame 393×1890 (full scroll, crew holding KRKN; ≈1625 when they do not, since row 3 drops out). Apple Stocks
-order (spec §3): numbers you can scan, every explanation one tap away. Top bar: Back (x 16–60) · one trailing
+**Frame 393×1890** (full scroll, crew holding KRKN; ≈1625 when they do not, since row 3 drops out) — and as
+of 2026-09-17 that number is finally true. It was drawn with a one-line chart summary, but the sentence it
+specified ("Up 2.31% this session. Range Ð81.90 to Ð84.60.") measured ~340px of text in a 329px card and
+wrapped, so the card was 360 and the screen 1,910. Dropping the range clause (the range bar below labels both
+ends) makes the card the 340 that was drawn. Apple Stocks order (spec §3): numbers you can scan, every
+explanation one tap away.
+
+**The session range used to be printed three times on this one screen** — the chart sentence, a stat cell and
+the bar. The bar keeps it: it is the only one of the three that also shows where the price sits between the
+low and the high. Top bar: Back (x 16–60) · one trailing
 glass capsule (x 281–377) holding Star (281–325, `aria-label="Add KRKN to watchlist"`, `aria-pressed`) and More
 `Ellipsis` (333–377, `aria-label="More options"`).
 
 | # | y | Section | Content and data | Copy |
 |---|---|---|---|---|
 | 1 | 111–252 | StockHeader | Crest "KR" 44 (Shipping `#2F6F68`) · "Kraken Shipping Lines" · "KRKN · Shipping & Salvage" · **Ð84.12** · "▲ +Ð1.90 (+2.31%) this session" ? · "As of tick 86 · 14:02:30" ? | COPY §1.1 `company.*`, §9 `lines.priceAsOf` |
-| 2 | 264–604 | Chart card | "Up 2.31% this session. Range Ð81.90 to Ð84.60." · 220px plot with dashed session-open Ð82.22 labelled "Session open" · `1M 5M 15M All` | `mobile.chartSummarySession` |
+| 2 | 264–604 | Chart card (340px: 16 pad + 20 summary + 8 + 220 plot + 4 + 16 x labels + 8 + 32 segmented + 16 pad) | "Up 2.31% this session" — one line, no range clause (2026-09-17) · 220px plot with dashed session-open Ð82.22 labelled "Session open" · `1M 5M 15M All` | `mobile.chartSummarySession` |
 | 3 | 620–868 | Your position (**only when the crew holds it**) | §5.15 grid (each label + ?) + footer "Cash available to trade: Ð56,446.55" ? | COPY §1.3 `position.*`, `portfolio.cashAvailable` |
-| 4 | 884–1246 | Key stats grid (header + "See all stats") | Two columns of six cells, each a 44pt `<button>` (`aria-haspopup="dialog"`) showing label + decorative "?", value (Title 3, tabular), and the comparison as a Caption 1 under it — no sentence in the grid: Company size **Ð20.36B** "Rest of sector Ð9.84B" · Sales growth **7.2%** "Rest of sector 4.9%" · Profit margin **14.0%** "Rest of sector 10.0%" · Price vs. profit **17.8** "Rest of sector 22.1" · Debt vs. equity **0.62** "Rest of sector 0.95" · Session range **Ð81.90 – Ð84.60** (no caption). Cell cards `--cell`, `--r-card`, 9px gutters; one column under `html[data-large-text]` or below 360px. Each `<li>` keeps its `metric-{id}` anchor for Learn's "See it on a company" | COPY §3.2 `statGrid` |
-| 5 | 1255–1311 | Session range bar | The §5.13 RangeBar full width beneath the grid, ends labelled Ð81.90 / Ð84.60, spoken as "Session range: 81.90 doubloons to 84.60 doubloons. Price: 84.12 doubloons." Footer under the section: COPY §3.2 `research.helper` | COPY §1.1 `company.sessionRange` |
+| 4 | 884–1246 | Key stats grid (header + "See all stats") | Two columns of **five** cells, each a 44pt `<button>` (`aria-haspopup="dialog"`) showing label + decorative "?", value (Title 3, tabular), and the comparison as a Caption 1 under it — no sentence in the grid: Company size **Ð20.36B** "Rest of sector Ð9.84B" · Sales growth **7.2%** "Rest of sector 4.9%" · Profit margin **14.0%** "Rest of sector 10.0%" · Price vs. profit **17.8** "Rest of sector 22.1" · Debt vs. equity **0.62** "Rest of sector 0.95". **The sixth cell, Session range, was deleted 2026-09-17** — the bar in row 5 prints the same two prices — and the grid is still three rows tall, so the cell only ever bought a repetition. Cell cards `--cell`, `--r-card`, 9px gutters; one column under `html[data-large-text]` or below 360px. Each `<li>` keeps its `metric-{id}` anchor for Learn's "See it on a company" (no glossary term maps to `sessionRange`, so no Learn link breaks) | COPY §3.2 `statGrid` |
+| 5 | 1255–1311 | Session range bar (56px card) | The §5.13 RangeBar beneath the grid, ends labelled Ð81.90 / Ð84.60, spoken as "Session range: 81.90 doubloons to 84.60 doubloons. Price: 84.12 doubloons." **The row now carries the range's "?" at its trailing edge** (`?sheet=term&id=sessionRange`), the tap path the deleted cell owned — the 44pt tip fits inside the 56px card, so §5.9 coverage is kept for free. The bar has `id="metric-sessionRange"`. Footer under the section: COPY §3.2 `research.helper` | COPY §1.1 `company.sessionRange` |
 | 6 | 1327–1451 | News about KRKN | Macro dispatch row "Crown lifts tariffs across the Spanish Main" · Whole market, including KRKN · 13:59 (BRIEF has no KRKN-specific dispatch), max 3 · "See all news" | COPY §4 |
 | 7 | 1467–1601 | About | 3 lines from company description data; "Read this company in 5 questions" DisclosureRow → Learn | COPY §3.2 `research.fiveQuestionsPanel` |
 | 8 | 1617–1789 | More | The three blocks that used to render inline, now disclosure rows: "See financials" / "Last 4 years" → §7.8 · "Analyst view" → the sheet below (`aria-haspopup="dialog"`) · "Your KRKN activity" with the order count, or "No KRKN orders yet" → Portfolio activity | COPY §3.2 `research.more`, §12 `empty.orders` |
@@ -1450,10 +1504,24 @@ Frame 393×1760. Large title "Financials", subtitle "KRKN · Kraken Shipping Lin
 ### 7.9 Market status sheet (medium) — `?sheet=status`
 
 Title "Market open" + flavor "Sails up" (COPY §12 `phases.live`) · **22:50 left** Large Title tabular ·
-"Session 2 of 8 · ends in 0:20" · 8-segment session bar (segment 2 current, `--accent-dot`) ·
-"Tick 86 of 360 · 23.9% · as of 14:02:30" (COPY §1.5 `header.tickStamp`) · body COPY §12 `phases.live.body`
-("Prices update every 5 seconds.") · DisclosureRow "How the game works" → Learn guide. "Session" and "Tick" each
-have an inline-expand "?" (inside a sheet, §5.9). Opaque `--elevated` surface. Dark artboard.
+"Session 2 of 8 · ends in 0:20" **once** (Subhead, with the session "?" beside it) · 8-segment session bar
+(segment 2 current, `--accent-dot`) · body COPY §12 `phases.live.body` ("Prices update every 5 seconds.") ·
+list: "Price update" / "Tick 86 of 360 · 23.9% · as of 14:02:30" (COPY §1.5 `header.tickStamp`) with its "?" ·
+DisclosureRow "How the game works" → Learn guide. "Session" and "Tick" each have an inline-expand "?" (inside a
+sheet, §5.9); the session one expands a block under the bar, since its line is a caption rather than a row.
+Opaque `--elevated` surface. Dark artboard.
+
+**307px of content in a 307px window (measured 2026-09-17, 30-minute game).** It was 351 in 350 and scrolled,
+because the session was printed twice: once as this caption and again as a "Game session · 2 / 8" row. This sheet
+is `medium` and has no grabber, so it cannot be resized — anything added here has to earn its pixels.
+
+**The tick stamp wraps (2026-09-18).** The row is a KeyValueRow rendered `stacked`, so the stamp already has
+its own full-width line, but `.ios-row__kv-value` was `white-space: nowrap` in every layout — and the stamp is
+~285px of text against the 224px a 320px phone leaves inside the row (320 − 2 × 16 `--sheet-pad` − 2 × 16
+`--gutter-*` on `.bx-sheet-body` − 2 × 16 row padding). `.ios-list__card` is `overflow: clip`, so "as of
+14:02:30" was cut off at the right edge rather than scrolled. Nowrap now applies only beside the label, where a
+value is a short tabular number that must not break mid-figure; on its own line (stacked, or `html[data-large-text]`)
+it wraps at the spaces, with `overflow-wrap: anywhere` as the valve for one token wider than the column.
 
 ### 7.10 Trade sheet — `?sheet=trade&ticker=KRKN&side=buy`
 
@@ -1469,9 +1537,16 @@ have an inline-expand "?" (inside a sheet, §5.9). Opaque `--elevated` surface. 
 | 271–327 | Amount | Minus circle · **200** (`--t-amount`) · Plus circle |
 | 327–347 | Helper | "≈ Ð16,840.82 with fee" (Subhead `--label-2`) |
 | 359–395 | Chips | 10 · 50 · 100 · Max |
-| 407–501 | Summary box (`--elevated-cell`, `--r-inner`) | "Total cost" Ð16,840.82 · "Cash after" Ð39,605.73 · Footnote "This order would make KRKN 29.5% of your account." + inline-expand ? that shows COPY §9 `explain.positionLimit` (COPY §1.4 shorts, §9 `lines.shareOfAccount`) |
-| 513–717 | Keypad | 4×3, 48px keys |
-| 729–779 | Button | Large Prominent "Preview order" (COPY §9 `buttons.preview`) |
+| 407–519 | Summary box (`--elevated-cell`, `--r-inner`), **112px** | "Total cost" Ð16,840.82 · "Cash after" Ð39,605.73 · Footnote "This order would make KRKN 29.5% of your account." + inline-expand ? that shows COPY §9 `explain.positionLimit` (COPY §1.4 shorts, §9 `lines.shareOfAccount`). The 94px this table used to claim was the `min-height` of the empty slot: the share-of-account sentence is two Footnote lines beside its "?" at any column width the phone has |
+| 531–735 | Keypad | 4×3, 48px keys |
+| 745–795 | Button | Large Prominent "Preview order" (COPY §9 `buttons.preview`) |
+
+**One inset, and no step counter (2026-09-17).** The sheet body already insets `--sheet-pad` (16px), so the
+ticket's own wrapper adds none: the column is **361px**, not the 329 a second inset left it. Nothing prints a
+"Step 1 · enter your order" line — COPY §9 `stages.entry` and `.preview` are not rendered on the phone (only
+`stages.filled` and `.rejected`, as sheet titles). Entry is **612px of content in the 623px** an iPhone 15
+leaves after its safe areas (measured 2026-09-17; it was 650 and scrolled). The four explanation sub-lines under
+the Preview rows stay: explaining is this app's job.
 
 Doubloons mode (dark artboard): amount "Ð5,000.00" with "." key; helper "≈ 59 shares · Ð31.96 stays as cash"
 (COPY §9 `lines.amountModeBuy`); Total cost Ð4,968.04 (value Ð4,963.08 + fee Ð4.96); Cash after Ð51,478.51.
@@ -1519,15 +1594,19 @@ Logged in Activity as "Not placed".
 **Choose a company (from Portfolio Trade button):** header X · "Trade" · SearchField "Search 18 companies and funds" ·
 "Your holdings" (7 StockRows) · "All companies" A–Z · tapping a row pushes Entry inside the sheet (header Back).
 This is the one sheet with a text field: its results list is sized with `--kb` on iOS and `dvh` on Chrome (§9.4)
-so the keyboard never hides the first results.
+so the keyboard never hides the first results. That needs `keyboardAware` on the Sheet, which it did not have
+until 2026-09-17; it is now set for **every** step of the ticket, not just this one, because flipping the prop
+when a company is picked would remount the drawer mid-flow. The keypad's field is `inputmode="none"`, so no other
+step ever raises the software keyboard.
 
 **SE 375×667:** sheet top 30; keys 44px; quote row 36px; summary box shows Total cost + share-of-account only;
 helper merges into the chips row; everything fits without scrolling at the default text size (larger sizes scroll, §3.5).
 
 ### 7.11 News (tab root) — `/news`
 
-Frame 393×1500. Title "News" + status line · Footnote flavor "Dispatches from the Spanish Main"
-(`mobile.newsFlavor`) · SegmentedControl `All | My holdings | Watchlist` (COPY §4 `news-extra.filters`) · cards:
+Frame 393×2879 (measured 2026-09-17: ten cards, the most this screen prints at once). Title "News" + status line ·
+Footnote flavor "Dispatches from the Spanish Main" (`mobile.newsFlavor`) · SegmentedControl
+`All | My holdings | Watchlist` (COPY §4 `news-extra.filters`) · cards:
 
 | Card | Line 1 (TagPill + time) | Headline (Headline, ≤3 lines) | What this means (Footnote semibold label + Subhead) | Chips |
 |---|---|---|---|---|
@@ -1542,6 +1621,14 @@ makes the whole card tappable; chips are sibling links raised above it (never a 
 the company. Chip change text is `--gain`/`--loss` on `--fill` over `--cell` (4.68/5.05:1 light).
 Type TagPills carry an icon + text (not colour). Sentiment shown as text "Good news" / "Bad news" (COPY §4 `sentiment.short`).
 Empty: COPY §12 `empty.news` / `newsFiltered`. Badge rule: §5.1.
+
+**Ten at a time (2026-09-17).** A dispatch card measures ~240px, so the 100 the feed holds (`DEFAULT_FEED_LIMIT`)
+was a 24,867px scroll. The list prints `NEWS_PAGE_SIZE` = 10 (2,879px), then a gray medium button
+"See older dispatches" (`mobile.news.seeOlder`) with "Showing 10 of 43" (`mobile.news.showing`, a polite live
+region) under it. Each tap reveals the next ten; changing the filter starts again at ten. Nothing is dropped —
+a crew can tap back to the first dispatch of the game (9 taps at the 100 cap) — and when the last batch arrives
+the button is replaced by "That's every dispatch, back to the start of the game." (`mobile.news.allShown`),
+which takes focus (`tabindex="-1"`) so keyboard and screen-reader users are not dropped to the top of the page.
 
 **Dispatch detail (dark, 393×1100):** Back · TagPill + "14:01 · tick 68" · Title 2 headline ·
 body Body · "What this means" card · per-company card: crest, name, 160px mini chart from price at the news to now,
@@ -1565,10 +1652,14 @@ Frame 393×1220. Title "Standings" + status line.
    y 698–758 above the tab bar; it is `aria-hidden` because the real row stays in the list for VoiceOver.
 6. After end: hull banner "Game ended · Anchors dropped" + small Prominent "See final results".
 
-Crew sheet (medium, 393×852): crest 64 · "Tortuga Capital" Title 2 · "Rank 2 of 14" · sparkline 329×64 · KeyValue:
-Account value Ð274,425.00 · Total return ▲ +9.77% · This session ▲ +1.40% · % cash 31.4% (*illustrative*) ·
-Holdings 6 (*illustrative*) (COPY §1.5 `standings.*`). Rows with a glossary id (Account value, Total return, This
-session, % cash, Holdings) get inline-expand "?" (inside a sheet, §5.9). Opaque `--elevated`, content-height detent.
+Crew sheet (content height, 436px of content measured 2026-09-17): **leading header** — "Tortuga Capital" Title 2,
+"Rank 2 of 14" Subhead, and the 44px **X** (§5.8 catalogue: "title / X") — then crest 64 · sparkline 329×64 ·
+KeyValue: Account value Ð274,425.00 · Total return ▲ +9.77% · This session ▲ +1.40% · % cash 31.4%
+(*illustrative*) · Holdings 6 (*illustrative*) (COPY §1.5 `standings.*`). Rows with a glossary id (Account value,
+Total return, This session, % cash, Holdings) get inline-expand "?" (inside a sheet, §5.9). Opaque `--elevated`,
+content-height detent. **The name and rank moved into the header on 2026-09-17**: the header was `hidden`, which
+left the sheet with no visible way out (swipe, scrim and Esc only), and the body's copy of the name was already
+`aria-hidden` as a duplicate of the sheet title.
 
 ### 7.13 Final results (full screen, 5 pages) — `/standings/results`
 
@@ -1587,19 +1678,31 @@ Data: `canvas/FinalReckoning.dc.html` with the crew renamed **Saltwind Traders**
 |---|---|---|
 | 1 Voyage complete | Hull | WaxSeal 120 · "Voyage complete" Cinzel 32px gold · Podium (drawn 2-1-3, but DOM and reading order 1-2-3): 1 Queen Anne's Revenue Ð296,855.17 +18.74% · 2 Tortuga Capital Ð285,726.33 +14.29% · 3 Saltwind Traders Ð276,157.55 +10.46% · "Your crew finished 3rd of 14" |
 | 2 Your crew | Light | Final value, return, rank; "Your crew's research grade" + ? (`researchGrade`, COPY §10 `researchGrade.body` shown as visible text under the grade) B (health 71 + ? for the health score; market average 61; winner 82); holdings table, end-of-game weights (KRKN 29.8% 84 A · PRYL 20.6% 74 B · CMPS 17.9% 69 B · MRED 15.8% 58 C · CJST 6.9% 47 D · BBRD 5.6% 52 C · FDUT 3.4% 81 A — FDUT is the "unlucky gem": grade A, a losing price); COPY §10 `researchGrade.rankNote` |
-| 3 Market reveal | Light, full scroll 393×1900 | COPY §10 intro · sort menu (Health score, Luck, Actual return) + a "?" → "What these numbers mean" sheet (`set=results-scorecard`: COPY §10 `table.help` for health score, grade, expected, actual, luck, plus the four `labels.*.meaning`) · 15 rows (artboard draws the first 12): crest, ticker, health score + grade TagPill, drivers line (COPY §10 pillars), "Expected +15.20% · Actual +19.60% · Luck +4.40 points" (never "pts"), result label (Compounder…); tap → content-height sheet with pillars |
-| 4 Luck vs. research | Dark | COPY §10 `scatter` · 329×280 scatter (`role="img"` with an `aria-label` summary and a "View as list" link to page 3 sorted by Luck); your holdings as filled diamonds, others hollow circles (shape, not just colour); dashed "Typical return" line; callouts "Luckiest: LVTH", "Unluckiest: FDUT"; caption visible under the plot |
+| 3 Market reveal | Light, full scroll 393×2296 of page content (measured 2026-09-17 with 15 companies; the 1,900 here was a drawing, not a measurement) | COPY §10 intro, the only place it is printed · sort menu (Health score, Luck, Actual return) + a "?" → "What these numbers mean" sheet (`set=results-scorecard`: COPY §10 `table.help` for health score, grade, expected, actual, luck, plus the four `labels.*.meaning`) · 15 rows (artboard draws the first 12): crest, ticker, health score + grade TagPill, drivers line (COPY §10 pillars), "Expected +15.20% · Actual +19.60% · Luck +4.40 points" (never "pts"), result label (Compounder…); tap → content-height sheet with pillars |
+| 4 Luck vs. research | Dark | 329×280 scatter (`role="img"` with an `aria-label` summary and a "View as list" link to page 3 sorted by Luck); your holdings as filled diamonds, others hollow circles (shape, not just colour); dashed "Typical return" line; callouts "Luckiest: LVTH", "Unluckiest: FDUT"; caption visible under the plot. **No COPY §10 `intro` here (2026-09-17)** — page 3, the page before it, prints that paragraph, and repeating it cost 112px. Measured 594px of page content |
 | 5 Final standings | Light | Full list of 14 (7 from FinalReckoning) + Large Prominent "Done" |
 
 ### 7.14 Learn (tab root), Glossary term, InfoTip sheet — `/learn`
 
-**Learn (393×1560):** title "Learn" + status line · SearchField "Search 74 terms" (`mobile.searchTerms`, n from
-COPY §2) · card of DisclosureRows with icon tiles: Meet the market (`Ship`, replays §7.2b) · How to play (`Play`, reopens walkthrough) · How the game works
-(`BookOpen`, COPY §7 title) · Read a company in 5 questions (`Compass`, COPY §6) · Trading basics (`ArrowLeftRight`,
-COPY §8) · "Glossary" prominent header · letter sections (plain headers "A", "B"…) of 44px DisclosureRows showing
-`label` with `term` as detail (e.g. "Price vs. profit" · "P/E ratio"); no side index (HIG: index + chevrons don't mix [A]).
-74 terms × 44px is ≈3,300px, so the artboard draws sections A–C and a "…" row. Search with no match: COPY §12
-`empty.glossarySearch`.
+**Learn (393×988 closed, measured 2026-09-17):** title "Learn" + status line · SearchField "Search 73 terms"
+(`mobile.searchTerms`, n from COPY §2) · card of DisclosureRows with icon tiles: Meet the market (`Ship`, replays
+§7.2b — also the only "how to play" on the phone since the Portfolio walkthrough card went, 2026-09-17) · How the game
+works (`BookOpen`, COPY §7 title) · Read a company in 5 questions (`Compass`, COPY §6) · Trading basics
+(`ArrowLeftRight`, COPY §8) · "Glossary" prominent header · **seven topic groups** in COPY §2 group order, one
+44px row each: The basics 19 · Profit 14 · Growth 4 · Financial health 7 · Value 7 · Trading 16 · This game 6
+(`glossaryGroupSections`; the count is the row's detail).
+
+- Only the Meet the market row keeps a subtitle. The other four quoted their own chapter's opening line, which
+  turned a 44px row into a 60px one and said nothing the title did not (2026-09-17).
+- A topic row is an `<h3>` wrapped around a `<button aria-expanded aria-controls>`; opening it reveals its terms
+  in place, indented 8px, as 44px DisclosureRows showing `label` with `term` as detail, or `term` under `label`
+  when it does not fit (`termFitsBeside`, 8px less room inside a group). The chevron turns down while open.
+  No side index (HIG: index + chevrons don't mix [A]).
+- **A–Z is gone (2026-09-17).** 73 terms in 18 letter sections measured **5,290px**, 4,528 of it glossary, and a
+  student looking for "Price vs. profit" has no reason to know it starts with P. Measured now: 988px closed,
+  1,900 with the 19-term topic open, 4,694 with all seven open.
+- Search is unchanged and outranks the grouping: a query lists every match from every topic, open or closed, in
+  `glossarySearch` order (393×1,144 for "profit", 15 results). Search with no match: COPY §12 `empty.glossarySearch`.
 
 **Glossary term (dark, 393×852):** Back "Learn" · Title 1 "Price vs. profit" · Subhead "P/E ratio" · three
 blocks (What it is / Why it matters / Usually a good sign when…) with COPY §2 `peRatio` text · card "See it on a
@@ -1615,7 +1718,9 @@ No grabber at this content height (it appears only when the text is taller than 
 
 Header: title "Account" · trailing Done. Content:
 1. Crew header: crest "SW" 64 · "Saltwind Traders" Title 2 · "Rank 3 of 14 · Ð271,049.55" Subhead.
-2. Group: How to play (DisclosureRow, reopens walkthrough) · Game rules (pushes inside the sheet: 30-minute game ·
+2. Group: Meet the market (`Ship`, opens §7.2b with `replace`, COPY §14 `learnRow` + `learnSubtitle`; it replaced
+   "How to play" on 2026-09-17, which armed a Portfolio walkthrough card that no longer renders and left the crew
+   on Portfolio with nothing to read) · Game rules (pushes inside the sheet: 30-minute game ·
    price updates every 5 seconds · fee 0.10% · position limit 50% · starting cash Ð250,000.00; COPY §7; fee,
    position limit and tick rows have inline-expand "?").
 3. Group "Display" (plain header): Solid bars (ToggleRow + footer) · Text size (DisclosureRow → explanation; iOS vs.
@@ -2085,15 +2190,15 @@ Columns step 473px (393 + 80 gap). P0 = first batch.
 |---|---|---|---|---|---|
 | `iPhoneSignIn.dc.html` | 393×852 | Hull | 7.1 | 0, 0 | P0 |
 | `iPhoneWelcome.dc.html` | 393×852 | Light | 7.2 sheet | 473, 0 | P1 |
-| `iPhoneWalkthrough.dc.html` | 393×852 | Light | 7.2 card on Portfolio | 946, 0 | P1 |
-| `iPhonePortfolio.dc.html` | 393×1540 | Light | 7.3 | 1419, 0 | P0 |
+| ~~`iPhoneWalkthrough.dc.html`~~ | — | — | **Superseded 2026-09-17**: the walkthrough card is gone (§7.2). Slot 946, 0 is free | — | — |
+| `iPhonePortfolio.dc.html` | 393×1354 | Light | 7.3 | 1419, 0 | P0 |
 | `iPhonePortfolioDark.dc.html` | 393×852 | Dark | 7.3 fold | 1892, 0 | P0 |
 | `iPhonePositions.dc.html` | 393×1180 | Light | 7.4 (one row swiped open) | 2365, 0 | P1 |
 | `iPhoneActivity.dc.html` | 393×1060 | Light | 7.5 | 2838, 0 | P1 |
 | `iPhoneOrderDetail.dc.html` | 393×1000 | Light | 7.5 | 3311, 0 | P1 |
 | `iPhoneAccount.dc.html` | 393×852 | Light | 7.15 | 3784, 0 | P1 |
 | `iPhoneMarketStatus.dc.html` | 393×852 | Dark | 7.9 | 4257, 0 | P1 |
-| `iPhoneMarkets.dc.html` | 393×1880 | Light | 7.6 | 0, 1780 | P0 |
+| `iPhoneMarkets.dc.html` | 393×2171 | Light | 7.6 | 0, 1780 | P0 |
 | `iPhoneMarketsScrolled.dc.html` | 393×852 | Light | 7.6 collapsed + sticky list | 473, 1780 | P0 |
 | `iPhoneSearch.dc.html` | 393×852 | Dark | 5.3 focused + results | 946, 1780 | P1 |
 | `iPhoneCompany.dc.html` | 393×1890 | Light | 7.7 | 1419, 1780 | P0 |
@@ -2110,7 +2215,7 @@ Columns step 473px (393 + 80 gap). P0 = first batch.
 | `iPhoneTradeAttentionDark.dc.html` | 393×852 | Dark | 7.10 price moved | 2365, 4460 | P1 |
 | `iPhoneTradeDiscard.dc.html` | 393×852 | Light | 7.10 action sheet | 2838, 4460 | P1 |
 | `iPhoneSETradeEntry.dc.html` | 375×667 | Light | 7.10 SE compression | 3311, 4460 | P1 |
-| `iPhoneNews.dc.html` | 393×1500 | Light | 7.11 | 0, 5552 | P0 |
+| `iPhoneNews.dc.html` | 393×2879 | Light | 7.11 (redraw: ten cards + "See older", 2026-09-17) | 0, 5552 | P0 |
 | `iPhoneDispatchDark.dc.html` | 393×1100 | Dark | 7.11 detail | 473, 5552 | P1 |
 | `iPhoneStandings.dc.html` | 393×1220 | Light | 7.12 | 946, 5552 | P0 |
 | `iPhoneStandingsDark.dc.html` | 393×852 | Dark | 7.12 session view + pinned row | 1419, 5552 | P1 |
@@ -2120,7 +2225,7 @@ Columns step 473px (393 + 80 gap). P0 = first batch.
 | `iPhoneResultsReveal.dc.html` | 393×1900 | Light | 7.13 p3 | 3311, 5552 | P1 |
 | `iPhoneResultsLuckDark.dc.html` | 393×852 | Dark | 7.13 p4 | 3784, 5552 | P1 |
 | `iPhoneResultsFinal.dc.html` | 393×1000 | Light | 7.13 p5 | 4257, 5552 | P1 |
-| `iPhoneLearn.dc.html` | 393×1560 | Light | 7.14 | 0, 7692 | P0 |
+| `iPhoneLearn.dc.html` | 393×988 | Light | 7.14 (redraw: topic groups, not A–Z letters, 2026-09-17) | 0, 7692 | P0 |
 | `iPhoneGlossaryTermDark.dc.html` | 393×852 | Dark | 7.14 | 473, 7692 | P1 |
 | `iPhonePausedLoading.dc.html` | 393×852 | Light | 7.16 | 946, 7692 | P1 |
 | `iPhoneEmptyDark.dc.html` | 393×852 | Dark | 7.16 | 1419, 7692 | P1 |

@@ -1,7 +1,11 @@
 /**
- * Portfolio tab root (MOBILE §7.3): walkthrough card slot → account summary → account value chart
- * (range tabs, starting-cash baseline, Pirate Composite compare) → Cash available + Rank tiles →
- * top 5 positions with the Show menu → recent activity → prices footer.
+ * Portfolio tab root (MOBILE §7.3): account summary → account value chart (range tabs,
+ * starting-cash baseline, Pirate Composite compare) → Cash available + Rank tiles → top 5 positions
+ * with the Show menu → the Activity row → prices footer.
+ *
+ * 2026-09-17: no walkthrough card above the summary (the required "Meet the market" flow covers the
+ * same ground, and Learn replays it) and no three-row "Recent activity" block — Activity is one
+ * labelled row to the full list, which is where a crew reads its orders anyway.
  */
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeftRight } from 'lucide-react';
@@ -12,11 +16,11 @@ import {
   AccountChart,
   AccountSummary,
   AccountTiles,
+  ActivityLink,
   PricesFooter,
-  RecentActivity,
   TopPositions,
 } from '../../components/portfolio/PortfolioSections';
-import { useActivityItems, usePortfolioView } from '../../components/portfolio/usePortfolioView';
+import { usePortfolioView } from '../../components/portfolio/usePortfolioView';
 import '../../components/portfolio/portfolio.css';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { useMarket } from '../../hooks/useMarket';
@@ -24,7 +28,6 @@ import { useAuth } from '../../lib/auth';
 import { ShellNavBar } from '../../shell/ShellNavBar';
 import { useDocumentTitle } from '../../shell/StubPage';
 import { useIntroGate } from '../../shell/useIntroGate';
-import { WalkthroughCard } from '../../shell/WalkthroughCard';
 import { ERRORS, LOADING } from '../../shell/copy';
 
 export default function PortfolioPage() {
@@ -33,7 +36,6 @@ export default function PortfolioPage() {
   const { openTrade } = useIntroGate();
   const { teamId } = useAuth();
   const view = usePortfolioView();
-  const activity = useActivityItems();
   const { market } = useMarket();
   const { leaderboard } = useLeaderboard();
   const { team, totals, rows, game, clock, currency } = view;
@@ -83,7 +85,7 @@ export default function PortfolioPage() {
         />
         <AccountTiles cash={team.cashBalance} cashPct={totals.cashPct} rank={team.rank} crews={leaderboard?.entries.length ?? 0} currency={currency} />
         <TopPositions rows={rows} currency={currency} onOpenMarkets={() => navigate('/markets')} />
-        {!activity.loading && <RecentActivity items={activity.items} currency={currency} />}
+        <ActivityLink />
         <PricesFooter game={game} />
       </>
     );
@@ -92,10 +94,7 @@ export default function PortfolioPage() {
   return (
     <>
       <ShellNavBar title="Portfolio" actions={trade} />
-      <div className="bx-page pf-page">
-        <WalkthroughCard />
-        {content}
-      </div>
+      <div className="bx-page pf-page">{content}</div>
     </>
   );
 }

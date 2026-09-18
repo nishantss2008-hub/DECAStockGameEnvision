@@ -1,15 +1,14 @@
 /**
- * Pure helpers for the Learn tab (MOBILE §7.14): glossary letter sections, the term-beside-label fit rule,
+ * Pure helpers for the Learn tab (MOBILE §7.14): glossary topic sections, the term-beside-label fit rule,
  * chapter subtitles, the game guide filled from game/state, COPY §6 `where` paths for the phone, related
  * terms, and the "See it on a company" deep link.
  */
 import { DEFAULT_FEE_BPS, DEFAULT_MAX_POSITION_PCT, DEFAULT_STARTING_CAPITAL, DEFAULT_TICK_INTERVAL_MS, CURRENCY, type Company, type GameSettings } from '@deca/shared';
 import { METRIC_IDS, type MetricId } from '../../lib/compare';
-import { GLOSSARY, withCurrency, type GlossaryEntry } from '../../lib/glossary';
+import { GLOSSARY, GLOSSARY_GROUPS, withCurrency, type GlossaryEntry, type GlossaryGroup } from '../../lib/glossary';
 import { formatMoney, formatPct } from '../../lib/format';
-import { fill, WALKTHROUGH } from '../../shell/copy';
-import { FIVE_QUESTIONS } from './fiveQuestions';
-import { GUIDE_COPY, TRADING_BASICS } from './learnCopy';
+import { fill } from '../../shell/copy';
+import { GUIDE_COPY } from './learnCopy';
 import { INTRO } from './introCopy';
 import { INTRO_PATH } from './introFlow';
 
@@ -17,13 +16,14 @@ import { INTRO_PATH } from './introFlow';
 export const LEARN_MOBILE = {
   title: 'Learn',
   searchTerms: 'Search {n} terms',
-  howToPlay: WALKTHROUGH.reopen,
   glossary: 'Glossary',
   seeItOnCompany: 'See it on a company',
   openTicker: 'Open {ticker}',
   relatedTerms: 'Related terms',
   resultsCount: '{n} results',
   oneResult: '1 result',
+  termsCount: '{n} terms',
+  oneTerm: '1 term',
   lookAt: 'Look at',
   whereToFind: 'Where to find it',
   compare: 'Compare',
@@ -57,40 +57,55 @@ export function searchTermsPlaceholder(n: number): string {
   return fill(LEARN_MOBILE.searchTerms, { n });
 }
 
-/** Row subtitles on the Learn root, from the chapters' own copy (iPhoneLearn artboard). */
-export function chapterSubtitles(): Record<'howToPlay' | 'meetTheMarket' | ChapterId, string> {
-  return {
-    howToPlay: WALKTHROUGH.title,
-    meetTheMarket: INTRO.learnSubtitle,
-    guide: GUIDE_COPY.flavor,
-    fiveQuestions: FIVE_QUESTIONS.slice(0, 2)
-      .map((q) => q.question)
-      .join(' '),
-    basics: TRADING_BASICS.slice(0, 3)
-      .map((t) => t.title)
-      .join(' · '),
-  };
+/**
+ * Row subtitles on the Learn root. A subtitle turns a 44px row into a 60px one, so a chapter keeps one only
+ * when it says something its title does not: "Meet the market" does not say what is inside it or how long it
+ * takes. The others quoted their own chapter's opening words ("How the game works" over its own flavor line,
+ * "Read a company in 5 questions" over its first two questions) and are gone.
+ */
+export function chapterSubtitles(): Partial<Record<'meetTheMarket' | ChapterId, string>> {
+  return { meetTheMarket: INTRO.learnSubtitle };
 }
 
 // ─── Glossary list ───────────────────────────────────────────────────────────
 
 export interface GlossarySection {
-  letter: string;
+  group: GlossaryGroup;
+  label: string;
   entries: GlossaryEntry[];
 }
 
 const byLabel = (a: GlossaryEntry, b: GlossaryEntry) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' });
 
-/** Letter sections ("A", "B"…) of entries sorted by label (MOBILE §7.14; no side index). */
-export function glossarySections(entries: readonly GlossaryEntry[]): GlossarySection[] {
-  const sections: GlossarySection[] = [];
-  for (const entry of [...entries].sort(byLabel)) {
-    const letter = entry.label.charAt(0).toUpperCase();
-    const last = sections[sections.length - 1];
-    if (last && last.letter === letter) last.entries.push(entry);
-    else sections.push({ letter, entries: [entry] });
-  }
-  return sections;
+/** Plain-English name for each COPY §2 group, in the app's voice (the research views say "Value" and "Health" too). */
+export const GLOSSARY_GROUP_LABELS: Record<GlossaryGroup, string> = {
+  basics: 'The basics',
+  profit: 'Profit',
+  growth: 'Growth',
+  debt: 'Financial health',
+  value: 'Value',
+  trading: 'Trading',
+  game: 'This game',
+};
+
+/**
+ * Topic sections in COPY §2 group order, entries sorted by label inside each (MOBILE §7.14). Grouping by topic
+ * instead of by letter is what lets Learn open as one screen: 73 terms in 18 letter sections was 4,528px, and a
+ * student looking for "Price vs. profit" has no reason to know it starts with P. Search is unchanged and still
+ * reaches every term, closed group or not.
+ */
+export function glossaryGroupSections(entries: readonly GlossaryEntry[]): GlossarySection[] {
+  const sorted = [...entries].sort(byLabel);
+  return GLOSSARY_GROUPS.map((group) => ({
+    group,
+    label: GLOSSARY_GROUP_LABELS[group],
+    entries: sorted.filter((e) => e.group === group),
+  }));
+}
+
+/** Row detail on a closed group: "7 terms". */
+export function groupTermsCount(n: number): string {
+  return n === 1 ? LEARN_MOBILE.oneTerm : fill(LEARN_MOBILE.termsCount, { n });
 }
 
 // Approximate SF Pro advance widths (em) for the fit rule below.
@@ -115,15 +130,17 @@ function widthEm(text: string): number {
 /** Body text size and the room for label + term in a 44px disclosure row on a 393pt phone. */
 const BODY_PX = 17;
 const ROW_TEXT_ROOM_PX = 293;
+/** A term row inside an open glossary topic is indented 8px, and has that much less room (learn.css). */
+export const GROUPED_ROW_TEXT_ROOM_PX = ROW_TEXT_ROOM_PX - 8;
 
 /**
  * Whether the finance term fits beside the label as the row's detail; otherwise it goes under the label as a
  * subtitle (iPhoneLearn: "Cash on hand · cash and equivalents" vs "Cash from running the business" over
  * "operating cash flow"). Always stacked at large text sizes.
  */
-export function termFitsBeside(label: string, term: string, largeText = false): boolean {
+export function termFitsBeside(label: string, term: string, largeText = false, roomPx: number = ROW_TEXT_ROOM_PX): boolean {
   if (largeText) return false;
-  return (widthEm(label) + widthEm(term)) * BODY_PX <= ROW_TEXT_ROOM_PX;
+  return (widthEm(label) + widthEm(term)) * BODY_PX <= roomPx;
 }
 
 export function relatedEntries(entry: GlossaryEntry): GlossaryEntry[] {

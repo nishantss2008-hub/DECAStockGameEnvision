@@ -1,12 +1,16 @@
 /**
  * Welcome sheet (MOBILE §7.2, large, `?sheet=welcome`): crest, "Welcome aboard, {crew}", three rows, a primary
- * action and Skip for now. Any dismissal other than the primary action counts as Skip (never shown automatically
- * again).
+ * action and a plain second action. Any dismissal counts as an answer (never shown automatically again).
  *
- * In the lobby the primary action is "Meet the market" (design 2026-09-16 §6) whenever the crew still has to
- * finish the required-once intro, because that is what gates its first order; once it is finished, the primary
- * action goes back to starting the 3-step walkthrough. Either way the walkthrough is armed, so the Portfolio
- * card is waiting when the crew lands.
+ * Both branches go somewhere, because this is the first screen a student ever sees and a button that does
+ * nothing is worst here:
+ *
+ * - **A crew that still has to finish "Meet the market"** (design 2026-09-16 §6) gets it as the primary
+ *   action: that flow is what gates its first order. Second action "Skip for now" closes onto Portfolio.
+ * - **A crew that has already finished it** — one signing in on a second device, or after the host sent it
+ *   through again — gets "Open Markets", the same place the flow's own last card sends a crew. Until
+ *   2026-09-18 this branch said "Start the walkthrough" and armed a Portfolio card that had been deleted,
+ *   so it only closed the sheet. Second action "Done" closes onto Portfolio.
  */
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_TICK_INTERVAL_MS } from '@deca/shared';
@@ -16,7 +20,7 @@ import { Button } from '../components/ios/Button';
 import { Crest } from '../components/ios/Crest';
 import type { RoutedSheetProps } from '../shell/useSheet';
 import { useShellGame } from '../shell/ShellData';
-import { useWalkthrough } from '../shell/useWalkthrough';
+import { useWelcome } from '../shell/useWelcome';
 import { crewInitials } from '../shell/device';
 import { formatMoney } from '../lib/format';
 import { MOBILE, fill } from '../shell/copy';
@@ -24,10 +28,11 @@ import { INTRO } from '../components/learn/introCopy';
 import { introComplete, INTRO_PATH } from '../components/learn/introFlow';
 
 const ICONS = [Briefcase, Clock, Compass];
+const MARKETS_PATH = '/markets';
 
 export default function WelcomeSheet({ open, onClose, onClosed }: RoutedSheetProps) {
   const { team, game } = useShellGame();
-  const walkthrough = useWalkthrough();
+  const welcome = useWelcome();
   const navigate = useNavigate();
   const introDone = introComplete(team);
   const crew = team?.name ?? '';
@@ -36,35 +41,30 @@ export default function WelcomeSheet({ open, onClose, onClosed }: RoutedSheetPro
     startingCash: game ? formatMoney(game.startingCapital, { symbol: game.currency.symbol }) : '—',
     tickSeconds: Math.round((game?.tickIntervalMs ?? DEFAULT_TICK_INTERVAL_MS) / 1000),
   };
-  const skip = () => {
-    if (walkthrough.welcomePending) walkthrough.dismiss();
+
+  /** "Skip for now" / "Done", and every other way out: answered, and closed where the crew already is. */
+  const dismiss = () => {
+    welcome.markSeen();
     onClose();
   };
 
   /**
-   * The primary action. Both branches arm the walkthrough; only the un-introduced crew leaves
-   * Portfolio.
-   *
-   * It must NOT be `onClose()` followed by `navigate(INTRO_PATH)`. AppShell opens this sheet by
-   * PUSHING `?sheet=welcome`, so `onClose()` is `navigate(-1)` — and `history.back()` is
-   * asynchronous. The push would be queued first and the pending pop would then undo it, dropping
-   * the crew back on Portfolio with the intro never opened (and its first order refused with
-   * `intro_required`, with no way back in except Learn). Replacing the sheet's own history entry
-   * has no such race: the sheet leaves the URL, the flow opens, and Back still goes to Portfolio.
+   * The primary action. It must NOT be `onClose()` followed by `navigate(...)`. AppShell opens this sheet by
+   * PUSHING `?sheet=welcome`, so `onClose()` is `navigate(-1)` — and `history.back()` is asynchronous. The
+   * push would be queued first and the pending pop would then undo it, dropping the crew back on Portfolio
+   * with nothing opened (and, for a new crew, its first order refused with `intro_required` and no way back
+   * in except Learn). Replacing the sheet's own history entry has no such race: the sheet leaves the URL,
+   * the destination opens, and Back still goes to Portfolio. `welcomeIntro.test.tsx` pins the shape.
    */
   const primary = () => {
-    walkthrough.start();
-    if (introDone) {
-      onClose();
-      return;
-    }
-    navigate(INTRO_PATH, { replace: true });
+    welcome.markSeen();
+    navigate(introDone ? MARKETS_PATH : INTRO_PATH, { replace: true });
   };
 
   return (
     <Sheet
       open={open}
-      onOpenChange={(next) => !next && skip()}
+      onOpenChange={(next) => !next && dismiss()}
       onClosed={onClosed}
       title={fill(MOBILE.welcome.title, values)}
       headerLayout="hidden"
@@ -72,16 +72,11 @@ export default function WelcomeSheet({ open, onClose, onClosed }: RoutedSheetPro
       className="bx-welcome-sheet"
       footer={
         <div className="bx-sheet-footer">
-          <Button
-            variant="filled"
-            size="large"
-            fullWidth
-            onClick={primary}
-          >
-            {introDone ? MOBILE.welcome.start : INTRO.title}
+          <Button variant="filled" size="large" fullWidth onClick={primary}>
+            {introDone ? MOBILE.welcome.explore : INTRO.title}
           </Button>
-          <Button variant="plain" size="large" fullWidth onClick={skip}>
-            {MOBILE.welcome.skip}
+          <Button variant="plain" size="large" fullWidth onClick={dismiss}>
+            {introDone ? MOBILE.done : MOBILE.welcome.skip}
           </Button>
         </div>
       }

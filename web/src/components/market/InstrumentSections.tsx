@@ -9,6 +9,9 @@
  *
  * Hidden-data rule: a fund's holdings and weights are public, so a fund row may say what it holds;
  * nothing about quality or grades appears anywhere before the game ends.
+ *
+ * No research helper footnote here (2026-09-17): this list shows no fundamentals, and the same
+ * 25 words already close Compare (`CompaniesSection`) and Key stats (`CompanySections`).
  */
 import { Link } from 'react-router-dom';
 import type { Company, Fund } from '@deca/shared';
@@ -18,9 +21,7 @@ import { StockRow } from '../ios/ListRow';
 import { changeParts } from '../ios/changeText';
 import { useHistory } from '../../hooks/useHistory';
 import { formatMoney, formatMoneySpoken } from '../../lib/format';
-import { sectorSlug } from '../../lib/sector';
-import { fill } from '../../shell/copy';
-import { companyPath } from './MarketSections';
+import { ChangeText, companyPath } from './MarketSections';
 import { MARKETS } from './marketCopy';
 import type { SectorGroup } from './marketsView';
 
@@ -98,8 +99,12 @@ export function FundsSection({ funds, sessionStartTick, currentTick }: { funds: 
 }
 
 /**
- * Section 2: the companies, one group per sector with its own header. The header links to the
- * sector screen, which is where the sector index and its members already live.
+ * Section 2: the companies, one group per sector with its own header.
+ *
+ * The heading carries that sector's session change (2026-09-17 pass). It used to live in a row of
+ * chips 500px higher that linked to a sector screen showing the same three companies again; the
+ * number now sits on the heading the three companies are already under, which is the only place a
+ * student was ever going to compare it with anything.
  */
 export function SectorGroupsSection({ groups, sessionStartTick, currentTick }: { groups: readonly SectorGroup[] } & InstrumentRowProps) {
   if (groups.length === 0) return null;
@@ -121,9 +126,12 @@ export function SectorGroupsSection({ groups, sessionStartTick, currentTick }: {
             headerVariant="plain"
             headingLevel={3}
             headerAction={
-              <Link className="bx-group-link" to={`/markets/sector/${sectorSlug(g.sector)}`}>
-                {fill(MARKETS.seeGroup, { sector: g.name })}
-              </Link>
+              g.sessionChange === null ? undefined : (
+                <span className="bx-group-change">
+                  <ChangeText value={g.sessionChange} />
+                  <span className="ios-sr-only">{MARKETS.thisSession}</span>
+                </span>
+              )
             }
           >
             {g.companies.map((c) => (
@@ -132,7 +140,6 @@ export function SectorGroupsSection({ groups, sessionStartTick, currentTick }: {
           </InsetGroupedList>
         ))}
       </div>
-      <p className="bx-footer t-footnote">{MARKETS.helper}</p>
     </section>
   );
 }

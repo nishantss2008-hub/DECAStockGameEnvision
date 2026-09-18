@@ -92,7 +92,7 @@ async function hostSignIn(browser: Browser): Promise<Page> {
  * this waits for it rather than sampling once, or it reopens over a later assertion.
  */
 async function dismissWelcome(page: Page) {
-  const skip = page.getByRole('button', { name: 'Skip for now' });
+  const skip = page.getByRole('button', { name: /^(Skip for now|Done)$/ });
   await skip.waitFor({ state: 'visible', timeout: 20_000 });
   await skip.click();
   await expect(skip).toBeHidden();
@@ -176,7 +176,7 @@ test('the intro gate, funds and the rebuilt screens on a small phone', async ({ 
   await page.goto('/markets/company/KRKN');
   await page.getByRole('button', { name: /^Buy KRKN/ }).first().click();
   const krknTicket = page.locator('.ios-sheet[role="dialog"]:not([data-closed])');
-  await expect(krknTicket.getByText('Step 1 · enter your order'), 'the ticket opens once the flow is done').toBeVisible();
+  await expect(krknTicket.getByRole('radiogroup', { name: 'Action' }), 'the ticket opens once the flow is done').toBeVisible();
   await krknTicket.getByRole('button', { name: 'Close' }).first().click();
   const discard = page.getByRole('button', { name: 'Discard order' });
   if (await discard.isVisible().catch(() => false)) await discard.click();
@@ -199,7 +199,7 @@ test('the intro gate, funds and the rebuilt screens on a small phone', async ({ 
   await other.goto('/markets/company/FLEET');
   await other.getByRole('button', { name: /^Buy FLEET/ }).first().click();
   const ticket = other.locator('.ios-sheet[role="dialog"]:not([data-closed])');
-  await expect(ticket.getByText('Step 1 · enter your order'), 'the host override unlocks trading').toBeVisible();
+  await expect(ticket.getByRole('radiogroup', { name: 'Action' }), 'the host override unlocks trading').toBeVisible();
 
   // ── 3. Funds as a student uses them ────────────────────────────────────────
   const before = await api.prices();

@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_STARTING_CAPITAL, DEFAULT_TICK_INTERVAL_MS, type Company } from '@deca/shared';
-import { GLOSSARY, GLOSSARY_LIST } from '../../lib/glossary';
+import { GLOSSARY, GLOSSARY_GROUPS, GLOSSARY_LIST } from '../../lib/glossary';
 import {
   chapterSubtitles,
   exampleCompany,
-  glossarySections,
+  glossaryGroupSections,
+  groupTermsCount,
   guideParagraphs,
   learnCompanyPath,
   metricForTerm,
@@ -15,22 +16,42 @@ import {
   termFitsBeside,
 } from './learnLogic';
 
-describe('glossarySections', () => {
-  const sections = glossarySections(GLOSSARY_LIST);
+describe('glossaryGroupSections (topics, not A–Z: 73 terms in 18 letter sections was 4,528px)', () => {
+  const sections = glossaryGroupSections(GLOSSARY_LIST);
 
-  it('groups every term once under the first letter of its label, A to Z', () => {
-    expect(sections.flatMap((s) => s.entries)).toHaveLength(GLOSSARY_LIST.length);
-    const letters = sections.map((s) => s.letter);
-    expect(letters).toEqual([...letters].sort());
-    expect(new Set(letters).size).toBe(letters.length);
-    for (const s of sections) for (const e of s.entries) expect(e.label[0]!.toUpperCase()).toBe(s.letter);
+  it('keeps every term, once, in the seven COPY §2 groups', () => {
+    expect(sections.map((s) => s.group)).toEqual([...GLOSSARY_GROUPS]);
+    const entries = sections.flatMap((s) => s.entries);
+    expect(entries).toHaveLength(GLOSSARY_LIST.length);
+    expect(new Set(entries.map((e) => e.id)).size).toBe(GLOSSARY_LIST.length);
+    for (const s of sections) for (const e of s.entries) expect(e.group).toBe(s.group);
   });
 
-  it('sorts by label inside a section, like the artboard (A: Account value, Analyst price guess, Analyst view, Average price paid)', () => {
-    const a = sections.find((s) => s.letter === 'A')!;
-    expect(a.entries.slice(0, 4).map((e) => e.label)).toEqual(['Account value', 'Analyst price guess', 'Analyst view', 'Average price paid']);
-    const b = sections.find((s) => s.letter === 'B')!;
-    expect(b.entries.map((e) => e.label).slice(0, 3)).toEqual(['Borrowed money', 'Business price vs. core profit', 'Buy or sell now']);
+  it('names each group in plain English and counts its terms', () => {
+    expect(sections.map((s) => [s.label, s.entries.length])).toEqual([
+      ['The basics', 19],
+      ['Profit', 14],
+      ['Growth', 4],
+      ['Financial health', 7],
+      ['Value', 7],
+      ['Trading', 16],
+      ['This game', 6],
+    ]);
+    expect(groupTermsCount(7)).toBe('7 terms');
+    expect(groupTermsCount(1)).toBe('1 term');
+  });
+
+  it('sorts by label inside a group, as the letter sections did', () => {
+    const value = sections.find((s) => s.group === 'value')!;
+    expect(value.entries.map((e) => e.label)).toEqual([
+      'Business price vs. core profit',
+      "Price vs. next year's profit",
+      'Price vs. owner equity',
+      'Price vs. profit',
+      'Price vs. sales',
+      'Share of profit paid out',
+      'Yearly payout to owners',
+    ]);
   });
 });
 
@@ -58,13 +79,10 @@ describe('searchTermsPlaceholder', () => {
 });
 
 describe('chapterSubtitles', () => {
-  it('uses the chapter copy the artboard shows', () => {
+  // A subtitle that only quotes its own chapter's opening line costs 16px a row and says nothing new.
+  it('keeps only the subtitle that says something its title does not', () => {
     expect(chapterSubtitles()).toEqual({
-      howToPlay: 'Your first trade in 3 steps',
       meetTheMarket: 'The 15 companies, the five sectors and the three funds, in about a minute.',
-      guide: 'The rules of the voyage, in plain words.',
-      fiveQuestions: 'Is it making money? Is it growing?',
-      basics: 'Market orders · Fees · Price impact',
     });
   });
 });

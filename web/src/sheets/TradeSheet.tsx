@@ -361,6 +361,11 @@ export default function TradeSheet({ open, onClose, onClosed, ticker, side }: Tr
         closeLabel={TICKET.buttons.close}
         detents="large"
         footer={footer}
+        // "Choose a company" is the one sheet here with a text field (MOBILE §7.10, §9.4), so its results list
+        // has to be sized with the keyboard inset. It is set for every step, not just that one: flipping it when
+        // a company is picked would remount the drawer mid-flow. The keypad's field is `inputmode="none"`, so
+        // nothing else in the ticket ever raises the software keyboard.
+        keyboardAware
         className="tk-sheet"
       >
         <div className="tk-body" data-stage={state.stage}>

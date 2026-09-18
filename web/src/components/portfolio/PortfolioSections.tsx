@@ -1,25 +1,30 @@
 /**
  * Portfolio tab root sections (MOBILE §7.3): summary on the page (2), account value chart card (3),
- * Cash available + Rank tiles (4), Positions with the "Show" menu (5), Recent activity (6) and the prices
- * footer (7). Every metric has a "?" (§5.9).
+ * Cash available + Rank tiles (4), Positions with the "Show" menu (5), the Activity row (6) and the
+ * prices footer (7). Every metric has a "?" (§5.9).
+ *
+ * 2026-09-17 density pass: the walkthrough card is gone from the top of the page ("Meet the market"
+ * is required now and teaches the same three things), "Recent activity" is one row to the full list
+ * instead of three rows of it, and the chart's summary sentence is spoken but not printed, because
+ * section 2 prints the same figure 16px above it.
  */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Receipt } from 'lucide-react';
 import { rangeTabs, type GameClock, type GameState } from '@deca/shared';
 import { ChartCard } from '../charts/ChartCard';
 import { chartSummary, moneyFormatters, seriesStats } from '../charts/scrub';
 import { EmptyState } from '../ios/EmptyState';
 import { InsetGroupedList } from '../ios/InsetGroupedList';
+import { DisclosureRow } from '../ios/ListRow';
 import { Menu } from '../ios/Menu';
 import { MoneyText, SignedChange } from '../ios/SignedChange';
 import { formatPercentPlain, type CurrencyNames } from '../ios/signedText';
 import { useCompositeHistory, useMarket } from '../../hooks/useMarket';
 import { useTeamHistory } from '../../hooks/useTeamHistory';
 import { formatMoney, formatNumber, formatTickTime } from '../../lib/format';
-import type { ActivityItem } from './activity';
 import { rankText, rebaseSeries, tickEpoch, valueSeries, vsCompositePoints, type AccountTotals, type PositionRow, type ShowMetric } from './derive';
-import { ActivityRow, HoldingRow } from './rows';
+import { HoldingRow } from './rows';
 import { TermTip } from './TermTip';
 
 /** COPY-TBD mobile.* strings used on Portfolio (MOBILE §7.0). */
@@ -36,10 +41,10 @@ export const PF_COPY = {
   rank: 'Rank',
   standings: 'Standings',
   positions: 'Positions',
-  seeAll: 'See all',
   seeAllCount: 'See all {n}',
   show: { label: 'Show', totalGain: 'Total gain', session: 'Session', pctOfAccount: '% of account' } as Record<'label' | ShowMetric, string>,
-  recentActivity: 'Recent activity',
+  activity: 'Activity',
+  activityNote: 'Every order you have placed, with its price and fee',
   pricesFooter: 'Prices update every {tickSeconds} seconds · as of {time}',
   emptyPositions: {
     title: 'No positions yet',
@@ -165,7 +170,10 @@ export function AccountChart({
       label={PF_COPY.accountValue}
       points={points}
       plotHeight={180}
-      summary={stats ? chartSummary('total', stats, formatters) : ''}
+      /* Section 2, 16px up, already says "▲ +Ð21,049.55 (+8.42%) since the game began" with its "?".
+         The sentence stays for the slider's description, spoken but not printed twice (MOBILE §7.3). */
+      summaryVisible={false}
+      summary={stats ? chartSummary('total', stats) : ''}
       formatters={formatters}
       formatAxis={axisFormatter(points, compare, startingCapital, currency.symbol)}
       reference={{ y: startingCapital, label: PF_COPY.startingCash }}
@@ -278,23 +286,19 @@ export function TopPositions({ rows, currency, onOpenMarkets }: { rows: Position
   );
 }
 
-/* ─── 6. Recent activity ─────────────────────────────────────────────────────── */
+/* ─── 6. Activity ────────────────────────────────────────────────────────────── */
 
-export function RecentActivity({ items, currency }: { items: ActivityItem[]; currency: CurrencyNames }) {
-  if (items.length === 0) {
-    return (
-      <InsetGroupedList header={PF_COPY.recentActivity} className="pf-recent">
-        <li className="pf-card-item">
-          <EmptyState title={PF_COPY.emptyOrders.title} body={PF_COPY.emptyOrders.body} flavor={PF_COPY.emptyOrders.flavor} headingLevel={3} />
-        </li>
-      </InsetGroupedList>
-    );
-  }
+/**
+ * One row to the full order list, in place of the three-row "Recent activity" block (2026-09-17).
+ *
+ * The three rows it drew were the top of the list this row opens, 222px of it, and every one of
+ * them was a trade the crew had just made. The tap has to stay obvious from Portfolio, so it is a
+ * labelled disclosure row rather than a link hidden in a header.
+ */
+export function ActivityLink() {
   return (
-    <InsetGroupedList header={PF_COPY.recentActivity} headerAction={<Link to="/portfolio/activity">{PF_COPY.seeAll}</Link>} className="pf-recent">
-      {items.slice(0, 3).map((i) => (
-        <ActivityRow key={i.orderNumber} item={i} currency={currency} />
-      ))}
+    <InsetGroupedList aria-label={PF_COPY.activity} className="pf-recent">
+      <DisclosureRow to="/portfolio/activity" icon={Receipt} title={PF_COPY.activity} subtitle={PF_COPY.activityNote} />
     </InsetGroupedList>
   );
 }

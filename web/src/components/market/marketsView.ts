@@ -1,11 +1,13 @@
 /**
  * Pure logic for Markets (MOBILE §7.6) and Compare (§7.6b): URL query (?view=&sort=&sector=), the
  * Compare views and their columns, sorting, sector filter, instrument search, recent searches,
- * biggest moves, sector chips, breadth and composite figures. Rendering lives next to this file.
+ * sector session changes, breadth and composite figures. Rendering lives next to this file.
  *
  * The Markets list is Apple Stocks semantics (spec 2026-09-16 §4): two sections, Funds then
  * Companies grouped by sector. `sectorGroups` builds the second one; it is driven by SECTORS, so
- * a roster change moves the screen without touching a component.
+ * a roster change moves the screen without touching a component. The 2026-09-17 pass folded the
+ * chip row's percentages into those group headings and deleted "Biggest moves": every row already
+ * carries its own change pill, so the section repeated what was under it.
  */
 import { CURRENCY, SECTORS, fundValueWeights, isFund, type Company, type Fund, type Fundamentals, type IndexQuote, type Instrument, type MarketBreadth, type MarketSummary, type Sector } from '@deca/shared';
 import { formatMetricValue, metricValue, type MetricId } from '../../lib/compare';
@@ -78,36 +80,18 @@ export function sectorShortName(sector: Sector | string): string {
   return SECTOR_SHORT[sector as Sector] ?? sector;
 }
 
-export interface SectorChip {
-  sector: Sector;
-  slug: string;
-  name: string;
-  sessionChange: number;
-  /** Change since the game began (fraction). */
-  totalChange: number;
-  value: number | null;
-  sessionOpen: number | null;
-}
-
-/** Industry group chips, biggest session gain first. Index quotes from `market/summary`, else cap-weighted members. */
-export function sectorChips(market: MarketSummary | null, companies: readonly Company[]): SectorChip[] {
+/**
+ * Session change per sector — the number each group heading carries now that the chip row and the
+ * sector screen are gone (2026-09-17 pass). Index quotes from `market/summary` when the server has
+ * sent them, else the cap-weighted members, so the figure is the same one the chips showed.
+ */
+export function sectorSessionChanges(market: MarketSummary | null, companies: readonly Company[]): Map<Sector, number> {
   const quotes = market?.sectors ?? {};
-  const fromMarket = Object.keys(quotes).length > 0;
-  const chips: SectorChip[] = fromMarket
-    ? SECTORS.filter((s) => quotes[s]).map((s) => {
-        const q = quotes[s]!;
-        return { sector: s, slug: sectorSlug(s), name: sectorShortName(s), sessionChange: q.sessionChange, totalChange: q.change, value: q.value, sessionOpen: q.sessionOpen };
-      })
-    : sectorSummaries([...companies]).map((s) => ({
-        sector: s.sector,
-        slug: sectorSlug(s.sector),
-        name: sectorShortName(s.sector),
-        sessionChange: s.sessionChange,
-        totalChange: s.voyageChange,
-        value: null,
-        sessionOpen: null,
-      }));
-  return chips.sort((a, b) => b.sessionChange - a.sessionChange || SECTORS.indexOf(a.sector) - SECTORS.indexOf(b.sector));
+  const entries: [Sector, number][] =
+    Object.keys(quotes).length > 0
+      ? SECTORS.filter((s) => quotes[s]).map((s) => [s, quotes[s]!.sessionChange])
+      : sectorSummaries([...companies]).map((s) => [s.sector, s.sessionChange]);
+  return new Map(entries);
 }
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
@@ -234,22 +218,25 @@ export function filterBySector(companies: readonly Company[], sector: Sector | n
 
 export interface SectorGroup {
   sector: Sector;
-  slug: string;
-  /** Short chip name ("Provisions"), the group header. */
+  /** Short name ("Provisions"), the group header. */
   name: string;
+  /** The sector's session change, printed on the heading. Null until a quote or a member exists. */
+  sessionChange: number | null;
   companies: Company[];
 }
 
 /**
  * The second section of the Markets list: one group per sector, in SECTORS order, each holding the
- * companies in that sector sorted by `sort`. A sector with no companies on the wire is left out
- * rather than drawn as an empty header, so a half-loaded snapshot never shows five empty groups.
+ * companies in that sector sorted by `sort`, and carrying that sector's session change on its
+ * heading — the number the chip row used to hold. A sector with no companies on the wire is left
+ * out rather than drawn as an empty header, so a half-loaded snapshot never shows five empty groups.
  */
-export function sectorGroups(companies: readonly Company[], sort: SortKey = 'size'): SectorGroup[] {
+export function sectorGroups(companies: readonly Company[], sort: SortKey = 'size', market: MarketSummary | null = null): SectorGroup[] {
+  const changes = sectorSessionChanges(market, companies);
   return SECTORS.map((sector) => ({
     sector,
-    slug: sectorSlug(sector),
     name: sectorShortName(sector),
+    sessionChange: changes.get(sector) ?? null,
     companies: sortCompanies(filterBySector(companies, sector), sort),
   })).filter((g) => g.companies.length > 0);
 }
@@ -363,14 +350,6 @@ export function parseRecents(raw: string | null): string[] {
 }
 
 // ─── Sections ─────────────────────────────────────────────────────────────────
-
-export function biggestMoves(companies: readonly Company[], n = 3): { up: Company[]; down: Company[] } {
-  const sorted = sortCompanies(companies, 'session');
-  return {
-    up: sorted.filter((c) => num(c.sessionChange) > 0).slice(0, n),
-    down: sorted.filter((c) => num(c.sessionChange) < 0).reverse().slice(0, n),
-  };
-}
 
 export function breadthText(b: Pick<MarketBreadth, 'advancers' | 'decliners' | 'unchanged'>): string {
   return `${b.advancers} rising · ${b.decliners} falling · ${b.unchanged} unchanged`;

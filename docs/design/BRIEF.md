@@ -242,9 +242,12 @@ explains and gives context; it never issues a verdict or reveals the hidden qual
      exact metrics and where they are on screen
    - trading basics (market order, fee, price impact, average cost, gains, diversification)
    - a searchable glossary using the same text as the InfoTips
-5. **First-login walkthrough:** a 3-step dismissible card (Research a company → Place a
+5. ~~**First-login walkthrough:** a 3-step dismissible card (Research a company → Place a
    practice-sized order → Track it on Summary) with a link to Learn. The walkthrough can be
-   reopened from the crew menu.
+   reopened from the crew menu.~~ **Superseded 2026-09-17/18 (MOBILE §7.2, COPY §5).** The card was
+   deleted from Portfolio and its state, copy and hook followed: the required-once "Meet the market"
+   flow (COPY §14) teaches the same three things before a crew's first order, with the market's real
+   companies in it, and is replayable from Learn and the Account sheet.
 6. **Default views are "Basics":** the research screener's default view shows Price, Session
    change, Company size, Sales growth, Profit margin, Price vs. profit, Debt vs. equity. Advanced
    views (Valuation, Financial health, Analysts) are one click away.

@@ -1,12 +1,12 @@
 /**
- * Account sheet (MOBILE §7.15, large, `?sheet=account`): crew header · How to play / Game rules · Display (Solid
+ * Account sheet (MOBILE §7.15, large, `?sheet=account`): crew header · Meet the market / Game rules · Display (Solid
  * bars, Text size) · Add to Home Screen / Reload app · Sign out (confirmation action sheet) · wordmark footer.
  * Game rules, Text size and Add to Home Screen push inside the sheet.
  */
 import { useState } from 'react';
 import { DEFAULT_TICK_INTERVAL_MS } from '@deca/shared';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ChevronLeft, ListChecks, RotateCw, Smartphone, Type } from 'lucide-react';
+import { ChevronLeft, ListChecks, RotateCw, Ship, Smartphone, Type } from 'lucide-react';
 import { Sheet } from '../components/ios/Sheet';
 import { Button } from '../components/ios/Button';
 import { Crest } from '../components/ios/Crest';
@@ -15,7 +15,6 @@ import { InsetGroupedList } from '../components/ios/InsetGroupedList';
 import { ActionRow, DisclosureRow, KeyValueRow, ToggleRow } from '../components/ios/ListRow';
 import type { RoutedSheetProps } from '../shell/useSheet';
 import { useShellGame } from '../shell/ShellData';
-import { useWalkthrough } from '../shell/useWalkthrough';
 import { useInlineTip } from '../shell/InlineTip';
 import { applySolidBars, crewInitials, homeScreenPlatform, readSolidBars } from '../shell/device';
 import { isStandalone, localStore } from '../shell/storage';
@@ -24,7 +23,9 @@ import { useLeaderboard } from '../hooks/useLeaderboard';
 import { formatMoney, formatNumber, formatPct } from '../lib/format';
 import { lengthLabel, lengthPhrase } from '../lib/gameLength';
 import { GLOSSARY } from '../lib/glossary';
-import { GUIDE, MOBILE, SETTINGS, SHELL, SIGN_IN, WALKTHROUGH, fill } from '../shell/copy';
+import { INTRO } from '../components/learn/introCopy';
+import { INTRO_PATH } from '../components/learn/introFlow';
+import { GUIDE, MOBILE, SETTINGS, SHELL, SIGN_IN, fill } from '../shell/copy';
 
 type View = 'main' | 'rules' | 'textSize' | 'homeScreen';
 
@@ -58,7 +59,6 @@ export default function AccountSheet({ open, onClose, onClosed }: RoutedSheetPro
   const { team, game } = useShellGame();
   const { logout } = useAuth();
   const { leaderboard } = useLeaderboard();
-  const walkthrough = useWalkthrough();
   const navigate = useNavigate();
   const [view, setView] = useState<View>('main');
   const [solid, setSolid] = useState(() => readSolidBars(localStore()));
@@ -112,13 +112,19 @@ export default function AccountSheet({ open, onClose, onClosed }: RoutedSheetPro
                 <p className="t-title-2 t-emph">{crew}</p>
                 {rankLine && <p className="t-subhead bx-account__rank num">{rankLine}</p>}
               </div>
-              <InsetGroupedList surface="sheet" aria-label={WALKTHROUGH.reopen}>
+              <InsetGroupedList surface="sheet" aria-label={INTRO.learnRow}>
+                {/*
+                  The Portfolio walkthrough card is gone, so "How to play" armed a card nothing renders and
+                  dropped the crew on Portfolio with no explanation. "Meet the market" covers the same ground,
+                  is replayable, and says so itself for a crew that has already finished it (COPY §14).
+                  `replace` so this sheet's own history entry becomes the flow (see WelcomeSheet).
+                */}
                 <DisclosureRow
-                  title={WALKTHROUGH.reopen}
-                  icon={BookOpen}
+                  title={INTRO.learnRow}
+                  subtitle={INTRO.learnSubtitle}
+                  icon={Ship}
                   onClick={() => {
-                    walkthrough.show();
-                    navigate('/portfolio', { replace: true });
+                    navigate(INTRO_PATH, { replace: true });
                   }}
                 />
                 <DisclosureRow title={SHELL.gameRules} icon={ListChecks} onClick={() => setView('rules')} />
