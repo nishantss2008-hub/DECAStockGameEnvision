@@ -28,7 +28,6 @@ import {
   type Company,
   type FinancialPeriod,
   type Fundamentals,
-  type ManagementMember,
   type QualityInput,
   type QualityResult,
   type Sector,
@@ -38,6 +37,7 @@ import { Prng, deriveSeed } from '../lib/prng';
 import { effectiveQuality, idioVolFor, surpriseFor } from '../engine/model';
 import { buildFunds, type BuiltFund } from './funds';
 import { ROSTER, type RosterEntry } from './roster';
+import { PROFILES, companyStory } from './profiles';
 import researchRaw from './research.json';
 
 export interface GeneratedCompany {
@@ -173,41 +173,6 @@ const LAST_NAMES = [
   'Whitlock', 'Yardley', 'Colbourne', 'Penhallow', 'Treloar', 'Holloway', 'Kingsley', 'Merriwether',
 ] as const;
 
-const ROLES: { role: string; bios: readonly string[] }[] = [
-  {
-    role: 'Chief Executive Officer',
-    bios: [
-      'Former Port Royal harbor master who grew the company’s fleet.',
-      'Rose from ship’s navigator to lead the whole company.',
-      'Founded a small coastal trading house before joining the company.',
-      'Led convoy contracts across the Spanish Main for many years.',
-    ],
-  },
-  {
-    role: 'Chief Financial Officer',
-    bios: [
-      'Ran a colonial trading house’s treasury before joining.',
-      'Sets the dividend policy and keeps the company ledgers.',
-      'Former Crown customs officer who knows every tariff by heart.',
-    ],
-  },
-  {
-    role: 'Chief Operating Officer',
-    bios: [
-      'Cut port turnaround times across the company’s routes.',
-      'Runs the shipyards, crews and supply depots day to day.',
-      'Former quartermaster who manages stores and repairs.',
-    ],
-  },
-  {
-    role: 'Chief Strategy Officer',
-    bios: [
-      'Charts new routes and trading posts for the company.',
-      'Negotiates charters and partnerships with port authorities.',
-      'Studies rival fleets and plans the company’s next moves.',
-    ],
-  },
-];
 
 const POSITIONS_STRONG = ['the dominant flagship of its waters', 'a niche specialist with a defensible cove'] as const;
 const POSITIONS_TURNAROUND = ['a turnaround story under new colors'] as const;
@@ -236,15 +201,6 @@ const RISKS = [
   'Raids on unguarded routes',
 ] as const;
 
-const DEVELOPMENTS = [
-  'Commissioned two new galleons to expand capacity',
-  'Signed a multi-season supply pact with Tortuga ports',
-  'Opened a new trading post on the Spanish Main',
-  'Refit its flagship with copper plating for speed',
-  'Settled a long-running dispute with the harbor guild',
-  'Won a royal charter for a new trade route',
-  'Hired a new fleet captain from a larger rival',
-] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -520,20 +476,6 @@ function pickName(rng: Prng, used: Set<string>): string {
 }
 
 /** Management is flavor only: nothing here depends on latent or measured quality. */
-function management(rng: Prng, used: Set<string>): ManagementMember[] {
-  const count = rng.int(2, 4);
-  const out: ManagementMember[] = [];
-  for (let i = 0; i < count; i++) {
-    const r = ROLES[i]!;
-    out.push({
-      name: pickName(rng, used),
-      role: r.role,
-      bio: rng.pick(r.bios),
-      tenureYears: rng.int(1, 18),
-    });
-  }
-  return out;
-}
 
 /**
  * Competitive position from public, score-free facts only: a net loss reads as a turnaround,
@@ -610,11 +552,17 @@ export function generateMarket(seed: string): GeneratedMarket {
     const priceTarget = Math.max(1, Math.round(startPriceCents * (1 + ANALYST_OPTIMISM + ANALYST_SLOPE * analystZ[i]!)));
     const ships = Math.max(3, Math.round(base.revenue / 8e9)); // about one ship per Ð80M of revenue
     const posts = text.int(2, 9);
+    // Written from the profitability, growth and safety ranks of the PUBLIC statements — never from q or the surprise.
+    const story = companyStory(
+      text,
+      { prof: quality.pillars.prof, grow: quality.pillars.grow, safe: quality.pillars.safe, netIncome: base.netIncome },
+      () => pickName(text, usedNames),
+    );
 
     const fundamentals: Fundamentals = {
       ...base,
-      businessOverview: `${entry.name} is ${position} in the ${entry.sector} trade. It sails ${ships} ships and runs ${posts} trading posts.`,
-      management: management(text, usedNames),
+      businessOverview: `${PROFILES[entry.id]?.whatTheyDo ?? ''} ${entry.name} is ${position} in the ${entry.sector} trade. It sails ${ships} ships and runs ${posts} trading posts.`.trim(),
+      management: story.management,
       industry: {
         sector: entry.sector,
         tam,
@@ -624,7 +572,9 @@ export function generateMarket(seed: string): GeneratedMarket {
       },
       marketingStrategy: text.pick(MARKETING)(entry.name),
       riskFactors: riskFactors(text, base.debtToEquity, base.currentRatio),
-      recentDevelopments: text.shuffle(DEVELOPMENTS).slice(0, 3),
+      recentDevelopments: story.recentDevelopments,
+      strategy: story.strategy,
+      ...(PROFILES[entry.id] ? { profile: PROFILES[entry.id] } : {}),
       analyst: { rating: analystRating(priceTarget, startPriceCents), priceTarget },
     };
 

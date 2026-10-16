@@ -235,3 +235,10 @@ html[data-large-text] .rs-grid { grid-template-columns: minmax(0, 1fr); }
   font-weight: 600;
   color: var(--label);
 }
+
+/* Business profile, leadership, risks */
+.rs-profile-row { padding-top: 10px; padding-bottom: 10px; }
+.rs-profile-label { margin: 0 0 2px; color: var(--label-2, var(--label-secondary, inherit)); }
+.rs-profile-text { margin: 0; }
+.rs-profile-list { margin: 0; padding-left: 1.1em; }
+.rs-profile-list > li + li { margin-top: 2px; }

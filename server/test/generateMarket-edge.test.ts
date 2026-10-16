@@ -7,7 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import * as shared from '@deca/shared';
 import { SECTORS, rankZ, spearman, type QualityInput, type Sector } from '@deca/shared';
 import { generateMarket, sectorRefs, type GeneratedCompany } from '../src/seed/generateMarket';
-import { idioVolFor } from '../src/engine/model';
+import { idioVolFor, surpriseFor } from '../src/engine/model';
 import research from '../src/seed/research.json';
 
 vi.mock('@deca/shared', async (importOriginal) => {
@@ -220,19 +220,17 @@ describe('generateMarket edge: public fields do not leak hidden quality', () => 
   const markets = Array.from({ length: 30 }, (_, s) => generateMarket(`edge-leak${s}`).companies);
   const pooled = (f: (g: GeneratedCompany) => number) => spearman(markets.flat().map((g) => g.quality.q), markets.flat().map(f));
 
-  it('management tenure is unrelated to q', () => {
-    // Per market (N = 15) an independent field still reaches |rho| ≥ 0.6 by chance about 1.8% of the time,
-    // so the per-market check allows a stray seed; the mean and pooled checks catch any real tie
-    // (the original generator: mean tenure rho ≈ 0.37 per market and pooled).
-    const perSeed = markets.map((cs) => spearman(cs.map((g) => g.quality.q), cs.map(meanTenure)));
-    const ceo = markets.map((cs) => spearman(cs.map((g) => g.quality.q), cs.map((g) => g.fundamentals.management[0]!.tenureYears)));
-    expect(perSeed.filter((r) => Math.abs(r) < 0.6).length / perSeed.length).toBeGreaterThanOrEqual(0.9);
-    expect(ceo.filter((r) => Math.abs(r) < 0.6).length / ceo.length).toBeGreaterThanOrEqual(0.9);
-    expect(Math.abs(mean(perSeed))).toBeLessThan(0.15);
-    expect(Math.abs(mean(ceo))).toBeLessThan(0.15);
-    expect(Math.abs(pooled(meanTenure))).toBeLessThan(0.2);
+  it('leadership follows the PUBLIC numbers and never the hidden surprise (2026-10-16)', () => {
+    // Since 2026-10-16 the leadership story is written from the public profitability/growth/safety ranks on
+    // purpose, so a student who reads it alongside the statements finds they agree. What must stay hidden is
+    // the seeded surprise — the part of a company's fate no statement shows. Tenure may track the public
+    // profitability rank, but not the surprise.
+    const all = markets.flat();
+    const surprise = all.map((g) => surpriseFor(`edge-leak${Math.floor(all.indexOf(g) / 15)}`, g.company.id));
+    const tenure = all.map(meanTenure);
+    expect(Math.abs(spearman(surprise, tenure))).toBeLessThan(0.1);
+    expect(spearman(all.map((g) => g.quality.pillars.prof), all.map((g) => g.fundamentals.management[0]!.tenureYears))).toBeGreaterThan(0.2);
   });
-
   it('competitive position and overview text are not graded by the hidden score', () => {
     const strong = (g: GeneratedCompany) => (/dominant|defensible/.test(g.fundamentals.industry.competitivePosition) ? 1 : 0);
     const profitable = markets.flat().filter((g) => g.fundamentals.netIncome > 0);

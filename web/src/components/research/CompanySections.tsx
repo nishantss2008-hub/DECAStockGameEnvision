@@ -1,4 +1,5 @@
 /** Company page sections below the chart and position (MOBILE §7.7 rows 4–8 and the floating Buy/Sell). */
+import type React from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Newspaper } from 'lucide-react';
 import type { Company, Fundamentals, GameState, NewsEvent, OrderRecord, Trade } from '@deca/shared';
@@ -224,8 +225,100 @@ export function CompanyNewsSection({ news, company, companiesById }: { news: rea
   );
 }
 
+/** One labelled paragraph inside a profile card. */
+function ProfileRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <li className="ios-row rs-card-row rs-profile-row">
+      <p className="t-footnote rs-profile-label">{label}</p>
+      <div className="t-body rs-profile-text">{children}</div>
+    </li>
+  );
+}
+
+/**
+ * The business behind the ticker (fixed per company): what it does, what it sells, who buys, how it
+ * makes money, why customers choose it, and its edge. Descriptive — it never says buy or sell.
+ */
+export function BusinessSection({ fundamentals }: { fundamentals: Fundamentals | null }) {
+  const p = fundamentals?.profile;
+  if (!p) return null;
+  const position = fundamentals?.industry?.competitivePosition;
+  return (
+    <InsetGroupedList
+      header="The business"
+      className="rs-section"
+      footer="How a company makes money tells you what has to go right for its profits to grow — and what could go wrong."
+    >
+      <ProfileRow label="What it does">{p.whatTheyDo}</ProfileRow>
+      <ProfileRow label="What it sells">
+        <ul className="rs-profile-list">
+          {p.products.map((x) => (
+            <li key={x}>{x}</li>
+          ))}
+        </ul>
+      </ProfileRow>
+      <ProfileRow label="Who buys">{p.customers}</ProfileRow>
+      <ProfileRow label="How it makes money">{p.businessModel}</ProfileRow>
+      <ProfileRow label="Why customers choose it">{p.valueProposition}</ProfileRow>
+      <ProfileRow label="Edge over rivals">{p.competitiveEdge}</ProfileRow>
+      {position ? <ProfileRow label="Place in its industry">{`${position}. ${fundamentals?.industry?.notes ?? ''}`.trim()}</ProfileRow> : null}
+    </InsetGroupedList>
+  );
+}
+
+/** Who runs the company, their record, and where they are steering it this game. */
+export function LeadershipSection({ fundamentals }: { fundamentals: Fundamentals | null }) {
+  const team = fundamentals?.management ?? [];
+  if (!fundamentals?.profile || team.length === 0) return null;
+  return (
+    <InsetGroupedList
+      header="Leadership & strategy"
+      className="rs-section"
+      footer="Good leaders keep costs under control, grow sales and avoid risky borrowing. Check whether their record matches the numbers."
+    >
+      {fundamentals.strategy ? <ProfileRow label="Strategy">{fundamentals.strategy}</ProfileRow> : null}
+      {team.map((m) => (
+        <ProfileRow key={m.role} label={`${m.role} · ${m.tenureYears} ${m.tenureYears === 1 ? 'year' : 'years'}`}>
+          <strong>{m.name}</strong> — {m.bio}
+        </ProfileRow>
+      ))}
+      {fundamentals.marketingStrategy ? <ProfileRow label="How it wins customers">{fundamentals.marketingStrategy}</ProfileRow> : null}
+    </InsetGroupedList>
+  );
+}
+
+/** What could go wrong, and what has happened lately. */
+export function RisksSection({ fundamentals }: { fundamentals: Fundamentals | null }) {
+  if (!fundamentals?.profile) return null;
+  const risks = fundamentals.riskFactors ?? [];
+  const recent = fundamentals.recentDevelopments ?? [];
+  if (risks.length === 0 && recent.length === 0) return null;
+  return (
+    <InsetGroupedList header="Risks & recent news" className="rs-section" footer="Every company has risks. Compare them with its rivals’ before you decide.">
+      {recent.length ? (
+        <ProfileRow label="Lately">
+          <ul className="rs-profile-list">
+            {recent.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </ProfileRow>
+      ) : null}
+      {risks.length ? (
+        <ProfileRow label="Key risks">
+          <ul className="rs-profile-list">
+            {risks.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+        </ProfileRow>
+      ) : null}
+    </InsetGroupedList>
+  );
+}
+
 export function AboutSection({ company, fundamentals }: { company: Company; fundamentals: Fundamentals | null }) {
-  const text = company.description || fundamentals?.businessOverview || '';
+  const text = fundamentals?.profile ? '' : company.description || fundamentals?.businessOverview || '';
   return (
     <InsetGroupedList header={RESEARCH.about} className="rs-section">
       {text ? (

@@ -39,6 +39,9 @@ import { useCompanyData, useScrolledPast } from '../../components/research/useCo
 import { renderTermTip } from '../../components/research/TermTip';
 import {
   AboutSection,
+  BusinessSection,
+  LeadershipSection,
+  RisksSection,
   AnalystSheet,
   CompanyNewsSection,
   KeyStatsSection,
@@ -258,6 +261,9 @@ export default function CompanyPage() {
               </SkeletonGroup>
             )}
 
+            {company && <BusinessSection fundamentals={fundamentals} />}
+            {company && <LeadershipSection fundamentals={fundamentals} />}
+            {company && <RisksSection fundamentals={fundamentals} />}
             {company && <CompanyNewsSection news={news} company={company} companiesById={data.companiesById} />}
             {company && <AboutSection company={company} fundamentals={fundamentals} />}
             {company && (

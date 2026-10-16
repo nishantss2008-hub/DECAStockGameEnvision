@@ -157,6 +157,16 @@ export interface ManagementMember {
   tenureYears: number;
 }
 
+/** The business behind a ticker (fixed per company): what it does and how it makes money. Descriptive only. */
+export interface CompanyProfile {
+  whatTheyDo: string;
+  products: string[];
+  customers: string;
+  businessModel: string;
+  valueProposition: string;
+  competitiveEdge: string;
+}
+
 export interface IndustryAnalysis {
   sector: Sector;
   tam: number; // total addressable market, integer cents
@@ -217,6 +227,10 @@ export interface Fundamentals {
   management: ManagementMember[];
   industry: IndustryAnalysis;
   marketingStrategy: string;
+  /** What the business is (fixed per company). Optional: markets built before 2026-10-16 lack it. */
+  profile?: CompanyProfile;
+  /** Where management is taking the company this game, written from the public numbers. */
+  strategy?: string;
   riskFactors: string[];
   recentDevelopments: string[];
   analyst: { rating: string; priceTarget: number }; // priceTarget integer cents
