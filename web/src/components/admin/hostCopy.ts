@@ -115,7 +115,7 @@ export const HOST_ERRORS: Record<HostErrorCode, { title: string; message: string
 
 /** COPY §12 host empty states. */
 export const HOST_EMPTY = {
-  hostCrews: { title: 'No crews yet', body: 'Add a crew to give players a name and password.' },
+  hostCrews: { title: 'No crews yet', body: 'Crews appear here as students join with the game code on the Control screen.' },
   hostNews: { title: 'No news scheduled', body: 'Scheduled news appears here after the game starts.' },
 } as const;
 
@@ -148,11 +148,11 @@ export const HOST_PHONE = {
     added: '{crew} added.',
     tradingOff: 'Trading off',
     tradingAllowed: 'Trading allowed',
-    resetPassword: 'Reset password…',
-    newPassword: 'New password',
-    savePassword: 'Save password',
-    passwordSaved: 'Password changed for {crew}.',
-    passwordHint: 'At least 4 characters.',
+    resetPassword: 'Reset crew PIN…',
+    newPassword: 'New PIN',
+    savePassword: 'Save PIN',
+    passwordSaved: 'PIN changed for {crew}. Teammates join with the new PIN.',
+    passwordHint: 'At least 4 digits or characters. Tell the crew their new PIN.',
     remove: 'Remove crew…',
     removeTitle: 'Remove {crew}? This deletes its login, holdings, history and trades.',
     removeButton: 'Remove crew',

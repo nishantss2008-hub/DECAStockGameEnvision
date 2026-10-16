@@ -120,6 +120,11 @@ let crewB: string;
 let host: string;
 
 const auth = (token: string): Record<string, string> => ({ authorization: `Bearer ${token}` });
+/** A crew signs in the only way it can: the game code, its name, and its PIN (the crew password). */
+const crewJoin = async (name: string, pin: string) => {
+  const code = body<{ code: string }>(await app.inject({ method: 'GET', url: '/api/admin/join-code', headers: auth(host) })).code;
+  return app.inject({ method: 'POST', url: '/auth/join', payload: { code, name, pin } });
+};
 const body = <T>(res: { body: string }): T => JSON.parse(res.body) as T;
 
 /** Every read endpoint a signed-in client may call, and who may call it. */
@@ -299,20 +304,14 @@ describe('a crew sees only its own rows', () => {
 });
 
 describe('POST /auth/login', () => {
-  it('signs a crew in and refuses a wrong password with the same message as an unknown crew', async () => {
-    const ok = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
-    expect(ok.statusCode).toBe(200);
-    const session = body<{ token: string; role: string; teamId: string; expiresAt: number }>(ok);
-    expect(session).toMatchObject({ role: 'team', teamId: CREW_A });
-    expect(session.expiresAt).toBeGreaterThan(Date.now());
-    const me = await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(session.token) });
-    expect(body<{ team: { id: string } }>(me).team.id).toBe(CREW_A);
-
-    const wrong = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: 'nope-nope-1' } });
+  it('is host-only: a crew name never signs in here, even with the right password', async () => {
+    const crew = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
     const missing = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Nobody', password: 'nope-nope-1' } });
-    expect(wrong.statusCode).toBe(401);
+    expect(crew.statusCode).toBe(401);
     expect(missing.statusCode).toBe(401);
-    expect(wrong.body).toBe(missing.body);
+    expect(crew.body).toBe(missing.body);
+    const wrongHost = await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'admin', password: 'nope-nope-1' } });
+    expect(wrongHost.statusCode).toBe(401);
   });
 
   it('signs the host in with the stored host password', async () => {
@@ -352,8 +351,8 @@ describe('POST /auth/join (game code)', () => {
     expect(s.pin).toMatch(/^\d{4}$/);
     const me = await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(s.token) });
     expect(body<{ team: { id: string; cashBalance: number } }>(me).team).toMatchObject({ id: 'sea-dogs', cashBalance: 1_000_000 });
-    // The PIN is the crew password: the classic sign-in works with it too.
-    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Sea Dogs', password: s.pin } })).statusCode).toBe(200);
+    // There is no crew password sign-in: the PIN only works through the game code.
+    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Sea Dogs', password: s.pin } })).statusCode).toBe(401);
   });
 
   it('lets a teammate join an existing crew only with its PIN', async () => {
@@ -376,14 +375,6 @@ describe('POST /auth/join (game code)', () => {
     const bad = pin === '1111' ? '2222' : '1111';
     for (let i = 0; i < 6; i++) await join({ code: c, name: 'Locked Up', pin: bad });
     expect((await join({ code: c, name: 'Locked Up', pin })).statusCode).toBe(429);
-  });
-
-  it('throttles PIN guessing through the classic crew sign-in too', async () => {
-    const c = await code();
-    const { pin } = body<{ pin: string }>(await join({ code: c, name: 'Guarded' }));
-    const bad = pin === '1111' ? '2222' : '1111';
-    for (let i = 0; i < 6; i++) await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Guarded', password: bad } });
-    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Guarded', password: pin } })).statusCode).toBe(429);
   });
 
   it('refuses a wrong code, the admin name, and an ended game', async () => {
@@ -603,11 +594,7 @@ describe('/api/admin crew management', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(store.crews.get('gale-runners')!.cashBalance).toBe(h.startingCapital);
-    const login = await app.inject({
-      method: 'POST',
-      url: '/auth/login',
-      payload: { name: 'Gale Runners', password: 'anchors-aweigh-7' },
-    });
+    const login = await crewJoin('Gale Runners', 'anchors-aweigh-7');
     expect(login.statusCode).toBe(200);
 
     const dup = await app.inject({
@@ -629,11 +616,7 @@ describe('/api/admin crew management', () => {
     });
     expect(reset.statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(crewA) })).statusCode).toBe(401);
-    const again = await app.inject({
-      method: 'POST',
-      url: '/auth/login',
-      payload: { name: 'Saltwind', password: 'brand-new-pass-3' },
-    });
+    const again = await crewJoin('Saltwind', 'brand-new-pass-3');
     expect(again.statusCode).toBe(200);
   });
 
@@ -662,7 +645,7 @@ describe('/api/admin crew management', () => {
       await app.inject({ method: 'GET', url: '/api/admin/teams', headers: auth(host) }),
     );
     expect(teams.teams.map((t) => t.id).sort()).toEqual([CREW_B, CREW_A].sort());
-    await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Saltwind', password: PASSWORD_A } });
+    await crewJoin('Saltwind', PASSWORD_A);
     const logs = body<{ logs: { action: string }[] }>(
       await app.inject({ method: 'GET', url: '/api/admin/logs', headers: auth(host) }),
     );

@@ -21,7 +21,7 @@ export function feeFor(notionalCents: number, feeBps: number): number {
 
 /**
  * Linear impact per share, in log units: λ = impactY·sigD/ADV, with
- *   sigD = sqrt(beta²·mktVol² + impactVolRef²)/sqrt(252)
+ *   sigD = sqrt(beta²·impactMktVol² + impactVolRef²)/sqrt(252)
  *   ADV  = sharesOutstanding/advDivisor
  * Uses only public inputs, so estimates never leak hidden quality. Without a
  * positive ADV, λ is 0; intervalShareCap is then 0 too, so no order passes.
@@ -30,7 +30,7 @@ export function impactLambda(beta: number, sharesOutstanding: number): number {
   const adv = sharesOutstanding / MODEL.advDivisor;
   if (!(adv > 0)) return 0;
   const sigD =
-    Math.sqrt(beta * beta * MODEL.mktVol * MODEL.mktVol + MODEL.impactVolRef * MODEL.impactVolRef) /
+    Math.sqrt(beta * beta * MODEL.impactMktVol * MODEL.impactMktVol + MODEL.impactVolRef * MODEL.impactVolRef) /
     Math.sqrt(MODEL.tradingDaysPerGame);
   return (MODEL.impactY * sigD) / adv;
 }

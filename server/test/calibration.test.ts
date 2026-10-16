@@ -121,22 +121,22 @@ describe('calibration (research SANITY bands)', () => {
   it('runs within the 45 s budget', () => {
     expect(elapsedMs).toBeLessThan(45_000);
   });
-  it('per-game realized vol is in [0.36, 0.40] at 10 and 30 minutes and scale-invariant', () => {
-    for (const s of [s10, s30]) { expect(s.vol).toBeGreaterThanOrEqual(0.36); expect(s.vol).toBeLessThanOrEqual(0.4); }
+  it('per-game realized vol is in [0.32, 0.37] at 10 and 30 minutes and scale-invariant', () => {
+    for (const s of [s10, s30]) { expect(s.vol).toBeGreaterThanOrEqual(0.32); expect(s.vol).toBeLessThanOrEqual(0.37); }
     expect(Math.abs(s10.vol - s30.vol)).toBeLessThan(0.015);
   });
   it('tick returns have no linear predictability (|mean ACF1| ≤ 0.03)', () => {
     // Centred near −1/(ticks − 1), the small-sample bias of the estimator, not on 0.
     for (const s of [s10, s30]) expect(Math.abs(s.acf1)).toBeLessThanOrEqual(0.03);
   });
-  it('mean pairwise tick-return correlation is in [0.24, 0.32]', () => {
-    for (const s of [s10, s30]) { expect(s.pairCorr).toBeGreaterThanOrEqual(0.24); expect(s.pairCorr).toBeLessThanOrEqual(0.32); }
+  it('mean pairwise tick-return correlation is in [0.10, 0.17]', () => {
+    for (const s of [s10, s30]) { expect(s.pairCorr).toBeGreaterThanOrEqual(0.1); expect(s.pairCorr).toBeLessThanOrEqual(0.17); }
   });
-  it('the top 3 of 15 by quality beat the bottom 3 in ≥ 90% of seeds with a spread in [0.38, 0.55]', () => {
-    expect(sAll.topWins).toBeGreaterThanOrEqual(0.9);
-    expect(sAll.spread).toBeGreaterThanOrEqual(0.38); expect(sAll.spread).toBeLessThanOrEqual(0.55);
+  it('the top 3 of 15 by quality beat the bottom 3 in ≥ 97% of seeds with a spread in [0.70, 0.95]', () => {
+    expect(sAll.topWins).toBeGreaterThanOrEqual(0.97);
+    expect(sAll.spread).toBeGreaterThanOrEqual(0.7); expect(sAll.spread).toBeLessThanOrEqual(0.95);
   });
-  it('mean Spearman(q, game return) is in [0.40, 0.50]', () => {
-    expect(sAll.spearman).toBeGreaterThanOrEqual(0.4); expect(sAll.spearman).toBeLessThanOrEqual(0.5);
+  it('mean Spearman(q, game return) is in [0.60, 0.75]', () => {
+    expect(sAll.spearman).toBeGreaterThanOrEqual(0.6); expect(sAll.spearman).toBeLessThanOrEqual(0.75);
   });
 });

@@ -12,9 +12,9 @@ import {
 } from '@deca/shared';
 
 describe('clock', () => {
-  it('offers 10/15/20/30-minute games and defaults to 30', () => {
-    expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20, 30].map((m) => m * MINUTE_MS));
-    expect(DEFAULT_GAME_LENGTH_MS).toBe(30 * MINUTE_MS);
+  it('offers 10/15/20-minute games and defaults to 20', () => {
+    expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20].map((m) => m * MINUTE_MS));
+    expect(DEFAULT_GAME_LENGTH_MS).toBe(20 * MINUTE_MS);
   });
   it('derives tick interval, totals and sessions per game length', () => {
     // Every option is under the 5s tick floor, so the cadence is 5s throughout.

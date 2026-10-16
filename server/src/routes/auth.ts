@@ -1,12 +1,9 @@
 /**
- * Login. A crew (or the host) signs in with a name and password; the server checks the scrypt hash
- * it stores — `crews.password_hash` for a crew, `meta.admin_password_hash` for the host — and
- * issues its own HS256 session token (auth/sessions.ts). There is no identity provider and no
- * account to create: the roster is the crews the host made.
- *
- * The answer is `{ token, role, teamId, expiresAt }`; the client keeps the token and sends it as
- * `Authorization: Bearer`. A wrong name and a wrong password give the same message, so the form
- * never reveals which crews exist.
+ * Sign-in. The HOST signs in at /auth/login with the name 'admin' and the host password (scrypt hash in
+ * `meta.admin_password_hash`). Crews have no password sign-in: they join at /auth/join with the game code
+ * and a crew name, plus the crew PIN when the crew already exists. Both answer `{ token, role, teamId?,
+ * expiresAt }` — the server's own HS256 session token (auth/sessions.ts) — which the client sends as
+ * `Authorization: Bearer`.
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -37,24 +34,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const slug = slugifyTeamName(parsed.data.name);
     if (!slug) return reply.code(400).send({ error: 'bad_name', message: 'Invalid name' });
 
-    const isAdmin = slug === ADMIN_SLUG;
-    const hash = isAdmin ? hostPasswordHash() : store.crews.passwordHash(slug);
-    // A crew password may be a 4-digit join PIN, so this path shares /auth/join's wrong-guess throttle.
-    if (!isAdmin && hash && pinLocked(slug)) {
-      return reply.code(429).send({ error: 'pin_locked', message: 'Too many wrong tries for this crew. Wait a few minutes or ask your host.' });
-    }
-    // Generic failure message — never reveal whether the crew exists.
+    // Host only. Crews get in with the game code (/auth/join) — there is no crew password sign-in.
+    const hash = slug === ADMIN_SLUG ? hostPasswordHash() : null;
     if (!hash || !verifyPassword(parsed.data.password, hash)) {
-      if (!isAdmin && hash) recordPinMiss(slug);
-      return reply.code(401).send({ error: 'bad_login', message: 'Wrong crew name or password' });
+      return reply.code(401).send({ error: 'bad_login', message: 'Wrong host password' });
     }
-    if (!isAdmin) clearPinMisses(slug);
 
-    const role: Role = isAdmin ? 'admin' : 'team';
-    const teamId = isAdmin ? undefined : slug;
-    const { token, expiresAt } = issueToken({ role, teamId, tokenVersion: currentTokenVersion(role, teamId) });
-    await auditLog('auth.login', isAdmin ? 'admin' : slug, { role });
-    return { token, role, teamId, expiresAt };
+    const role: Role = 'admin';
+    const { token, expiresAt } = issueToken({ role, tokenVersion: currentTokenVersion(role, undefined) });
+    await auditLog('auth.login', 'admin', { role });
+    return { token, role, expiresAt };
   });
 
   /**

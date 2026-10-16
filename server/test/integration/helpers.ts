@@ -7,6 +7,7 @@
  * deletes it afterwards.
  */
 
+import { currentJoinCode } from '../../src/services/joinCode';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -94,9 +95,15 @@ export async function seedWorld(
   return { seed: opts.seed, companyIds: store.companies.all().map((c) => c.id) };
 }
 
-/** `POST /auth/login`, returning the token a phone would keep. */
+/**
+ * Signs in the way a phone does, returning the token it would keep: the host at `POST /auth/login`, a crew
+ * at `POST /auth/join` with the current game code and its password as the crew PIN.
+ */
 export async function login(app: FastifyInstance, name: string, password: string): Promise<string> {
-  const res = await app.inject({ method: 'POST', url: '/auth/login', payload: { name, password } });
+  const res =
+    name === 'admin'
+      ? await app.inject({ method: 'POST', url: '/auth/login', payload: { name, password } })
+      : await app.inject({ method: 'POST', url: '/auth/join', payload: { code: currentJoinCode(), name, pin: password } });
   if (res.statusCode !== 200) throw new Error(`login failed for ${name}: ${res.statusCode} ${res.body}`);
   return (res.json() as { token: string }).token;
 }

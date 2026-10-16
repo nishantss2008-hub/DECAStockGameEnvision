@@ -4,7 +4,7 @@ import { lengthLabel, lengthPhrase } from './gameLength';
 
 describe('game length wording (10–30 minute games)', () => {
   it('labels every length the host can pick in minutes', () => {
-    expect(GAME_LENGTH_OPTIONS_MS.map(lengthLabel)).toEqual(['10 minutes', '15 minutes', '20 minutes', '30 minutes']);
+    expect(GAME_LENGTH_OPTIONS_MS.map(lengthLabel)).toEqual(['10 minutes', '15 minutes', '20 minutes']);
   });
 
   it('never says "0.2 hours" for a sub-hour game', () => {

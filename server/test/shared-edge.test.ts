@@ -174,7 +174,7 @@ describe('estimate edge cases', () => {
   });
 
   it('MODEL carries the v2.1 impact knobs and no impact/tick caps', () => {
-    expect(MODEL).toMatchObject({ impactY: 1.1, tickMoveSds: 3, mispriceSd: 0, surpriseWeight: 0.75, intervalAdvCap: 1 });
+    expect(MODEL).toMatchObject({ impactY: 1.1, tickMoveSds: 3, mispriceSd: 0, surpriseWeight: 0.85, intervalAdvCap: 1 });
     expect('maxImpact' in MODEL).toBe(false);
     expect('maxTickMove' in MODEL).toBe(false);
   });
@@ -390,8 +390,8 @@ describe('clock for every game length option', () => {
     30: { tickIntervalMs: 5_000, totalTicks: 360, sessionTicks: 45, tabs: ['1M', '5M', '15M', 'All'] },
   };
 
-  it('covers exactly the four options', () => {
-    expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20, 30].map((m) => m * MINUTE_MS));
+  it('covers exactly the three options', () => {
+    expect(GAME_LENGTH_OPTIONS_MS).toEqual([10, 15, 20].map((m) => m * MINUTE_MS));
   });
 
   it('DEFAULT_TICK_INTERVAL_MS is the cadence every supported length lands on', () => {

@@ -44,7 +44,7 @@ describe('createMarket', () => {
     }
   });
 
-  it('opens in the lobby with a 30-minute clock and a tick-0 index of 1000', async () => {
+  it('opens in the lobby with a 20-minute clock and a tick-0 index of 1000', async () => {
     await createMarket({ seed: SEED, keepCrews: false });
     const clock = deriveClock(DEFAULT_GAME_LENGTH_MS);
     expect(store.game.get()).toMatchObject({
@@ -52,13 +52,13 @@ describe('createMarket', () => {
       currentTick: 0,
       startAt: null,
       endAt: null,
-      gameLengthMs: 30 * MINUTE_MS,
+      gameLengthMs: 20 * MINUTE_MS,
       totalTicks: clock.totalTicks,
       sessionTicks: clock.sessionTicks,
       tickIntervalMs: clock.tickIntervalMs,
       startingCapital: DEFAULT_STARTING_CAPITAL,
     });
-    expect(clock.totalTicks).toBe(360);
+    expect(clock.totalTicks).toBe(240);
 
     const market = store.market.get();
     expect(market).toMatchObject({ lastTick: 0, composite: { value: 1000, open: 1000, sessionOpen: 1000 } });

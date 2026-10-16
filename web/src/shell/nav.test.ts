@@ -22,8 +22,8 @@ function memoryStorage() {
 
 describe('nav', () => {
   it('crew tabs are exactly the five MOBILE §6.1 tabs, in order', () => {
-    expect(navItemsFor('team').map((n) => n.label)).toEqual(['Portfolio', 'Markets', 'News', 'Standings', 'Learn']);
-    expect(CREW_TABS.map((n) => n.to)).toEqual(['/portfolio', '/markets', '/news', '/standings', '/learn']);
+    expect(navItemsFor('team').map((n) => n.label)).toEqual(['Portfolio', 'Markets', 'News', 'Standings']);
+    expect(CREW_TABS.map((n) => n.to)).toEqual(['/portfolio', '/markets', '/news', '/standings']);
   });
 
   it('host tabs are exactly the five MOBILE §6.6 tabs, in order', () => {
@@ -39,7 +39,8 @@ describe('nav', () => {
     expect(tabIdForPath('/portfolio')).toBe('portfolio');
     expect(tabIdForPath('/portfolio/activity/BX-7Q2F9K')).toBe('portfolio');
     expect(tabIdForPath('/news/company/KRKN/financials')).toBe('news');
-    expect(tabIdForPath('/learn/glossary/peRatio')).toBe('learn');
+    // Learn has no tab since 2026-10-16; its pages open from links and belong to no tab.
+    expect(tabIdForPath('/learn/glossary/peRatio')).toBeNull();
     expect(tabIdForPath('/standings/results')).toBe('standings');
     expect(tabIdForPath('/marketsx')).toBeNull();
     expect(tabIdForPath('/admin')).toBeNull();
@@ -85,14 +86,11 @@ describe('tab memory (sessionStorage)', () => {
 
   it('never remembers or restores the full-screen "Meet the market" flow (design §6)', () => {
     const s = memoryStorage();
-    rememberTabPath(s, { pathname: '/learn/glossary/peRatio', search: '', hash: '' });
     rememberTabPath(s, { pathname: '/learn/meet-the-market', search: '?step=4', hash: '' });
-    // The flow is a step, not a stack position: the tab still points at the last real Learn screen.
-    expect(recallTabPath(s, 'learn')).toBe('/learn/glossary/peRatio');
-    // And a value left by an older build is rejected rather than restored.
+    expect(recallTabPath(s, 'learn')).toBeNull();
+    // A value left by an older build is rejected rather than restored.
     s.setItem('bx.tab.learn', '/learn/meet-the-market?step=1');
     expect(recallTabPath(s, 'learn')).toBeNull();
-    expect(tabPressTarget({ tab: CREW_TABS[4]!, pathname: '/standings', remembered: recallTabPath(s, 'learn') })).toEqual({ kind: 'navigate', to: '/learn' });
   });
 
   it('rejects a remembered value that belongs to another tab', () => {

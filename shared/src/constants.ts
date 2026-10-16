@@ -25,10 +25,10 @@ export const MINUTE_MS = 60_000;
  * A game runs at most 30 minutes (2026-09-15 requirement). With the 5s tick
  * floor in `deriveClock` that is 120–360 ticks and 8 sessions of 75–270s.
  */
-export const GAME_LENGTH_OPTIONS_MS = [10, 15, 20, 30].map((m) => m * MINUTE_MS);
+export const GAME_LENGTH_OPTIONS_MS = [10, 15, 20].map((m) => m * MINUTE_MS);
 
-/** Default game length (30 minutes — the longest option). */
-export const DEFAULT_GAME_LENGTH_MS = 30 * MINUTE_MS;
+/** Default game length (20 minutes — the longest option, 2026-10-16). */
+export const DEFAULT_GAME_LENGTH_MS = 20 * MINUTE_MS;
 
 /**
  * Tick cadence to assume before a game's own settings have loaded (5 seconds).
@@ -82,6 +82,9 @@ export type ResearchEdge = (typeof RESEARCH_EDGES)[number];
  * an average one, and the worst `spread` lower. It is the ONLY knob that decides how
  * much reading the statements pays.
  *
+ * RAISED 2026-10-16 (0.39 → 0.60 normal) so good and bad companies separate clearly in a 20-minute game;
+ * the sweep below is the original 2026-09-16 calibration.
+ *
  * CALIBRATED FOR THE 15-COMPANY ROSTER (2026-09-16). `normal` is the smallest value at
  * which the best three companies beat the worst three in ~95% of seeds (measured over
  * 500 games × 10 seed families per candidate: 0.36 → 94.1%, 0.37 → 94.2%, 0.38 → 94.6%,
@@ -93,7 +96,7 @@ export type ResearchEdge = (typeof RESEARCH_EDGES)[number];
  * 0.30). If the roster size changes again, re-run `server/test/calibration.test.ts`,
  * re-measure this sweep, and re-derive that test's Spearman and top-minus-bottom bands.
  */
-export const EDGE_SPREAD: Record<ResearchEdge, number> = { low: 0.26, normal: 0.39, high: 0.52 };
+export const EDGE_SPREAD: Record<ResearchEdge, number> = { low: 0.4, normal: 0.6, high: 0.8 };
 
 /** News event categories. */
 export const NEWS_TYPES = [
@@ -127,8 +130,9 @@ export type RevealLabel = (typeof REVEAL_LABELS)[number];
  */
 export const MODEL = {
   tradingDaysPerGame: 252,
-  mktDrift: 0.06,
-  mktVol: 0.18,
+  /** 0 since 2026-10-16: the market as a whole should not rise on its own — company quality decides. */
+  mktDrift: 0,
+  mktVol: 0.1,
   idioVolBase: 0.3,
   idioVolQuality: 0.05,
   idioVolJitter: 0.04,
@@ -159,12 +163,14 @@ export const MODEL = {
    * asking — it was offered and declined.
    */
   impactY: 1.1,
+  /** Market vol inside the impact coefficient: fixed at the original 0.18 so retuning `mktVol` never changes fills. */
+  impactMktVol: 0.18,
   advDivisor: 150,
   impactVolRef: 0.3,
   /** Clamp |dv| ≤ tickMoveSds·√dt. */
   tickMoveSds: 3,
   /** qEff = surpriseWeight·q + (1 − surpriseWeight)·ξ, ξ ~ U[−1,1] seeded `surprise:${id}`. */
-  surpriseWeight: 0.75,
+  surpriseWeight: 0.85,
   /** Max ADVs of shares per crew, per company, per tick interval. */
   intervalAdvCap: 1,
   priceProtection: 0.02,

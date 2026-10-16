@@ -39,9 +39,9 @@ describe('model parameters', () => {
     for (const h of [1, 12, 48]) { const c = deriveClock(h * HOUR_MS); const d = derive(c, 0.3);
       expect(d.decay ** Math.round(0.05 * c.totalTicks)).toBeCloseTo(0.5, 2); expect(d.moveCap).toBeCloseTo(3 * Math.sqrt(1 / c.totalTicks), 12); }
   });
-  it('hidden surprise mixes 25% seeded noise into quality', () => {
+  it('hidden surprise mixes 15% seeded noise into quality', () => {
     const x = surpriseFor('s', 'a'); expect(x).toBeGreaterThanOrEqual(-1); expect(x).toBeLessThanOrEqual(1);
-    expect(effectiveQuality(0.8, x)).toBeCloseTo(0.75 * 0.8 + 0.25 * x, 12); expect(surpriseFor('s', 'a')).toBe(x);
+    expect(effectiveQuality(0.8, x)).toBeCloseTo(0.85 * 0.8 + 0.15 * x, 12); expect(surpriseFor('s', 'a')).toBe(x);
   });
   it('compensated drift gives expected quality return spread·q regardless of K', () => {
     // Expected log jump per event = pUp·E[ln(1+Y)] + (1−pUp)·E[ln(max(0.05, 1−Y))], Y = min(0.25, Exp(jumpMean)).

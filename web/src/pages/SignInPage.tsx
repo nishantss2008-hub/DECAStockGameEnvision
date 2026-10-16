@@ -1,6 +1,6 @@
 /**
- * Sign in (MOBILE §7.1, `/login`): full-screen hull, top-aligned so the keyboard never covers the button. Crew and
- * Host tabs; COPY §12 signIn errors in a role="alert" slot that replaces the helper; fields get aria-invalid and
+ * Sign in (MOBILE §7.1, `/login`): full-screen hull, top-aligned so the keyboard never covers the button. Join game
+ * and Host tabs; COPY §12 signIn errors in a role="alert" slot that replaces the helper; fields get aria-invalid and
  * focus returns to the first field. After a crew signs in with trading turned off, the same slot shows
  * signIn.disabled for a moment before the app opens.
  *
@@ -23,7 +23,7 @@ import { useDocumentTitle } from '../shell/StubPage';
 import { ERRORS, MOBILE, SHELL, SIGN_IN } from '../shell/copy';
 import '../shell/signIn.css';
 
-type Mode = 'join' | 'crew' | 'host';
+type Mode = 'join' | 'host';
 
 /** Server error codes whose message is already written for a student (routes/auth.ts /auth/join). */
 const JOIN_ERRORS = new Set(['bad_code', 'needs_pin', 'bad_pin', 'pin_locked', 'game_over', 'bad_name', 'rate_limited']);
@@ -32,15 +32,17 @@ type Stage = 'idle' | 'submitting' | 'signedIn';
 /** How long the "trading is turned off" note stays before the app opens. */
 export const TRADING_OFF_NOTICE_MS = 3500;
 
+const HOST_PASSWORD_WRONG = 'That host password is not right. Check with the officer who set up the game.';
+
 function errorText(err: unknown, mode: Mode): string {
   if (mode === 'join' && err instanceof ApiRequestError && JOIN_ERRORS.has(err.code)) return err.message;
   if (mode === 'join' && err instanceof ApiRequestError && err.code === 'bad_request') return 'Enter the game code and a crew name.';
-  if (err instanceof ApiRequestError && (err.code === 'bad_login' || err.code === 'bad_request' || err.code === 'bad_name')) return SIGN_IN.error;
+  if (err instanceof ApiRequestError && (err.code === 'bad_login' || err.code === 'bad_request' || err.code === 'bad_name')) return HOST_PASSWORD_WRONG;
   return ERRORS.pageLoad.body;
 }
 
 export default function SignInPage() {
-  const { user, role, teamId, loading, login, loginAdmin, join, logout } = useAuth();
+  const { user, role, teamId, loading, loginAdmin, join, logout } = useAuth();
   const location = useLocation();
   const [mode, setMode] = useState<Mode>('join');
   const [code, setCode] = useState(() => new URLSearchParams(location.search).get('code')?.toUpperCase() ?? '');
@@ -122,16 +124,15 @@ export default function SignInPage() {
       }
       return;
     }
-    if ((mode === 'crew' && !name.trim()) || !password) {
-      setError(SIGN_IN.error);
+    if (!password) {
+      setError('Enter the host password.');
       focusFirst();
       return;
     }
     setError(null);
     setStage('submitting');
     try {
-      if (mode === 'crew') await login(name.trim(), password);
-      else await loginAdmin(password);
+      await loginAdmin(password);
       setStage('signedIn');
     } catch (err) {
       setStage('idle');
@@ -189,7 +190,6 @@ export default function SignInPage() {
           <SegmentedControl
             options={[
               { value: 'join', label: 'Join game' },
-              { value: 'crew', label: SHELL.crewTab },
               { value: 'host', label: SHELL.hostTab },
             ]}
             value={mode}
@@ -226,7 +226,7 @@ export default function SignInPage() {
               <label className="bx-signin__field">
                 <span className="bx-signin__label t-body">{MOBILE.signInFields.crew}</span>
                 <input
-                  ref={mode === 'crew' ? firstField : undefined}
+
                   className="bx-signin__input t-body"
                   name="username"
                   autoComplete="username"
@@ -270,7 +270,7 @@ export default function SignInPage() {
             {mode !== 'join' && (
             <div className="bx-signin__field">
               <label className="bx-signin__label t-body" htmlFor="bx-signin-password">
-                {mode === 'crew' ? MOBILE.signInFields.password : SHELL.hostPassword}
+                {SHELL.hostPassword}
               </label>
               <input
                 id="bx-signin-password"
@@ -317,8 +317,6 @@ export default function SignInPage() {
               <p className="bx-signin__help t-footnote">
                 Type the game code your host shows, then pick a crew name. Joining a crew that already exists? You’ll need its PIN.
               </p>
-            ) : mode === 'crew' ? (
-              <p className="bx-signin__help t-footnote">{SIGN_IN.help}</p>
             ) : null}
           </div>
 

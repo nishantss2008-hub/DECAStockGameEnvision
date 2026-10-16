@@ -20,7 +20,6 @@ export const CREW_TABS: readonly NavItem<TabId>[] = [
   { id: 'markets', label: 'Markets', to: '/markets' },
   { id: 'news', label: 'News', to: '/news' },
   { id: 'standings', label: 'Standings', to: '/standings' },
-  { id: 'learn', label: 'Learn', to: '/learn' },
 ];
 
 export const HOST_TABS: readonly NavItem<HostTabId>[] = [

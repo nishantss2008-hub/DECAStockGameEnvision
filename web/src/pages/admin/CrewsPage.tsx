@@ -1,7 +1,7 @@
 /**
- * Host Crews (MOBILE §7.18, `/admin/crews`): SearchField "Search crews" · "Add crew" · one row per crew (crest, name,
+ * Host Crews (MOBILE §7.18, `/admin/crews`): SearchField "Search crews" · one row per crew (crest, name,
  * rank and value, "Trading off" tag) → Crew detail (`?crew=id`, pushed look): value/cash/return/trades/rank with "?",
- * ToggleRow "Trading allowed", holdings, "Reset password…", destructive "Remove crew…" (action sheet).
+ * ToggleRow "Trading allowed", holdings, "Reset crew PIN…", destructive "Remove crew…" (action sheet).
  * At ≥744 the list is a table (spec §8 crews table). Empty: COPY §12 empty.hostCrews.
  *
  * The "Meet the market" gate (design 2026-09-16 §6, COPY §14 `intro-host`) is shown here too: which crews have
@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import type { GameState, Team } from '@deca/shared';
 import { SearchField } from '../../components/ios/SearchField';
 import { InsetGroupedList } from '../../components/ios/InsetGroupedList';
@@ -34,7 +34,7 @@ import { filterCrews, returnPct } from '../../components/admin/adminFormat';
 import { crewInitials } from '../../components/admin/hostLogic';
 import { HOST_EMPTY, HOST_PHONE, INTRO_HOST } from '../../components/admin/hostCopy';
 import { HostInfo, HostLoadError, HostLoading, HostNavBar, MetricLabel, MetricLegend } from '../../components/admin/HostUi';
-import { AddCrewSheet, ResetPasswordSheet } from '../../components/admin/CrewSheets';
+import { ResetPasswordSheet } from '../../components/admin/CrewSheets';
 import { useHostAction } from '../../components/admin/useHostData';
 import { useToast } from '../../components/ios/Toast';
 import { introComplete } from '../../components/learn/introFlow';
@@ -57,7 +57,6 @@ export default function CrewsPage() {
 
 function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams: Team[]; loading: boolean; error: string | null; game: GameState | null; focusSearch: boolean; onOpen: (id: string) => void }) {
   const [q, setQ] = useState('');
-  const [adding, setAdding] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const layout = useShellLayout();
   const ranked = useMemo(() => [...teams].sort((a, b) => (a.rank || 9999) - (b.rank || 9999) || a.name.localeCompare(b.name)), [teams]);
@@ -78,17 +77,12 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
         pinnedSearch={<SearchField value={q} onChange={setQ} placeholder={C.search} label={C.search} inputRef={searchRef} />}
       />
       <div className="bx-page bx-host-page">
-        <div className="bx-host-toolbar">
-          <Button variant="filled" size="medium" icon={Plus} onClick={() => setAdding(true)}>
-            {C.add}
-          </Button>
-        </div>
         {loading ? (
           <HostLoading />
         ) : error && teams.length === 0 ? (
           <HostLoadError message={error} onRetry={() => window.location.reload()} />
         ) : teams.length === 0 ? (
-          <EmptyState icon={Users} title={HOST_EMPTY.hostCrews.title} body={HOST_EMPTY.hostCrews.body} action={{ label: C.add, onClick: () => setAdding(true) }} />
+          <EmptyState icon={Users} title={HOST_EMPTY.hostCrews.title} body={HOST_EMPTY.hostCrews.body} />
         ) : layout === 'split' ? (
           <div className="bx-host-table-wrap">
             <table className="bx-host-table">
@@ -156,7 +150,6 @@ function CrewList({ teams, loading, error, game, focusSearch, onOpen }: { teams:
           </>
         )}
       </div>
-      <AddCrewSheet game={game} open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }
