@@ -4,7 +4,10 @@ import { derive, garchStep, marketStep, companyStep, initialState, drift, expect
 import { replayFairValue, recoverImpact, serializeState } from '../src/engine/state';
 import { buildSchedule, jumpsAtTick } from '../src/engine/news';
 
-const cos = (n: number): ModelCompany[] => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, qEff: -1 + 2 * (i + 0.5) / n, beta: 1, idioVol: 0.3, sharesOutstanding: 50_000_000, lambda: impactLambda(1, 50_000_000) }));
+/** The original (pre-2026-10-16) impact strength, 55× today's: the anti-manipulation math must hold at any strength, and is easiest to see here. */
+const STRESS_IMPACT_Y = 1.1;
+
+const cos = (n: number): ModelCompany[] => Array.from({ length: n }, (_, i) => ({ id: `c${i}`, qEff: -1 + 2 * (i + 0.5) / n, beta: 1, idioVol: 0.3, sharesOutstanding: 50_000_000, lambda: impactLambda(1, 50_000_000, STRESS_IMPACT_Y) }));
 function run(seed: string, hours: number, companies: ModelCompany[], flowAt?: (t: number, id: string) => number, stopAt?: number) {
   const clock = deriveClock(hours * HOUR_MS); const d = derive(clock, 0.3);
   const events = jumpsAtTick(buildSchedule(seed, clock, companies.map((c) => ({ ...c, name: c.id, ticker: c.id.toUpperCase(), sector: 'Naval Arms' })), d));
@@ -48,7 +51,7 @@ describe('model parameters', () => {
     for (const h of [1, 4, 12, 48]) {
       const d = derive(deriveClock(h * HOUR_MS), 0.3);
       for (const qEff of [-0.9, 0, 0.5]) {
-        const c = { id: 'x', qEff, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1, 1e7) };
+        const c = { id: 'x', qEff, beta: 1, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1, 1e7, STRESS_IMPACT_Y) };
         const pUp = 0.5 + 0.3 * c.qEff;
         const jumpDrift = d.K * (pUp * d.eLogUp + (1 - pUp) * d.eLogDown);
         expect(drift(c, d) + jumpDrift).toBeCloseTo(0.3 * qEff, 10);
@@ -89,7 +92,7 @@ describe('model parameters', () => {
   });
   it('expectedLogReturn is spread·qEff + beta·mktDrift (the reveal baseline)', () => {
     const d = derive(deriveClock(12 * HOUR_MS), 0.4);
-    const c = { id: 'x', qEff: -0.35, beta: 1.2, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1.2, 1e7) };
+    const c = { id: 'x', qEff: -0.35, beta: 1.2, idioVol: 0.3, sharesOutstanding: 1e7, lambda: impactLambda(1.2, 1e7, STRESS_IMPACT_Y) };
     expect(expectedLogReturn(c, d)).toBeCloseTo(0.4 * -0.35 + 1.2 * MODEL.mktDrift, 12);
     expect(expectedLogReturn(c, d, 0.1)).toBeCloseTo(0.4 * -0.35 + 1.2 * 0.1, 12);
   });
@@ -140,7 +143,7 @@ describe('determinism and resume', () => {
 describe('anti-manipulation (zero noise, linear transient impact)', () => {
   // K = 0: this stepper applies no news, so there is no jump compensator and the drift at qEff = 0 is exactly 0
   const clock = deriveClock(48 * HOUR_MS); const d = { ...derive(clock, 0.3), K: 0 }; const so = 8_000_000;
-  const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: so, lambda: impactLambda(1, so) };
+  const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: so, lambda: impactLambda(1, so, STRESS_IMPACT_Y) };
   // deterministic zero-noise stepper: rM = 0, jump = 0, idioVol = 0, qEff = 0, K = 0 → v constant; only f moves
   const step = (s: ReturnType<typeof initialState>, net: number) => companyStep('am', 1, quiet, s, 0, 0, net, d);
   function roundTrip(plan: number[]) { // plan[t] = signed shares traded in interval t (sum must be 0)

@@ -14,12 +14,15 @@ import { buildSchedule, hostEvent, jumpsAtTick, type NewsCompany, type Scheduled
 import { replayFairValue, recoverImpact } from '../src/engine/state';
 import { FlowBook } from '../src/engine/flow';
 
+/** The original (pre-2026-10-16) impact strength, 55× today's: the anti-manipulation math must hold at any strength, and is easiest to see here. */
+const STRESS_IMPACT_Y = 1.1;
+
 const SO = 8_000_000;
 /** A SYNTHETIC universe of n companies for the Monte-Carlo checks below — unrelated to the 15-name roster. */
 const cos = (n: number, seed = 'edge'): ModelCompany[] =>
   Array.from({ length: n }, (_, i) => {
     const q = -1 + (2 * (i + 0.5)) / n;
-    return { id: `c${i}`, qEff: q, beta: 1, idioVol: idioVolFor(seed, `c${i}`, q), sharesOutstanding: SO, lambda: impactLambda(1, SO) };
+    return { id: `c${i}`, qEff: q, beta: 1, idioVol: idioVolFor(seed, `c${i}`, q), sharesOutstanding: SO, lambda: impactLambda(1, SO, STRESS_IMPACT_Y) };
   });
 const news = (companies: ModelCompany[]): NewsCompany[] =>
   companies.map((c) => ({ id: c.id, qEff: c.qEff, beta: c.beta, name: `Company ${c.id}`, ticker: c.id.toUpperCase(), sector: 'Naval Arms' }));
@@ -63,7 +66,7 @@ describe('scale invariance', () => {
 describe('per-tick mechanics (spec §5.3 line by line)', () => {
   const clock = deriveClock(HOUR_MS); const d = derive(clock, 0.3);
   it('draws zM from mkt:t, then z and zO (in that order) from co:id:t; GARCH uses z only', () => {
-    const c: ModelCompany = { id: 'abc', qEff: 0, beta: 0, idioVol: 0.3, sharesOutstanding: SO, lambda: impactLambda(0, SO) };
+    const c: ModelCompany = { id: 'abc', qEff: 0, beta: 0, idioVol: 0.3, sharesOutstanding: SO, lambda: impactLambda(0, SO, STRESS_IMPACT_Y) };
     const mk = { hM: 1.7 }; const rM = marketStep('lab', 42, mk, d);
     const zM = new Prng(deriveSeed('lab', 'mkt:42')).gauss();
     expect(rM).toBe(MODEL.mktDrift * d.dt + MODEL.mktVol * Math.sqrt(1.7 * d.dt) * zM);
@@ -79,7 +82,7 @@ describe('per-tick mechanics (spec §5.3 line by line)', () => {
     expect(s.m).toBe(0.002 * d.decay + 0.01 * zO);
   });
   it('clamps only the diffusive move to ±3·√dt; the news jump gaps past it', () => {
-    const wild: ModelCompany = { id: 'w', qEff: 0, beta: 1, idioVol: 1_000, sharesOutstanding: SO, lambda: impactLambda(1, SO) };
+    const wild: ModelCompany = { id: 'w', qEff: 0, beta: 1, idioVol: 1_000, sharesOutstanding: SO, lambda: impactLambda(1, SO, STRESS_IMPACT_Y) };
     let up = 0; let down = 0;
     for (let t = 1; t <= 40; t++) {
       const s = initialState(10_000); const v0 = s.v; const jump = Math.log(1.25);
@@ -110,7 +113,7 @@ describe('net flow sign symmetry', () => {
     expect(buy.st.c0!.f).toBeGreaterThan(0); expect(buy.st.c2!.f).toBe(0);
   });
   it('buy and sell fills are mirror images in log space', () => {
-    const s: CompanyState = { v: Math.log(2_500), m: 0, f: 0, h: 1 }; const lam = impactLambda(1.1, SO);
+    const s: CompanyState = { v: Math.log(2_500), m: 0, f: 0, h: 1 }; const lam = impactLambda(1.1, SO, STRESS_IMPACT_Y);
     for (const [p, q] of [[0, 30_000], [12_000, 5_000], [-40_000, 53_000]] as const) {
       const buy = fillPriceExact(s, lam, p, q); const sell = fillPriceExact(s, lam, -p, -q); const x = lam * q;
       if (p === 0) { expect(buy).toBeGreaterThan(2_500); expect(sell).toBeLessThan(2_500); }
@@ -161,7 +164,7 @@ describe('fillPriceExact', () => {
     const r = new Prng('fill-eq');
     for (let k = 0; k < 2_000; k++) {
       const s: CompanyState = { v: Math.log(r.range(100, 90_000)), m: r.range(-0.01, 0.01), f: r.range(-0.03, 0.03), h: 1 };
-      const lam = impactLambda(r.range(0.6, 1.5), Math.floor(r.range(1e6, 9e7)));
+      const lam = impactLambda(r.range(0.6, 1.5), Math.floor(r.range(1e6, 9e7)), STRESS_IMPACT_Y);
       const p = Math.floor(r.range(-200_000, 200_000)); const sigma = Math.floor(r.range(-80_000, 80_000));
       expect(fillPriceExact(s, lam, p, sigma)).toBe(estFillPrice(sigma < 0 ? 'sell' : 'buy', Math.exp(s.v + s.m + s.f), lam, Math.abs(sigma), p));
     }
@@ -169,7 +172,7 @@ describe('fillPriceExact', () => {
     expect(fillPriceExact(s, 3e-7, 20_000, 0)).toBeCloseTo(Math.exp(s.v + s.f + 3e-7 * 20_000), 9);
   });
   it('50 small orders with pending flow cost the same as one order (relative error < 1e-6)', () => {
-    const s: CompanyState = { v: Math.log(3_210), m: 0, f: 0.004, h: 1 }; const lam = impactLambda(1.3, SO); const cap = intervalShareCap(SO);
+    const s: CompanyState = { v: Math.log(3_210), m: 0, f: 0.004, h: 1 }; const lam = impactLambda(1.3, SO, STRESS_IMPACT_Y); const cap = intervalShareCap(SO);
     for (const [q, p0] of [[cap, 0], [40_000, 12_345], [-cap, 7_000], [-25_000, -30_000]] as const) {
       const one = q * fillPriceExact(s, lam, p0, q);
       let split = 0; let pending = p0;
@@ -182,7 +185,7 @@ describe('fillPriceExact', () => {
 describe('impact update order regression guard', () => {
   const setup = (hours: number) => {
     // No news in this stepper (K = 0), so no jump compensator: drift is exactly 0 at qEff 0 and only f moves.
-    const clock = deriveClock(hours * HOUR_MS); const d: Derived = { ...derive(clock, 0.3), K: 0 }; const lam = impactLambda(1, SO);
+    const clock = deriveClock(hours * HOUR_MS); const d: Derived = { ...derive(clock, 0.3), K: 0 }; const lam = impactLambda(1, SO, STRESS_IMPACT_Y);
     const quiet: ModelCompany = { id: 'z', qEff: 0, beta: 1, idioVol: 0, sharesOutstanding: SO, lambda: lam };
     const right = (s: CompanyState, q: number) => { companyStep('ord', 1, quiet, s, 0, 0, q, d); };
     // WRONG order: f = decay·f + λQ (impact of the last interval arrives undecayed)

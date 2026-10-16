@@ -151,7 +151,12 @@ export const MODEL = {
   /** OU mispricing layer; 0 = off (the code path stays). */
   mispriceSd: 0,
   /**
-   * Almgren et al. 2005 linear coefficient 0.314·150^(1/4).
+   * Price impact of player orders. Was 1.1 (Almgren et al. 2005: 0.314·150^(1/4)); cut to 0.02 on
+   * 2026-10-16 so trading cannot move prices — no price-action or coordinated pump-and-dump play.
+   * Measured over 200 seeds with Ð250,000 start cash: one crew all-in on the THINNEST stock moves it
+   * ≈0.05% (median stock ≈0.0003%); 30 crews all-in on it in the same tick ≈1.4% (≈0.7% under the 50%
+   * position limit) — below one tick of ordinary price noise (≈1.9%), and it decays with a 1-minute
+   * half-life in a 20-minute game. The original 2026-09-16 note follows; its numbers are for 1.1.
    *
    * DELIBERATE, decided 2026-09-16: with Ð250,000 of starting cash a crew's order
    * moves a price by well under a basis point, and `intervalAdvCap` below is
@@ -162,7 +167,7 @@ export const MODEL = {
    * Do NOT "fix" this by shrinking company size or raising starting cash without
    * asking — it was offered and declined.
    */
-  impactY: 1.1,
+  impactY: 0.02,
   /** Market vol inside the impact coefficient: fixed at the original 0.18 so retuning `mktVol` never changes fills. */
   impactMktVol: 0.18,
   advDivisor: 150,

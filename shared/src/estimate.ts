@@ -26,13 +26,14 @@ export function feeFor(notionalCents: number, feeBps: number): number {
  * Uses only public inputs, so estimates never leak hidden quality. Without a
  * positive ADV, λ is 0; intervalShareCap is then 0 too, so no order passes.
  */
-export function impactLambda(beta: number, sharesOutstanding: number): number {
+/** `impactY` defaults to MODEL.impactY; tests pass a larger value to stress the impact math. */
+export function impactLambda(beta: number, sharesOutstanding: number, impactY: number = MODEL.impactY): number {
   const adv = sharesOutstanding / MODEL.advDivisor;
   if (!(adv > 0)) return 0;
   const sigD =
     Math.sqrt(beta * beta * MODEL.impactMktVol * MODEL.impactMktVol + MODEL.impactVolRef * MODEL.impactVolRef) /
     Math.sqrt(MODEL.tradingDaysPerGame);
-  return (MODEL.impactY * sigD) / adv;
+  return (impactY * sigD) / adv;
 }
 
 /** Most shares one crew may trade in one company per tick interval: floor(intervalAdvCap·ADV). */

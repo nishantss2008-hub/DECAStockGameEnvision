@@ -14,8 +14,7 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { OrderSide } from '@deca/shared';
-import { introComplete, INTRO_PATH } from '../components/learn/introFlow';
-import { useShellGame } from './ShellData';
+import { INTRO_PATH } from '../components/learn/introFlow';
 import { useSheet } from './useSheet';
 
 export interface TradeRequest {
@@ -35,10 +34,10 @@ export interface IntroGate {
 }
 
 export function useIntroGate(): IntroGate {
-  const { team } = useShellGame();
   const { open } = useSheet();
   const navigate = useNavigate();
-  const gated = team ? !introComplete(team) : false;
+  // The intro no longer gates trading (2026-10-16): every crew may trade straight away.
+  const gated = false;
 
   const openIntro = useCallback(() => navigate(INTRO_PATH), [navigate]);
   const openTrade = useCallback(

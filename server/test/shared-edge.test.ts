@@ -174,7 +174,7 @@ describe('estimate edge cases', () => {
   });
 
   it('MODEL carries the v2.1 impact knobs and no impact/tick caps', () => {
-    expect(MODEL).toMatchObject({ impactY: 1.1, tickMoveSds: 3, mispriceSd: 0, surpriseWeight: 0.85, intervalAdvCap: 1 });
+    expect(MODEL).toMatchObject({ impactY: 0.02, tickMoveSds: 3, mispriceSd: 0, surpriseWeight: 0.85, intervalAdvCap: 1 });
     expect('maxImpact' in MODEL).toBe(false);
     expect('maxTickMove' in MODEL).toBe(false);
   });
@@ -225,7 +225,7 @@ describe('estimate edge cases', () => {
   it('maxAffordableShares is maximal when impact is material', () => {
     const r = isMaximal(6_300_000, 1234, 1.2, 1_000_000, 10);
     expect(r.m).toBeLessThan(intervalShareCap(1_000_000));
-    expect(estFillPrice('buy', 1234, impactLambda(1.2, 1_000_000), r.m)).toBeGreaterThan(1234 * 1.005);
+    expect(estFillPrice('buy', 1234, impactLambda(1.2, 1_000_000, 1.1), r.m)).toBeGreaterThan(1234 * 1.005);
     expect(r.okAtM).toBe(true);
     expect(r.okAtM1).toBe(false);
     const penny = isMaximal(100_000_000, 1, 1, 1e12, 0);
@@ -298,12 +298,14 @@ describe('impact, fill and order-limit contracts (review of 1b/1c)', () => {
     for (const beta of [0, 0.7, 1, 1.25, 1.4]) {
       for (const so of [1_000, 8_000_000, 242_000_000, 1e12]) {
         const closed = (1.1 * Math.sqrt(beta ** 2 * 0.18 ** 2 + 0.3 ** 2)) / Math.sqrt(252) / (so / 150);
-        expect(Math.abs(impactLambda(beta, so) - closed)).toBeLessThanOrEqual(closed * 1e-12);
+        expect(Math.abs(impactLambda(beta, so, 1.1) - closed)).toBeLessThanOrEqual(closed * 1e-12);
       }
     }
     const so = 8_000_000;
-    expect(((impactLambda(1, so) * so) / 150).toFixed(4)).toBe('0.0242');
-    expect(impactLambda(1, so) * (so / 150)).toBeCloseTo(0.02424, 4);
+    expect(((impactLambda(1, so, 1.1) * so) / 150).toFixed(4)).toBe('0.0242');
+    expect(impactLambda(1, so, 1.1) * (so / 150)).toBeCloseTo(0.02424, 4);
+    // Today's default is 0.02/1.1 of that: 1 ADV moves a beta-1 stock ≈0.044%.
+    expect(impactLambda(1, so) * (so / 150)).toBeCloseTo((0.02424 * 0.02) / 1.1, 6);
   });
 
   it('fill signs: a buy walks the price up from pending, a sell walks it down, and pending flow is signed', () => {

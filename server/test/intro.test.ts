@@ -102,52 +102,6 @@ describe('completing the intro', () => {
   });
 });
 
-describe('the order gate', () => {
-  beforeEach(() => {
-    store.crews.update(CREW_A, { introCompletedAt: null });
-  });
-
-  it('rejects an order from a crew that has not met the market, and moves no price', async () => {
-    const engine = stubEngine();
-    await expect(executeOrder(engine, CREW_A, order('intro-1'))).rejects.toMatchObject({ code: 'intro_required' });
-    // No flow reserved: an order that cannot fill must not price impact into everyone else's fills.
-    expect(reserved).toBe(0);
-    expect(store.crews.get(CREW_A)!.tradeCount).toBe(0);
-    expect(store.orders.byClientId(CREW_A, 'intro-1')).toMatchObject({ status: 'rejected', code: 'intro_required' });
-  });
-
-  it('carries the plain-English COPY message', async () => {
-    const err = await executeOrder(stubEngine(), CREW_A, order('intro-2')).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(TradeError);
-    expect((err as TradeError).message).toContain('Meet the market');
-  });
-
-  it('lets the same clientOrderId through once the intro is done', async () => {
-    const engine = stubEngine();
-    await expect(executeOrder(engine, CREW_A, order('intro-3'))).rejects.toMatchObject({ code: 'intro_required' });
-    await completeCrewIntro(CREW_A);
-    const trade = await executeOrder(engine, CREW_A, order('intro-3'));
-    expect(trade.quantity).toBe(5);
-    expect(store.orders.byClientId(CREW_A, 'intro-3')).toMatchObject({ status: 'filled', tradeId: trade.id });
-    expect(store.trades.forCrew(CREW_A, 50).filter((t) => t.clientOrderId === 'intro-3')).toHaveLength(1);
-  });
-
-  it('still answers a retry of a filled order with that trade, even if the intro is cleared afterwards', async () => {
-    const engine = stubEngine();
-    await completeCrewIntro(CREW_A);
-    const trade = await executeOrder(engine, CREW_A, order('intro-4'));
-    await setCrewIntro(CREW_A, false);
-    const retry = await executeOrder(engine, CREW_A, order('intro-4'));
-    expect(retry.id).toBe(trade.id);
-    expect(store.trades.forCrew(CREW_A, 50).filter((t) => t.clientOrderId === 'intro-4')).toHaveLength(1);
-  });
-
-  it('lets a crew that has met the market trade as before', async () => {
-    await completeCrewIntro(CREW_A);
-    const trade = await executeOrder(stubEngine(), CREW_A, order('intro-5'));
-    expect(trade.teamId).toBe(CREW_A);
-  });
-});
 
 describe('a new game', () => {
   it('keepCrews: the same crews keep their intro, so nobody meets the market twice', async () => {

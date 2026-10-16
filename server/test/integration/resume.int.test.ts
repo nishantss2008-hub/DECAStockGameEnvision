@@ -11,7 +11,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { GAME_LENGTH_OPTIONS_MS } from '@deca/shared';
+import { GAME_LENGTH_OPTIONS_MS, MODEL } from '@deca/shared';
 import { GameEngine } from '../../src/engine/loop';
 import { executeOrder } from '../../src/services/trading';
 import { store } from '../../src/store';
@@ -93,6 +93,12 @@ describe('resume from the database file', () => {
   });
 
   it('rebuilds the flow of trades filled after the last committed tick, so prices match a run that never crashed', async () => {
+    // At today's tiny impact (MODEL.impactY 0.02) one capped order no longer moves a price by a whole cent, so
+    // this test runs at the original strength to keep the comparison below meaningful.
+    const mutableModel = MODEL as { impactY: number };
+    const impactY = mutableModel.impactY;
+    mutableModel.impactY = 1.1;
+    try {
     // ── control: one uninterrupted process ──
     const control = await gameAtTick4('resume-control');
     const company = store.companies.all()[0]!.id;
@@ -129,6 +135,9 @@ describe('resume from the database file', () => {
     // The trade's impact is applied exactly once: not lost, and not replayed on top of itself.
     expect(pricesNow()).toEqual(expected);
     await resumed.stop();
+    } finally {
+      mutableModel.impactY = impactY;
+    }
   });
 
   it('keeps the host login and the game seed server-side across a restart', async () => {

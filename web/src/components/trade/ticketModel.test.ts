@@ -45,11 +45,11 @@ describe('ticket entry', () => {
     const { quantity, estimate } = estimateTicket(buy('500'), KRKN);
     expect(quantity).toBe(500);
     // BRIEF §7 leaves out KRKN's price impact (Ð0.16 on 500 shares); the shared estimate includes it.
-    expect(estimate!.total).toBe(4_210_222);
-    expect(helperLine(buy('500'), KRKN, quantity, estimate)).toBe('≈ Ð42,102.22 with fee');
+    expect(estimate!.total).toBe(4_210_206);
+    expect(helperLine(buy('500'), KRKN, quantity, estimate)).toBe('≈ Ð42,102.06 with fee');
     expect(summaryRows(buy('500'), KRKN, estimate!)).toEqual([
-      { label: 'Total cost', value: 'Ð42,102.22' },
-      { label: 'Cash after', value: 'Ð206,247.33' },
+      { label: 'Total cost', value: 'Ð42,102.06' },
+      { label: 'Cash after', value: 'Ð206,247.49' },
     ]);
     expect(shareOfAccountLine(KRKN, estimate!)).toBe('This order would make KRKN 27.2% of your account.');
     expect(entryProblem(buy('500'), KRKN, quantity, estimate)).toBeNull();
@@ -177,9 +177,9 @@ describe('ticket preview', () => {
     const byLabel = Object.fromEntries(rows.map((r) => [r.label, r]));
     expect(byLabel['Est. price']).toMatchObject({ value: 'Ð84.12', note: 'Buys right away at about the current price.', termId: 'price' });
     expect(byLabel['Price impact']).toMatchObject({ value: 'under 0.01%', note: 'This order is small for KRKN, so the nudge is under 0.01%.' });
-    expect(byLabel['Order value']!.value).toBe('Ð42,060.16');
+    expect(byLabel['Order value']!.value).toBe('Ð42,060.00');
     expect(byLabel['Fee (0.10%)']).toMatchObject({ value: 'Ð42.06', note: '0.10% charged on every trade.' });
-    expect(byLabel['Total cost']).toMatchObject({ value: 'Ð42,102.22', emphasized: true });
+    expect(byLabel['Total cost']).toMatchObject({ value: 'Ð42,102.06', emphasized: true });
     expect(byLabel['Shares after']!.value).toBe('3,500');
     expect(byLabel['% after']).toMatchObject({ value: '27.2%', note: "A buy can't put more than 50% of your account into one company." });
     expect(byLabel['Avg. price after']!.value).toBe('Ð75.02');

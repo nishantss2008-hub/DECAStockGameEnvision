@@ -50,14 +50,6 @@ beforeEach(() => {
 });
 
 describe('useIntroGate', () => {
-  it('sends an un-introduced crew into the flow instead of opening the ticket', async () => {
-    wrap();
-    pushTeam(null);
-    expect(screen.getByTestId('gated').textContent).toBe('true');
-    await userEvent.click(screen.getByRole('button', { name: 'Buy' }));
-    expect(screen.getByTestId('loc').textContent).toBe('/learn/meet-the-market');
-  });
-
   it('opens the ticket once the crew has finished', async () => {
     wrap();
     pushTeam(1_700_000_000_000);

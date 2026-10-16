@@ -464,34 +464,6 @@ describe('POST /orders', () => {
     expect(body<{ error: string }>(closed).error).toBe('market_closed');
   });
 
-  it('refuses a crew that has not met the market, then fills once it has', async () => {
-    store.crews.update(CREW_A, { introCompletedAt: null });
-    const blocked = await app.inject({
-      method: 'POST',
-      url: '/orders',
-      payload: { ...order, clientOrderId: 'client-order-6' },
-      headers: auth(crewA),
-    });
-    expect(blocked.statusCode).toBe(400);
-    expect(body<{ error: string; message: string }>(blocked).error).toBe('intro_required');
-    expect(body<{ message: string }>(blocked).message).toContain('Meet the market');
-    expect(store.orders.byClientId(CREW_A, 'client-order-6')).toMatchObject({
-      status: 'rejected',
-      code: 'intro_required',
-    });
-    // Browsing is never gated.
-    expect((await app.inject({ method: 'GET', url: '/api/companies', headers: auth(crewA) })).statusCode).toBe(200);
-
-    await app.inject({ method: 'POST', url: '/api/intro/complete', headers: auth(crewA) });
-    const filled = await app.inject({
-      method: 'POST',
-      url: '/orders',
-      payload: { ...order, clientOrderId: 'client-order-6' },
-      headers: auth(crewA),
-    });
-    expect(filled.statusCode).toBe(200);
-    expect(store.orders.byClientId(CREW_A, 'client-order-6')!.status).toBe('filled');
-  });
 });
 
 describe('POST /api/intro/complete', () => {

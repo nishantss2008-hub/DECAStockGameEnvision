@@ -481,10 +481,6 @@ function filledTrade(teamId: string, clientOrderId: string): Trade | null {
 /** Codes that leave no order row: there is no crew to own it (never recreate data for a removed crew). */
 const UNRECORDED: ReadonlySet<TradeErrorCode> = new Set(['no_team']);
 
-/** Has this crew finished the required-once "Meet the market" intro (design §6)? */
-function introDone(team: Pick<Team, 'introCompletedAt'>): boolean {
-  return typeof team.introCompletedAt === 'number' && team.introCompletedAt > 0;
-}
 
 /**
  * Best-effort rejection record. Never overwrites a filled order: if a duplicate of this order
@@ -573,11 +569,7 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
     if (engine.state.phase !== 'live') throw marketClosedError(engine.state.phase);
     if (!instrument) throw tradeError('unknown_company');
     if (!Number.isInteger(order.quantity) || order.quantity <= 0) throw tradeError('bad_quantity');
-    // The intro gate again, before any flow is reserved: an order that cannot fill must not price
-    // its impact into every other crew's fills. A missing crew falls through to `no_team` below,
-    // which leaves no order row. The transaction's check is the authoritative one.
-    const crew = store.crews.get(teamId);
-    if (crew && !introDone(crew)) throw tradeError('intro_required');
+    // No "Meet the market" gate since 2026-10-16: a crew may trade straight away.
     // A fund has no price of its own: `getPrice` recomputes its quote from its constituents, so
     // the 2% check is measured against the underlying, not against a stored fund quote.
     checkPriceProtection(engine.getPrice(order.companyId), order.quotedPrice, { ticker: instrument.ticker, symbol });
@@ -614,11 +606,6 @@ async function executeOrderOnce(engine: TradingEngine, teamId: string, order: Or
       const team = store.crews.get(teamId);
       if (!team) throw tradeError('no_team');
       if (team.tradingDisabled) throw tradeError('trading_disabled');
-      // Design §6: the "Meet the market" intro is required once, before a crew's FIRST order.
-      // Checked here, inside the fill transaction, so every order passes it however it arrived —
-      // and against the row as it is at commit time, in case the host marked the crew complete
-      // while this order waited behind the crew's earlier ones.
-      if (!introDone(team)) throw tradeError('intro_required');
 
       const cash = team.cashBalance ?? 0;
       let owned = 0;
