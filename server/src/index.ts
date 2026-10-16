@@ -70,6 +70,8 @@ export function countsAgainstLimit(url: string): boolean {
  * alone would make twenty crews share one crew's worth of budget.
  */
 export function limiterKey(req: FastifyRequest): string {
+  // Sign-in routes take no session, so a made-up Bearer token must not buy a fresh budget there.
+  if (typeof req.url === 'string' && pathOf(req.url).startsWith('/auth/')) return `ip:${req.ip}`;
   const header = req.headers.authorization;
   if (typeof header === 'string' && header.startsWith('Bearer ')) {
     const token = header.slice(7).trim();

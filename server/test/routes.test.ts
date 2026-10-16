@@ -378,6 +378,14 @@ describe('POST /auth/join (game code)', () => {
     expect((await join({ code: c, name: 'Locked Up', pin })).statusCode).toBe(429);
   });
 
+  it('throttles PIN guessing through the classic crew sign-in too', async () => {
+    const c = await code();
+    const { pin } = body<{ pin: string }>(await join({ code: c, name: 'Guarded' }));
+    const bad = pin === '1111' ? '2222' : '1111';
+    for (let i = 0; i < 6; i++) await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Guarded', password: bad } });
+    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Guarded', password: pin } })).statusCode).toBe(429);
+  });
+
   it('refuses a wrong code, the admin name, and an ended game', async () => {
     const c = await code();
     expect(body<{ error: string }>(await join({ code: 'ZZZZZZ', name: 'Pirates' })).error).toBe('bad_code');

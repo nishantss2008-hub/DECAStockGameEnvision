@@ -39,10 +39,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     const isAdmin = slug === ADMIN_SLUG;
     const hash = isAdmin ? hostPasswordHash() : store.crews.passwordHash(slug);
+    // A crew password may be a 4-digit join PIN, so this path shares /auth/join's wrong-guess throttle.
+    if (!isAdmin && hash && pinLocked(slug)) {
+      return reply.code(429).send({ error: 'pin_locked', message: 'Too many wrong tries for this crew. Wait a few minutes or ask your host.' });
+    }
     // Generic failure message — never reveal whether the crew exists.
     if (!hash || !verifyPassword(parsed.data.password, hash)) {
+      if (!isAdmin && hash) recordPinMiss(slug);
       return reply.code(401).send({ error: 'bad_login', message: 'Wrong crew name or password' });
     }
+    if (!isAdmin) clearPinMisses(slug);
 
     const role: Role = isAdmin ? 'admin' : 'team';
     const teamId = isAdmin ? undefined : slug;

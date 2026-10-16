@@ -95,6 +95,11 @@ describe('what counts against the budget', () => {
     expect(limiterKey(req({}, { token: 'ccc' }))).toBe('t:ccc');
     expect(limiterKey(req({}))).toBe('ip:203.0.113.7');
   });
+
+  it('keys sign-in routes on the IP, so a made-up token cannot buy a fresh budget', () => {
+    const r = { headers: { authorization: 'Bearer made-up' }, query: {}, ip: '203.0.113.7', url: '/auth/join' } as unknown as Parameters<typeof limiterKey>[0];
+    expect(limiterKey(r)).toBe('ip:203.0.113.7');
+  });
 });
 
 describe('the limiter on the running server', () => {
