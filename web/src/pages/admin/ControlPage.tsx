@@ -16,6 +16,7 @@ import { EmptyState } from '../../components/ios/EmptyState';
 import { useDocumentTitle } from '../../shell/StubPage';
 import { GameControlCard } from '../../components/admin/GameControlCard';
 import { SettingsCard } from '../../components/admin/SettingsCard';
+import { GameCodeCard } from '../../components/admin/GameCodeCard';
 import { NewGameSheet } from '../../components/admin/NewGameSheet';
 import { HostLoadError, HostLoading, HostNavBar } from '../../components/admin/HostUi';
 import { HOST_PHONE } from '../../components/admin/hostCopy';
@@ -68,6 +69,7 @@ export default function ControlPage() {
         ) : (
           <div className="bx-host-console">
             <div className="bx-host-console__main">
+              <GameCodeCard />
               <GameControlCard game={game} onNewGame={() => setNewGameOpen(true)} />
               <InsetGroupedList header={HOST_PHONE.quickActions}>
                 <DisclosureRow title={HOST_PHONE.fireNews} icon={Megaphone} to="/admin/news?compose=1" />

@@ -27,6 +27,14 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/** Join with the host's game code (Kahoot-style). `pin` is needed only to join a crew that already exists. */
+export const joinSchema = z.object({
+  code: z.string().trim().min(1).max(20),
+  name: z.string().trim().min(1).max(60),
+  pin: z.string().trim().max(20).optional(),
+});
+export type JoinInput = z.infer<typeof joinSchema>;
+
 export const resetPasswordSchema = z.object({
   password: z.string().min(4).max(100),
 });

@@ -137,3 +137,32 @@
 .bx-host-table td[data-side='buy'] { color: var(--gain); }
 .bx-host-table td[data-side='sell'] { color: var(--loss); }
 .bx-host-table tbody tr:last-child > * { border-bottom: 0; }
+
+/* Game code (Kahoot-style join) */
+.bx-joincode {
+  text-align: center;
+}
+.bx-joincode__label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--label-secondary, inherit);
+}
+.bx-joincode__code {
+  margin: 4px 0 8px;
+  font-size: 48px;
+  line-height: 1.1;
+  letter-spacing: 0.16em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  user-select: all;
+}
+.bx-joincode__how {
+  margin: 0 0 12px;
+}
+.bx-joincode__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}

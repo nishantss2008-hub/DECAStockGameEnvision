@@ -34,7 +34,7 @@ interface FakeConnection {
   ended: () => boolean;
 }
 
-function fakeReply(): FakeConnection {
+function fakeReply(replyHeaders: Record<string, unknown> = {}): FakeConnection {
   const frames: string[] = [];
   const handlers = new Map<string, (() => void)[]>();
   let ended = false;
@@ -57,7 +57,7 @@ function fakeReply(): FakeConnection {
     },
   };
   return {
-    reply: { hijack: () => undefined, raw } as unknown as FastifyReply,
+    reply: { hijack: () => undefined, getHeaders: () => replyHeaders, raw } as unknown as FastifyReply,
     frames,
     events: () =>
       frames
@@ -100,6 +100,14 @@ describe('opening a stream', () => {
     expect(c.headers['Cache-Control']).toMatch(/no-store/);
     expect(c.headers['X-Accel-Buffering']).toBe('no');
     expect(c.frames[0]).toMatch(/^retry: \d+/);
+  });
+
+  it('keeps the CORS headers set before the hijack, so a web app on another origin can read it', () => {
+    const c = fakeReply({ 'access-control-allow-origin': 'http://localhost:5173', vary: 'Origin' });
+    subscribe(c.reply, { role: 'team', teamId: CREW_A });
+    expect(c.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    expect(c.headers['vary']).toBe('Origin');
+    expect(c.headers['Content-Type']).toMatch(/text\/event-stream/);
   });
 
   it('opens with a snapshot carrying only the crew’s own portfolio', () => {

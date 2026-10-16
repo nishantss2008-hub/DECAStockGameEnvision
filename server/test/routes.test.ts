@@ -329,6 +329,69 @@ describe('POST /auth/login', () => {
   });
 });
 
+describe('POST /auth/join (game code)', () => {
+  const code = async (): Promise<string> =>
+    body<{ code: string }>(await app.inject({ method: 'GET', url: '/api/admin/join-code', headers: auth(host) })).code;
+  const join = (payload: Record<string, unknown>) => app.inject({ method: 'POST', url: '/auth/join', payload });
+
+  it('gives the host a 6-character code that stays the same until rotated', async () => {
+    const first = await code();
+    expect(first).toMatch(/^[A-Z2-9]{6}$/);
+    expect(await code()).toBe(first);
+    expect((await app.inject({ method: 'GET', url: '/api/admin/join-code', headers: auth(crewA) })).statusCode).toBe(403);
+    const rotated = await app.inject({ method: 'POST', url: '/api/admin/join-code/rotate', headers: auth(host) });
+    expect(body<{ code: string }>(rotated).code).not.toBe(first);
+  });
+
+  it('creates a new crew from a code and a name, and hands back its PIN once', async () => {
+    const c = await code();
+    const res = await join({ code: c.toLowerCase().slice(0, 3) + ' ' + c.slice(3), name: 'Sea Dogs' });
+    expect(res.statusCode).toBe(200);
+    const s = body<{ token: string; role: string; teamId: string; pin: string }>(res);
+    expect(s).toMatchObject({ role: 'team', teamId: 'sea-dogs' });
+    expect(s.pin).toMatch(/^\d{4}$/);
+    const me = await app.inject({ method: 'GET', url: '/api/portfolio', headers: auth(s.token) });
+    expect(body<{ team: { id: string; cashBalance: number } }>(me).team).toMatchObject({ id: 'sea-dogs', cashBalance: 1_000_000 });
+    // The PIN is the crew password: the classic sign-in works with it too.
+    expect((await app.inject({ method: 'POST', url: '/auth/login', payload: { name: 'Sea Dogs', password: s.pin } })).statusCode).toBe(200);
+  });
+
+  it('lets a teammate join an existing crew only with its PIN', async () => {
+    const c = await code();
+    const { pin } = body<{ pin: string }>(await join({ code: c, name: 'Gulls' }));
+    const noPin = await join({ code: c, name: 'gulls' });
+    expect(noPin.statusCode).toBe(409);
+    expect(body<{ error: string }>(noPin).error).toBe('needs_pin');
+    const wrong = await join({ code: c, name: 'Gulls', pin: pin === '1234' ? '4321' : '1234' });
+    expect(wrong.statusCode).toBe(401);
+    const ok = await join({ code: c, name: 'Gulls', pin });
+    expect(ok.statusCode).toBe(200);
+    expect(body<{ teamId: string; pin?: string }>(ok)).toEqual(expect.objectContaining({ teamId: 'gulls' }));
+    expect(body<{ pin?: string }>(ok).pin).toBeUndefined();
+  });
+
+  it('locks a crew after repeated wrong PINs', async () => {
+    const c = await code();
+    const { pin } = body<{ pin: string }>(await join({ code: c, name: 'Locked Up' }));
+    const bad = pin === '1111' ? '2222' : '1111';
+    for (let i = 0; i < 6; i++) await join({ code: c, name: 'Locked Up', pin: bad });
+    expect((await join({ code: c, name: 'Locked Up', pin })).statusCode).toBe(429);
+  });
+
+  it('refuses a wrong code, the admin name, and an ended game', async () => {
+    const c = await code();
+    expect(body<{ error: string }>(await join({ code: 'ZZZZZZ', name: 'Pirates' })).error).toBe('bad_code');
+    expect((await join({ code: c, name: 'Admin' })).statusCode).toBe(400);
+    expect((await join({ code: c })).statusCode).toBe(400);
+    h.phase = 'ended';
+    try {
+      expect(body<{ error: string }>(await join({ code: c, name: 'Late Crew' })).error).toBe('game_over');
+    } finally {
+      h.phase = 'live';
+    }
+  });
+});
+
 describe('POST /orders', () => {
   const order = { companyId: KRKN_ID, side: 'buy', quantity: 10, clientOrderId: 'client-order-1' };
 
@@ -756,7 +819,7 @@ describe('a new game reaches every connected client', () => {
       end: () => undefined,
       on: () => raw,
     };
-    return { frames, reply: { hijack: () => undefined, raw } as unknown as FastifyReply };
+    return { frames, reply: { hijack: () => undefined, getHeaders: () => ({}), raw } as unknown as FastifyReply };
   }
 
   it('broadcasts a fresh snapshot to every crew, not just the host that pressed it', async () => {

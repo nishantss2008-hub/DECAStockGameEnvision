@@ -29,6 +29,7 @@ import { engine, EngineError } from '../engine/loop';
 import { HOST_ERRORS } from '../lib/hostCopy';
 import { auditLog } from '../lib/logger';
 import { createMarket } from '../services/market';
+import { currentJoinCode, rotateJoinCode } from '../services/joinCode';
 import { resetLeaderboardCache } from '../services/leaderboard';
 import { CrewError, createCrew, removeCrew, resetCrewPassword, setCrewIntro, setCrewTrading } from '../services/crews';
 import { haltTrading, resumeTrading } from '../services/trading';
@@ -272,6 +273,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
     await auditLog('team.remove', actor(req), { teamId: id });
     return { ok: true };
+  });
+
+  // ----- Game code ----------------------------------------------------------------------------
+  app.get('/api/admin/join-code', { preHandler: requireAdmin }, async () => ({ code: currentJoinCode() }));
+
+  app.post('/api/admin/join-code/rotate', { preHandler: requireAdmin }, async (req) => {
+    const code = rotateJoinCode();
+    await auditLog('joincode.rotate', actor(req), {});
+    return { code };
   });
 
   app.get('/api/admin/teams', { preHandler: requireAdmin }, async () => ({ teams: store.crews.all() }));

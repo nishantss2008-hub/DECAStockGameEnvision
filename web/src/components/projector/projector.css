@@ -499,3 +499,15 @@
     border-bottom-color: var(--control-off);
   }
 }
+
+/* Game code for students joining from the room */
+.bx-proj__join {
+  margin: calc(8 * var(--px)) 0 0;
+  font-size: calc(30 * var(--px));
+  color: var(--gold);
+}
+.bx-proj__join-code {
+  font-size: calc(44 * var(--px));
+  letter-spacing: 0.14em;
+  color: inherit;
+}

@@ -55,6 +55,8 @@ export interface AuthContextValue {
   loading: boolean;
   login: (teamName: string, password: string) => Promise<void>;
   loginAdmin: (password: string) => Promise<void>;
+  /** Joins with the host's game code. Resolves with the crew PIN when this device created the crew. */
+  join: (code: string, crewName: string, pin?: string) => Promise<{ pin: string | null }>;
   logout: () => Promise<void>;
 }
 
@@ -96,6 +98,25 @@ async function signIn(name: string, password: string): Promise<void> {
 
 async function login(teamName: string, password: string): Promise<void> {
   await signIn(teamName, password);
+}
+
+/** Game-code join (Kahoot-style): code + crew name, plus the crew PIN when the crew already exists. */
+async function join(code: string, crewName: string, pin?: string): Promise<{ pin: string | null }> {
+  const res = await fetchOrNetworkError(apiUrl('/auth/join'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, name: crewName, ...(pin ? { pin } : {}) }),
+  });
+  const data = await parseApiResponse<{ token: string; role: Role; teamId?: string; expiresAt: number; pin?: string }>(res);
+  clearSnapshotCache();
+  saveSession({
+    token: data.token,
+    role: data.role,
+    teamId: typeof data.teamId === 'string' && data.teamId ? data.teamId : null,
+    expiresAt: data.expiresAt,
+  });
+  startLive();
+  return { pin: typeof data.pin === 'string' ? data.pin : null };
 }
 
 async function loginAdmin(password: string): Promise<void> {
@@ -150,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({ ...state, login, loginAdmin, logout }), [state]);
+  const value = useMemo<AuthContextValue>(() => ({ ...state, login, loginAdmin, join, logout }), [state]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

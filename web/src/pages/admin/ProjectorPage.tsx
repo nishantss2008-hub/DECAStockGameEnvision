@@ -20,6 +20,7 @@ import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { useMarket } from '../../hooks/useMarket';
 import { useNews } from '../../hooks/useNews';
 import { serverNow } from '../../lib/gameTime';
+import { useAdminPoll } from '../../hooks/useAdmin';
 import '../../components/projector/projector.css';
 
 /** Repaints once a second while the clock is running; a stopped clock needs no timer. */
@@ -81,6 +82,7 @@ export default function ProjectorPage() {
   const { instruments } = useInstruments();
   const now = useWallClock(game?.phase === 'live', game?.lastTickAt);
   const [stageRef, boardHeight] = useBoardHeight();
+  const joinCode = useAdminPoll<{ code: string }>('/api/admin/join-code', 15_000).data?.code;
 
   const model = buildProjector({ game, leaderboard, market, news, instruments, now, stale: fromCache, ready: !loading, boardHeight });
   const band = model.phaseNote;
@@ -92,6 +94,11 @@ export default function ProjectorPage() {
         <div className="bx-proj__mark">
           <p className="bx-proj__eyebrow">{PROJECTOR.eyebrow}</p>
           <h1 className="bx-proj__title">{PROJECTOR.title}</h1>
+          {joinCode && model.phase !== 'ended' && (
+            <p className="bx-proj__join">
+              Join at <strong>{window.location.host}</strong> · Game code <strong className="bx-proj__join-code num">{joinCode}</strong>
+            </p>
+          )}
         </div>
         <div className="bx-proj__clock">
           <p className="bx-proj__time num">{model.clock}</p>

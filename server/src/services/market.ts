@@ -17,6 +17,7 @@ import { randomToken } from '../lib/secret';
 import { generateMarket } from '../seed/generateMarket';
 import { effectiveQuality, surpriseFor } from '../engine/model';
 import { INDEX_BASE, indexQuote, lobbyState, marketBreadth, normalizeSettings, type Snapshot } from '../engine/loopHelpers';
+import { JOIN_CODE_KEY, generateJoinCode } from './joinCode';
 import { store } from '../store';
 import type { CompanySecret, FundSecret } from '../store/types';
 
@@ -146,6 +147,8 @@ export async function createMarket(opts: CreateMarketOptions): Promise<CreateMar
     store.meta.set(SEED_KEY, seed);
     store.meta.set(MARKET_CREATED_KEY, String(now));
     store.game.set(lobbyState(settings, now));
+    // A new market, a new game code: yesterday's code must not open today's game.
+    store.meta.set(JOIN_CODE_KEY, generateJoinCode());
   });
 
   let adminPasswordSet = false;

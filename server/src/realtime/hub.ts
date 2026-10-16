@@ -11,6 +11,7 @@
  * a client never sees a tick the database does not already hold.
  */
 
+import type { OutgoingHttpHeaders } from 'node:http';
 import type { FastifyReply } from 'fastify';
 import type { GameState, Leaderboard, MarketSummary, NewsEvent, Role } from '@deca/shared';
 import { buildSnapshot, portfolioFor, type PortfolioPayload, type Snapshot, type StreamContext } from './snapshot';
@@ -80,6 +81,9 @@ export function subscribe(reply: FastifyReply, ctx: StreamContext): () => void {
   const res = reply.raw;
   reply.hijack();
   res.writeHead(200, {
+    // Headers already set on the reply (CORS above all) are not sent once it is hijacked; carry
+    // them over, or a web app on another origin (dev:local, LAN rehearsals) cannot read the stream.
+    ...(reply.getHeaders() as OutgoingHttpHeaders),
     'Content-Type': 'text/event-stream; charset=utf-8',
     'Cache-Control': 'no-store, no-transform',
     Connection: 'keep-alive',

@@ -102,3 +102,26 @@
   .bx-signin__mark { display: none; }
   .bx-signin__wordmark { font-size: 1.75rem; }
 }
+
+/* Game-code join */
+.bx-signin__input--code {
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+.bx-signin__pin {
+  padding: 20px 16px;
+  text-align: center;
+}
+.bx-signin__pin-digits {
+  margin: 0 0 8px;
+  font-size: 56px;
+  line-height: 1.1;
+  letter-spacing: 0.2em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.bx-signin__pin + button,
+.bx-signin__pin + .ios-button {
+  margin-top: 16px;
+}
